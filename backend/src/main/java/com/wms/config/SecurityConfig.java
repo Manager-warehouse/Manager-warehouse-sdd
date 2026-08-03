@@ -60,6 +60,15 @@ import java.util.List;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
+/**
+ * Cấu hình bảo mật Spring Security (Spec 001).
+ * - Stateless (không dùng session, chỉ JWT)
+ * - Mã hóa mật khẩu: BCrypt cost factor 12
+ * - CORS cho frontend dev/production
+ * - Public endpoints: login, refresh, forgot-password, OTP, Swagger
+ * - Phân cấp role: ADMIN > tất cả role khác
+ * - JwtAuthFilter chạy trước UsernamePasswordAuthenticationFilter
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -69,6 +78,7 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
 
+    /** Phân cấp role: ADMIN thừa hưởng quyền của tất cả role khác (CEO, Trưởng kho, Thủ kho, v.v.) */
     @Bean
     public RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.fromHierarchy(
@@ -83,6 +93,7 @@ public class SecurityConfig {
         );
     }
 
+    /** Chuỗi filter bảo mật: tắt CSRF/form login, stateless session, JWT filter, public endpoints. */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -116,6 +127,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Cấu hình CORS: cho phép frontend dev (localhost:3000-5174) và production domain. */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

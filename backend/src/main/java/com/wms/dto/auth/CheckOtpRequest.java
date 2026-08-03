@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 
+/** DTO kiểm tra OTP — chứa email và mã OTP 6 số (Spec 001). */
 @Getter
 @Setter
 public class CheckOtpRequest {

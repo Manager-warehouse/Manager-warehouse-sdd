@@ -46,6 +46,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/** Service load thông tin user cho Spring Security — tìm user theo email để xác thực JWT (Spec 001). */
 @Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {

@@ -42,6 +42,7 @@ import lombok.Setter;
 
 import java.util.List;
 
+/** DTO phân trang danh sách audit log (Spec 001). */
 @Getter
 @Setter
 @NoArgsConstructor

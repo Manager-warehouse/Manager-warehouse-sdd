@@ -47,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/** Repository quản lý phân công kho cho user (Spec 001). */
 @Repository
 public interface UserWarehouseAssignmentRepository extends JpaRepository<UserWarehouseAssignment, Long> {
     

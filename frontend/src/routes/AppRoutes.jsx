@@ -1,3 +1,9 @@
+/**
+ * Định tuyến ứng dụng (Spec 001 + các Spec khác).
+ * Public: /login, /forgot-password, /forbidden
+ * Protected: route cần đăng nhập, phân quyền theo role qua ProtectedRoute.
+ * Mỗi nhóm route gắn allowedRoles tương ứng với vai trò trong hệ thống.
+ */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
@@ -43,6 +49,7 @@ import CreditAgingReport from '../pages/Reports/CreditAgingReport';
 import { ROLES, getDefaultRouteByRole } from '../utils/constants';
 import { useAuthStore } from '../stores/auth.store';
 
+// Chuyển hướng mặc định: chưa đăng nhập → login, đã đăng nhập → trang theo role
 const DefaultRedirect = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
@@ -52,18 +59,18 @@ const DefaultRedirect = () => {
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Publicly accessible views that do not require any user authentication session */}
+      {/* Route công khai — không cần đăng nhập */}
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/forbidden" element={<Forbidden />} />
 
-      {/* Authenticated views accessible to any user with a valid JWT token */}
+      {/* Route cần đăng nhập — mọi user có JWT hợp lệ */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<Navigate to="/admin/users" replace />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
 
-      {/* Restricted administrative console views that require full administrator privileges */}
+      {/* Route quản trị — chỉ ADMIN (Spec 001: cấu hình hệ thống, audit log) */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
         <Route path="/admin/config" element={<SystemConfig />} />
         <Route path="/admin/audit-logs" element={<AuditLogs />} />

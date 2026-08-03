@@ -38,6 +38,7 @@ import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/** DTO cập nhật cấu hình tham số hệ thống (Spec 001). */
 @Data
 public class SystemConfigUpdateRequest {
 

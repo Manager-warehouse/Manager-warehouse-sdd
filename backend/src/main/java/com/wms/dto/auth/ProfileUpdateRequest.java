@@ -41,6 +41,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+/** DTO cập nhật hồ sơ cá nhân — chứa tên, email, SĐT (Spec 001). */
 @Getter
 @Setter
 public class ProfileUpdateRequest {

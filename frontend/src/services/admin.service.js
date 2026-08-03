@@ -1,7 +1,13 @@
+/**
+ * Service quản trị hệ thống (Spec 001).
+ * Cung cấp: CRUD user, bật/tắt trạng thái user, cấu hình hệ thống,
+ * nhật ký hoạt động (audit log) có phân trang và lọc.
+ * Hỗ trợ mock mode với dữ liệu localStorage.
+ */
 import apiClient, { useMock } from './api.client';
 import { MOCK_USERS } from '../utils/constants';
 
-// Seed and retrieve user accounts from localStorage to act as a persistent mock database during development
+// Khởi tạo và lấy danh sách user mock từ localStorage (giả lập DB cho dev)
 const getMockDbUsers = () => {
   const users = localStorage.getItem('wms_db_users');
   if (!users) {
@@ -29,11 +35,12 @@ const getMockDbUsers = () => {
   }
 };
 
+// Lưu danh sách user mock vào localStorage
 const saveMockDbUsers = (users) => {
   localStorage.setItem('wms_db_users', JSON.stringify(users));
 };
 
-// Store mock audit records locally to simulate tracking of system alterations
+// Lưu trữ bản ghi audit log mock để giả lập theo dõi thay đổi hệ thống
 const getMockAuditLogs = () => {
   const logs = localStorage.getItem('wms_audit_logs');
   if (logs) return JSON.parse(logs);
@@ -74,6 +81,7 @@ const getMockAuditLogs = () => {
   return initialLogs;
 };
 
+// Thêm 1 entry audit log mock — tự lấy actor từ session
 const addMockAuditLog = (action, entityType, entityId, description, newValue = {}) => {
   const logs = getMockAuditLogs();
   const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || {};
@@ -95,6 +103,7 @@ const addMockAuditLog = (action, entityType, entityId, description, newValue = {
   localStorage.setItem('wms_audit_logs', JSON.stringify([newLog, ...logs]));
 };
 
+// Lọc audit log mock theo thời gian, kho, phân trang — sắp xếp mới nhất trước
 const getFilteredMockAuditLogs = ({
   page = 1,
   pageSize = 30,
@@ -130,7 +139,7 @@ const getFilteredMockAuditLogs = ({
   };
 };
 
-// Store system parameter thresholds locally to persist across browser updates
+// Lấy cấu hình hệ thống mock (hạn mức nợ, ngày khóa sổ, v.v.) từ localStorage
 const getMockSystemConfig = () => {
   const config = localStorage.getItem('wms_system_config');
   if (!config) {
@@ -146,7 +155,7 @@ const getMockSystemConfig = () => {
     return initialConfig;
   }
   const parsed = JSON.parse(config);
-  // Migrate legacy data schemas to prevent page crashes for users with old state cached
+  // Di chuyển schema cũ để tránh lỗi cho user có dữ liệu cũ trong cache
   if ('managerApprovalLimit' in parsed || 'shiftDurationHours' in parsed) {
     const migrated = {
       defaultCreditLimit: parsed.defaultCreditLimit ?? 500000000,
@@ -162,11 +171,13 @@ const getMockSystemConfig = () => {
   return parsed;
 };
 
+// Lưu cấu hình hệ thống mock vào localStorage
 const saveMockSystemConfig = (config) => {
   localStorage.setItem('wms_system_config', JSON.stringify(config));
 };
 
 export const adminService = {
+  /** Lấy danh sách tất cả user (GET /admin/users). */
   getUsers: async () => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -176,6 +187,7 @@ export const adminService = {
     return response.data;
   },
 
+  /** Lấy chi tiết 1 user theo ID. */
   getUserById: async (id) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -187,6 +199,7 @@ export const adminService = {
     return response.data;
   },
 
+  /** Tạo user mới — kiểm tra trùng email, mật khẩu yếu. */
   createUser: async (userData) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 800));
@@ -221,6 +234,7 @@ export const adminService = {
     return response.data;
   },
 
+  /** Cập nhật thông tin user — ghi audit log UPDATE. */
   updateUser: async (id, userData) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 800));
@@ -259,6 +273,7 @@ export const adminService = {
     return response.data;
   },
 
+  /** Bật/tắt trạng thái user (kích hoạt hoặc khóa tài khoản). */
   toggleUserStatus: async (id, isActive) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 400));
@@ -279,6 +294,7 @@ export const adminService = {
     }
   },
 
+  /** Lấy cấu hình hệ thống (hạn mức nợ, ngày khóa sổ, ngưỡng tồn kho, v.v.). */
   getSystemConfig: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));
@@ -294,6 +310,7 @@ export const adminService = {
     }
   },
 
+  /** Cập nhật cấu hình hệ thống — gửi từng key qua PUT /admin/system-config/{KEY}. */
   updateSystemConfig: async (configData) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 600));
@@ -319,6 +336,7 @@ export const adminService = {
     }
   },
 
+  /** Lấy danh sách audit log có phân trang, lọc theo thời gian và kho. */
   getAuditLogs: async (params = {}) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 400));
@@ -341,6 +359,7 @@ export const adminService = {
     }
   },
 
+  /** Xem chi tiết 1 audit log (kèm trạng thái trước/sau thay đổi). */
   getAuditLogById: async (id) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 250));

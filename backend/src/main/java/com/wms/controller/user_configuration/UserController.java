@@ -53,6 +53,11 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.List;
 
+/**
+ * Controller quản lý tài khoản người dùng (Spec 001) — chỉ dành cho ADMIN.
+ * CRUD user, gán kho, bật/tắt trạng thái, xóa mềm.
+ * Mỗi thao tác đều ghi audit log.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
@@ -117,6 +122,7 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    /** Lấy ID của admin đang thao tác từ JWT principal — dùng để ghi audit log. */
     private Long getAdminUserId(Principal principal) {
         String email = principal != null ? principal.getName() : "admin@phucanh.vn";
         User adminUser = userRepository.findByEmail(email)

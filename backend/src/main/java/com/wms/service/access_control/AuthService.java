@@ -68,6 +68,12 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Service xác thực và quản lý phiên đăng nhập (Spec 001).
+ * Xử lý: đăng nhập (JWT), làm mới token (rotation), đăng xuất, quên mật khẩu (OTP email),
+ * đổi mật khẩu, cập nhật hồ sơ cá nhân.
+ * Gọi bởi: AuthController
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -88,6 +94,11 @@ public class AuthService {
     @Value("${jwt.access-token-expiry}")
     private long accessTokenExpiry;
 
+    /**
+     * Đăng nhập: xác thực email/password, tạo access token + refresh token.
+     * Trả về thông tin user kèm danh sách kho được gán.
+     * Throw INVALID_CREDENTIALS nếu sai email/password, ACCOUNT_INACTIVE nếu tài khoản bị khóa.
+     */
     @Transactional
     public LoginResponse login(LoginRequest request) {
         try {
@@ -134,6 +145,11 @@ public class AuthService {
                 .build();
     }
 
+    /**
+     * Làm mới access token bằng refresh token.
+     * Thực hiện token rotation: mỗi lần dùng refresh token, tạo refresh token mới và vô hiệu cái cũ.
+     * Throw TOKEN_INVALID/TOKEN_EXPIRED nếu refresh token không hợp lệ hoặc hết hạn.
+     */
     @Transactional
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
         String tokenHash = sha256(request.getRefreshToken());
@@ -166,11 +182,13 @@ public class AuthService {
                 .build();
     }
 
+    /** Đăng xuất: xóa tất cả refresh token của user (đăng xuất toàn bộ thiết bị). */
     @Transactional
     public void logout(String email) {
         userRefreshTokenRepository.deleteByUserEmail(email);
     }
 
+    /** Đăng xuất: xóa refresh token cụ thể (1 tab/thiết bị), hoặc xóa hết nếu không truyền token. */
     @Transactional
     public void logout(String email, String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
@@ -180,6 +198,7 @@ public class AuthService {
         userRefreshTokenRepository.deleteByTokenHash(sha256(refreshToken));
     }
 
+    /** Lấy thông tin hồ sơ người dùng hiện tại (kèm danh sách kho được gán). Gọi bởi: GET /auth/me */
     public MeResponse me(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
@@ -203,6 +222,11 @@ public class AuthService {
                 .build();
     }
 
+    /**
+     * Cập nhật hồ sơ cá nhân (tên, email, SĐT).
+     * Nếu đổi email → hủy tất cả refresh token (buộc đăng nhập lại vì JWT subject = email cũ).
+     * Ghi audit log thay đổi.
+     */
     @Transactional
     public MeResponse updateProfile(String currentEmail, ProfileUpdateRequest request) {
         User user = userRepository.findByEmail(currentEmail)
@@ -263,6 +287,10 @@ public class AuthService {
 
     private static final int MAX_OTP_ATTEMPTS = 5;
 
+    /**
+     * Quên mật khẩu: sinh OTP 6 số, gửi qua email. OTP có hiệu lực 10 phút.
+     * Luôn trả OK — không tiết lộ email có tồn tại hay không (chống email enumeration).
+     */
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
@@ -276,6 +304,11 @@ public class AuthService {
         // Always return silently — no email enumeration
     }
 
+    /**
+     * Xác thực OTP và đặt mật khẩu mới. Sau khi thành công:
+     * - Xóa OTP, reset số lần thử
+     * - Hủy tất cả refresh token (buộc đăng nhập lại với mật khẩu mới)
+     */
     @Transactional
     public void verifyOtp(VerifyOtpRequest request) {
         User user = validateOtpOrThrow(request.getEmail(), request.getOtp());
@@ -290,16 +323,15 @@ public class AuthService {
     }
 
     /**
-     * Validates an OTP without consuming it, so the forgot-password wizard
-     * can confirm the code on its own step before asking for a new password.
-     * Still counts failed guesses toward the same lockout as verifyOtp so it
-     * cannot be used to bypass brute-force protection.
+     * Kiểm tra OTP hợp lệ mà không tiêu thụ (dùng cho bước xác nhận OTP trước khi nhập mật khẩu mới).
+     * Vẫn đếm số lần thử sai → tránh brute-force.
      */
     @Transactional
     public void checkOtp(CheckOtpRequest request) {
         validateOtpOrThrow(request.getEmail(), request.getOtp());
     }
 
+    /** Xác thực OTP: kiểm tra hết hạn, số lần thử (tối đa 5), khớp hash. Throw nếu không hợp lệ. */
     private User validateOtpOrThrow(String email, String otp) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("OTP_INVALID"));
@@ -321,6 +353,10 @@ public class AuthService {
         return user;
     }
 
+    /**
+     * Đổi mật khẩu (yêu cầu nhập mật khẩu hiện tại).
+     * Chặn nếu mật khẩu mới trùng cũ. Sau khi đổi → hủy tất cả refresh token.
+     */
     @Transactional
     public void changePassword(String email, ChangePasswordRequest request) {
         User user = userRepository.findByEmail(email)
@@ -342,6 +378,7 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    /** Băm SHA-256 — dùng để hash refresh token và OTP (không lưu raw vào DB). */
     private String sha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -352,6 +389,7 @@ public class AuthService {
         }
     }
 
+    /** Tạo danh sách kho cho LoginResponse. ADMIN/CEO → tất cả kho active, các role khác → kho được gán. */
     private List<LoginResponse.WarehouseInfo> buildWarehouseInfoList(User user) {
         if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CEO) {
             return warehouseRepository.findAll().stream()
@@ -372,6 +410,7 @@ public class AuthService {
         }
     }
 
+    /** Tạo danh sách kho cho MeResponse. Logic tương tự buildWarehouseInfoList. */
     private List<MeResponse.WarehouseInfo> buildMeWarehouseInfoList(User user) {
         if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CEO) {
             return warehouseRepository.findAll().stream()

@@ -43,6 +43,7 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
+/** DTO phản hồi audit log chung (Spec 001). */
 @Getter
 @Setter
 public class AuditLogResponse {

@@ -41,6 +41,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+/** DTO yêu cầu đổi mật khẩu — chứa mật khẩu hiện tại và mật khẩu mới (Spec 001). */
 @Getter
 @Setter
 public class ChangePasswordRequest {

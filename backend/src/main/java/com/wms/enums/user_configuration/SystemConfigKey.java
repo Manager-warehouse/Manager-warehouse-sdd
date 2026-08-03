@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+/** Enum khóa cấu hình hệ thống (DEFAULT_CREDIT_LIMIT, MONTHLY_CLOSING_DAY, ...) (Spec 001). */
 public enum SystemConfigKey {
     DEFAULT_CREDIT_LIMIT,
     DEFAULT_PAYMENT_TERM_DAYS,

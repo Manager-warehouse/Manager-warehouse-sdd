@@ -40,6 +40,7 @@ import java.time.OffsetDateTime;
 
 import lombok.*;
 
+/** Entity cấu hình tham số hệ thống — lưu key-value cho hạn mức tín dụng, ngày khóa sổ, ngưỡng cảnh báo (Spec 001). */
 @Entity
 @Table(name = "system_configs")
 @Getter

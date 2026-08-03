@@ -48,6 +48,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Controller cấu hình hệ thống (Spec 001) — chỉ dành cho ADMIN.
+ * Cho phép xem và cập nhật các tham số hệ thống: hạn mức công nợ, kỳ thanh toán, ngày khóa sổ, v.v.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/system-config")
 @RequiredArgsConstructor

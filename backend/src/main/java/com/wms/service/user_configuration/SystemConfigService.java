@@ -41,6 +41,11 @@ import com.wms.dto.response.SystemConfigResponse;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Interface cấu hình hệ thống (Spec 001).
+ * Triển khai: SystemConfigServiceImpl
+ * Gọi bởi: SystemConfigController, các service khác cần đọc tham số (ví dụ: credit limit, overdue days)
+ */
 public interface SystemConfigService {
 
     List<SystemConfigResponse> getAllConfigs();

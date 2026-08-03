@@ -40,6 +40,7 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Getter;
 
+/** DTO phản hồi lỗi chuẩn — chứa code, message, timestamp, path (Spec 001). */
 @Builder
 @Getter
 public class ApiErrorResponse {

@@ -1,3 +1,9 @@
+/**
+ * Trang nhật ký hoạt động — Audit Trail (Spec 001).
+ * Chức năng: xem lịch sử thao tác hệ thống với bộ lọc (kho, khoảng thời gian),
+ * phân trang server-side, xem chi tiết thay đổi (oldValue/newValue) qua modal.
+ * Chỉ ADMIN mới truy cập được.
+ */
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/admin.service';
 import { masterDataService } from '../../services/masterData.service';
@@ -16,24 +22,24 @@ const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Pagination States
+  // State phân trang (server-side)
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 30;
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Filters State
+  // State bộ lọc: kho, khoảng thời gian
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [warehouses, setWarehouses] = useState([]);
 
-  // Detail Modal States
+  // State modal chi tiết audit log
   const [auditDetailOpen, setAuditDetailOpen] = useState(false);
   const [auditDetail, setAuditDetail] = useState(null);
   const [auditDetailLoading, setAuditDetailLoading] = useState(false);
 
-  // Load Audit Logs
+  // Tải danh sách audit log từ API với filter và phân trang
   const loadLogs = async () => {
     setLoading(true);
     try {
@@ -76,6 +82,7 @@ const AuditLogs = () => {
     loadWarehouses();
   }, [addToast]);
 
+  // Đặt lại tất cả bộ lọc về mặc định
   const handleResetFilters = () => {
     setSelectedWarehouseId('');
     setFromDate('');
@@ -98,6 +105,7 @@ const AuditLogs = () => {
     setCurrentPage(1);
   };
 
+  // Xác định màu badge theo loại thao tác (CREATED/UPDATED/DELETED)
   const getBadgeType = (action) => {
     if (!action) return 'info';
     if (action.includes('CREATED')) return 'success';
@@ -106,6 +114,7 @@ const AuditLogs = () => {
     return 'info';
   };
 
+  // Mở modal chi tiết — tải thêm dữ liệu oldValue/newValue từ API
   const openAuditDetail = async (log) => {
     setAuditDetail(log);
     setAuditDetailOpen(true);
@@ -120,6 +129,7 @@ const AuditLogs = () => {
     }
   };
 
+  // Render bảng so sánh giá trị cũ/mới cho từng trường dữ liệu thay đổi
   const renderChangedFields = () => {
     const oldValue = auditDetail?.oldValue || {};
     const newValue = auditDetail?.newValue || {};

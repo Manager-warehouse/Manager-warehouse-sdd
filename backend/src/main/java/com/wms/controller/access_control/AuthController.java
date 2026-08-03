@@ -48,6 +48,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * Controller xác thực người dùng (Spec 001).
+ * Cung cấp các endpoint: đăng nhập, làm mới token, đăng xuất, quên/đổi mật khẩu, cập nhật hồ sơ.
+ * Tất cả endpoint /login, /refresh, /forgot-password, /otp/check, /verify-otp là public (không cần JWT).
+ * Các endpoint còn lại yêu cầu JWT hợp lệ.
+ */
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

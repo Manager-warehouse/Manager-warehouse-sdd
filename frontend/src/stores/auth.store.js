@@ -1,7 +1,13 @@
-
+/**
+ * Store xác thực Zustand (Spec 001).
+ * Quản lý: user, token, activeWarehouse (kho đang làm việc).
+ * Dùng sessionStorage để mỗi tab trình duyệt giữ phiên riêng.
+ * Cung cấp: login, logout, updateTokens, setActiveWarehouse, hasRole, hasWarehouseAccess.
+ */
 import { create } from 'zustand';
 import { WAREHOUSES } from '../utils/constants';
 
+// Fallback storage cho môi trường không có window (SSR/test)
 const createMemoryStorage = () => {
   const values = new Map();
   return {
@@ -11,6 +17,7 @@ const createMemoryStorage = () => {
   };
 };
 
+// Lấy storage an toàn — fallback sang memory nếu không khả dụng
 const getBrowserStorage = (name) => {
   try {
     return typeof window !== 'undefined' && window[name] ? window[name] : createMemoryStorage();
@@ -20,9 +27,10 @@ const getBrowserStorage = (name) => {
 };
 
 export const useAuthStore = create((set, get) => {
-  // Keep auth in sessionStorage so each browser tab can hold its own role.
+  // Dùng sessionStorage để mỗi tab trình duyệt giữ phiên riêng
   const storage = getBrowserStorage('sessionStorage');
   const legacyStorage = getBrowserStorage('localStorage');
+  // Di chuyển dữ liệu cũ từ localStorage sang sessionStorage (tương thích ngược)
   const migrateLegacyValue = (key) => {
     const current = storage.getItem(key);
     if (current) return current;
@@ -54,6 +62,7 @@ export const useAuthStore = create((set, get) => {
     token: storedToken,
     activeWarehouse: parsedWarehouse,
 
+    // Đăng nhập — lưu user/token vào session, tính kho mặc định theo warehouse assignment
     login: (user, token, refreshToken) => {
       storage.setItem('wms_user', JSON.stringify(user));
       storage.setItem('wms_token', token);
@@ -88,6 +97,7 @@ export const useAuthStore = create((set, get) => {
       set({ user, token, activeWarehouse });
     },
 
+    // Cập nhật access/refresh token (sau khi refresh token rotation)
     updateTokens: (token, refreshToken) => {
       storage.setItem('wms_token', token);
       legacyStorage.removeItem('wms_token');
@@ -100,6 +110,7 @@ export const useAuthStore = create((set, get) => {
       set({ token });
     },
 
+    // Đăng xuất — xóa sạch session và reset state
     logout: () => {
       storage.removeItem('wms_user');
       storage.removeItem('wms_token');
@@ -112,18 +123,21 @@ export const useAuthStore = create((set, get) => {
       set({ user: null, token: null, activeWarehouse: null });
     },
 
+    // Chuyển kho làm việc hiện tại
     setActiveWarehouse: (warehouse) => {
       storage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
       legacyStorage.removeItem('wms_active_warehouse');
       set({ activeWarehouse: warehouse });
     },
 
+    // Kiểm tra user hiện tại có role cụ thể không
     hasRole: (role) => {
       const user = get().user;
       if (!user) return false;
       return user.role === role;
     },
 
+    // Kiểm tra user có quyền truy cập kho cụ thể (ADMIN/CEO = tất cả kho)
     hasWarehouseAccess: (warehouseId) => {
       const user = get().user;
       if (!user) return false;

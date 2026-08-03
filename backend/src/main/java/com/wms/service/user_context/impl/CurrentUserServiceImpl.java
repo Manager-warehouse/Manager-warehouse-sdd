@@ -44,6 +44,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Triển khai CurrentUserService — trích xuất user từ JWT token trong SecurityContext (Spec 001). */
 @Service
 public class CurrentUserServiceImpl implements CurrentUserService {
 
