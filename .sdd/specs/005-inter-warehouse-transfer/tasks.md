@@ -26,7 +26,7 @@
 | Contract alignment | test/review OpenAPI path khớp với path controller |
 | Nút action frontend | test hiển thị theo role/state, click thành công, API trả lỗi và refresh sau thành công cho mọi nút transfer chính |
 | Transfer request edit/delete | backend service/controller test cho cập nhật `DRAFT` và soft-cancel; frontend test hiển thị nút và hành vi lưu/hủy modal |
-| Photo-gated actions | UI test hoặc smoke thủ công chứng minh QC xuất, bàn giao xếp hàng, bàn giao khi đến, bàn giao khi quay đầu, và nút driver POD vẫn disabled cho đến khi chọn/chụp ảnh |
+| Photo-gated actions | UI test hoặc smoke thủ công chứng minh QC xuất, bàn giao xếp hàng, bàn giao khi quay đầu, và nút driver POD vẫn disabled cho đến khi chọn/chụp ảnh; bàn giao khi đến kho đích chỉ cần nút xác nhận |
 | Source worker báo cáo xếp hàng trước QC xuất | service/controller/frontend test chứng minh QC bị chặn trước báo cáo xếp hàng, QC fail chặn handover/departure, công nhân báo lại thì QC được thử lại |
 | Frontend-to-backend smoke | happy path full-stack từ `TRQ` đến final receive kèm assertion backend cho inventory, audit và trạng thái DB |
 | Deploy gate | backend unit/controller/integration + DB thật migration + frontend test/build + backend compile phải pass toàn bộ |

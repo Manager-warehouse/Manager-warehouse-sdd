@@ -137,7 +137,7 @@ flowchart TD
 ### 4.6. Nhận hàng tại kho đích
 
 - Tài xế phải ghi nhận đến kho đích trước.
-- Kho nhận phải ghi nhận bàn giao kèm ảnh trước khi công nhân được nhập số đếm.
+- Kho nhận chỉ cần thủ kho bấm xác nhận bàn giao trước khi công nhân được nhập số đếm; không bắt ảnh ở bước bàn giao kho đích.
 - Công nhân kho nhận phải nhập đủ mọi dòng hàng; nếu số đếm lệch `sent_qty` thì phải có lý do dòng hàng.
 - Thủ kho kho nhận kiểm lại số đếm và QC nhận; nếu số xác nhận lệch số công nhân đếm thì phải có ghi chú.
 - `qc_passed_qty + qc_failed_qty` phải bằng số lượng thủ kho xác nhận.
