@@ -107,6 +107,22 @@ export const buildSplitPlanPayload = ({ order, rows, plannedStartAt, plannedEndA
   };
 };
 
+const getTripSplitStop = (trip, splitPlanId) => trip?.delivery_orders?.find((stop) => (
+  stop.split_plan_id && (!splitPlanId || Number(stop.split_plan_id) === Number(splitPlanId))
+));
+
+export const getSplitFleetAssignments = (selectedTrip, allTrips) => {
+  const selectedStop = getTripSplitStop(selectedTrip);
+  if (!selectedStop) return selectedTrip ? [selectedTrip] : [];
+  return allTrips
+    .filter((trip) => getTripSplitStop(trip, selectedStop.split_plan_id))
+    .sort((left, right) => {
+      const leftLead = getTripSplitStop(left, selectedStop.split_plan_id)?.is_split_lead ? 1 : 0;
+      const rightLead = getTripSplitStop(right, selectedStop.split_plan_id)?.is_split_lead ? 1 : 0;
+      return rightLead - leftLead || Number(left.id) - Number(right.id);
+    });
+};
+
 const getTripStatusBadge = (status) => {
   const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
@@ -391,6 +407,9 @@ export default function TripPlanning() {
   const isOverweight = selectedVehicleObj && currentWeight > maxWeight;
   const splitOrder = formData.delivery_orders.length === 1 ? formData.delivery_orders[0] : null;
   const canCreateSplitPlan = Boolean(isOverweight && splitOrder);
+  const detailFleet = useMemo(() => getSplitFleetAssignments(detailTrip, trips), [detailTrip, trips]);
+  const isSplitDetail = detailFleet.length > 1;
+  const detailTotalWeight = detailFleet.reduce((sum, trip) => sum + Number(trip.total_weight_kg || 0), 0);
   const isSubmitDisabled = !formData.vehicle_id || !formData.driver_id || !formData.planned_start_at || !formData.planned_end_at || !formData.delivery_orders.length || isOverweight || submitting;
 
   return (
@@ -477,14 +496,16 @@ export default function TripPlanning() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
-                { label: 'Loại xe', value: detailTrip.vehicle_type || '-', icon: <Truck className="w-3.5 h-3.5" /> },
-                { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
-                { label: 'SĐT tài xế', value: detailTrip.driver_phone || '-', icon: <User className="w-3.5 h-3.5" /> },
-                { label: 'GPLX', value: detailTrip.driver_license_number || '-', icon: <User className="w-3.5 h-3.5" /> },
+                ...(!isSplitDetail ? [
+                  { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
+                  { label: 'Loại xe', value: detailTrip.vehicle_type || '-', icon: <Truck className="w-3.5 h-3.5" /> },
+                  { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'SĐT tài xế', value: detailTrip.driver_phone || '-', icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'GPLX', value: detailTrip.driver_license_number || '-', icon: <User className="w-3.5 h-3.5" /> },
+                ] : []),
                 { label: 'TG Dự kiến', value: detailTrip.planned_start_at ? `${new Date(detailTrip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} - ${new Date(detailTrip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}` : '-', icon: <Calendar className="w-3.5 h-3.5" /> },
-                { label: 'Tổng khối lượng', value: `${detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
-                { label: 'Tải trọng xe', value: detailTrip.vehicle_max_weight_kg ? `${detailTrip.vehicle_max_weight_kg} kg` : '-', icon: <Package className="w-3.5 h-3.5" /> },
+                { label: isSplitDetail ? 'Tổng khối lượng kế hoạch' : 'Tổng khối lượng', value: `${isSplitDetail ? detailTotalWeight : detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
+                ...(!isSplitDetail ? [{ label: 'Tải trọng xe', value: detailTrip.vehicle_max_weight_kg ? `${detailTrip.vehicle_max_weight_kg} kg` : '-', icon: <Package className="w-3.5 h-3.5" /> }] : []),
               ].map(({ label, value, icon }) => (
                 <div key={label} className="bg-canvas-cream rounded-lg border border-hairline-light p-3.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-shade-40 mb-1 flex items-center gap-1">{icon}{label}</p>
@@ -492,6 +513,44 @@ export default function TripPlanning() {
                 </div>
               ))}
             </div>
+
+            {isSplitDetail && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">
+                  Phương tiện và tài xế ({detailFleet.length} xe)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {detailFleet.map((assignment, index) => {
+                    const splitStop = getTripSplitStop(assignment);
+                    return (
+                      <div key={assignment.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Truck className="w-4 h-4 text-shade-50 shrink-0" />
+                            <span className="text-sm font-bold text-ink truncate">{assignment.vehicle_plate || `Xe ${index + 1}`}</span>
+                          </div>
+                          {splitStop?.is_split_lead && (
+                            <span className="text-[10px] font-semibold text-info-800 bg-info-50 border border-info-200 px-2 py-1 rounded-pill shrink-0">
+                              Xe trưởng đoàn
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                          <span className="text-shade-50">Tài xế</span>
+                          <span className="font-semibold text-ink text-right">{assignment.driver_name || assignment.driver_id || '-'}</span>
+                          <span className="text-shade-50">Vai trò</span>
+                          <span className="font-semibold text-ink text-right">{splitStop?.is_split_lead ? 'Tài xế trưởng' : 'Tài xế'}</span>
+                          <span className="text-shade-50">Số điện thoại</span>
+                          <span className="font-semibold text-ink text-right">{assignment.driver_phone || '-'}</span>
+                          <span className="text-shade-50">Khối lượng</span>
+                          <span className="font-semibold text-ink text-right">{assignment.total_weight_kg || 0} kg</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">

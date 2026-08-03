@@ -17,6 +17,7 @@ import com.wms.entity.order_fulfillment.Delivery;
 import com.wms.entity.order_fulfillment.DeliveryOrder;
 import com.wms.entity.order_fulfillment.DeliveryOrderItem;
 import com.wms.entity.order_fulfillment.OutboundQcRecord;
+import com.wms.entity.order_fulfillment.SplitDeliveryPlan;
 import com.wms.entity.order_fulfillment.Trip;
 import com.wms.entity.order_fulfillment.TripDeliveryOrder;
 import com.wms.entity.stock_control.Inventory;
@@ -683,19 +684,7 @@ public class TripServiceImpl implements TripService {
         List<TripDeliveryOrderResponse> orders = tripDeliveryOrderRepository
                 .findByTripIdOrderByStopOrderAsc(trip.getId())
                 .stream()
-                .map(row -> {
-                    DeliveryOrder order = row.getDeliveryOrder();
-                    Dealer dealer = order.getDealer();
-                    return TripDeliveryOrderResponse.builder()
-                            .doId(order.getId())
-                            .doNumber(order.getDoNumber())
-                            .dealerName(dealer == null ? null : dealer.getName())
-                            .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
-                            .warehouseId(order.getWarehouse().getId())
-                            .status(order.getStatus())
-                            .stopOrder(row.getStopOrder())
-                            .build();
-                })
+                .map(this::toDeliveryOrderResponse)
                 .toList();
         return TripResponse.builder()
                 .id(trip.getId())
@@ -723,6 +712,28 @@ public class TripServiceImpl implements TripService {
                 .completedAt(trip.getCompletedAt())
                 .notes(trip.getNotes())
                 .deliveryOrders(orders)
+                .build();
+    }
+
+    private TripDeliveryOrderResponse toDeliveryOrderResponse(TripDeliveryOrder row) {
+        DeliveryOrder order = row.getDeliveryOrder();
+        Dealer dealer = order.getDealer();
+        SplitDeliveryPlan splitPlan = row.getSplitPlan();
+        Long leadDriverId = splitPlan == null || splitPlan.getLeadDriver() == null
+                ? null
+                : splitPlan.getLeadDriver().getId();
+        return TripDeliveryOrderResponse.builder()
+                .doId(order.getId())
+                .doNumber(order.getDoNumber())
+                .dealerName(dealer == null ? null : dealer.getName())
+                .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
+                .warehouseId(order.getWarehouse().getId())
+                .status(order.getStatus())
+                .stopOrder(row.getStopOrder())
+                .splitPlanId(splitPlan == null ? null : splitPlan.getId())
+                .leadDriverId(leadDriverId)
+                .splitPlanStatus(splitPlan == null ? null : splitPlan.getStatus())
+                .isSplitLead(leadDriverId != null && Objects.equals(row.getTrip().getDriver().getId(), leadDriverId))
                 .build();
     }
 

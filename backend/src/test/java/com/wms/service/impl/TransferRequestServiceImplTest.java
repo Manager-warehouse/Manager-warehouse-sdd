@@ -58,6 +58,8 @@ import com.wms.dto.response.WarehouseStockLookupResponse;
 import com.wms.dto.response.TransferRequestResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.fleet_management.VehicleStatus;
+import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.enums.warehouse_transfer.TransferRequestStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
@@ -90,6 +92,7 @@ class TransferRequestServiceImplTest {
     @Mock private InventoryRepository inventoryRepository;
     @Mock private InterWarehouseTransferRepository interWarehouseTransferRepository;
     @Mock private UserWarehouseAssignmentRepository assignmentRepository;
+    @Mock private VehicleRepository vehicleRepository;
     @Mock private InterWarehouseTransferService transferService;
     @Mock private PartnerAuditUtil auditUtil;
 
@@ -124,16 +127,20 @@ class TransferRequestServiceImplTest {
         sourceWarehouse.setId(10L);
         sourceWarehouse.setCode("HP-01");
         sourceWarehouse.setName("Hai Phong Warehouse");
+        sourceWarehouse.setType(WarehouseType.PHYSICAL);
 
         destinationWarehouse = new Warehouse();
         destinationWarehouse.setId(20L);
         destinationWarehouse.setCode("HN-01");
         destinationWarehouse.setName("Ha Noi Warehouse");
+        destinationWarehouse.setType(WarehouseType.PHYSICAL);
 
         product = new Product();
         product.setId(100L);
         product.setSku("SKU-PROD-1");
         product.setName("Product 1");
+        product.setWeightKg(new BigDecimal("2.00"));
+        product.setVolumeM3(new BigDecimal("0.10"));
 
         request = new TransferRequest();
         request.setId(500L);
@@ -172,6 +179,7 @@ class TransferRequestServiceImplTest {
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(vehicleRepository.findByIsActive(true)).thenReturn(List.of(vehicle(new BigDecimal("100.00"), new BigDecimal("10.00"))));
         lenient().when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestResponse response = service.createRequest(createReq, manager);
@@ -180,6 +188,32 @@ class TransferRequestServiceImplTest {
         assertThat(response.status()).isEqualTo(TransferRequestStatus.DRAFT);
         assertThat(response.sourceWarehouseId()).isEqualTo(sourceWarehouse.getId());
         verify(requestRepository, times(1)).save(any(TransferRequest.class));
+    }
+
+    @Test
+    void createTransferRequest_failsIfNoFleetVehicleCanCarryLoad() {
+        TransferRequestItemRequest itemReq = new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00"));
+
+        TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                LocalDate.now().plusDays(2),
+                "Destination shortage",
+                "Too large for fleet",
+                List.of(itemReq)
+        );
+
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
+        when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(vehicleRepository.findByIsActive(true)).thenReturn(List.of(vehicle(new BigDecimal("10.00"), new BigDecimal("0.50"))));
+
+        assertThatThrownBy(() -> service.createRequest(createReq, manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
     }
 
     @Test
@@ -253,6 +287,8 @@ class TransferRequestServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(vehicleRepository.findByIsActive(true)).thenReturn(List.of(vehicle(new BigDecimal("100.00"), new BigDecimal("10.00"))));
         when(requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusIn(
                 sourceWarehouse.getId(), destinationWarehouse.getId(), neededByDate,
                 List.of(TransferRequestStatus.DRAFT, TransferRequestStatus.SUBMITTED, TransferRequestStatus.APPROVED)))
@@ -302,6 +338,8 @@ class TransferRequestServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(vehicleRepository.findByIsActive(true)).thenReturn(List.of(vehicle(new BigDecimal("100.00"), new BigDecimal("10.00"))));
         when(requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusInAndIdNot(
                 sourceWarehouse.getId(), destinationWarehouse.getId(), neededByDate,
                 List.of(TransferRequestStatus.DRAFT, TransferRequestStatus.SUBMITTED, TransferRequestStatus.APPROVED),
@@ -493,5 +531,18 @@ class TransferRequestServiceImplTest {
                 .filter(s -> s.warehouseId().equals(sourceWarehouse.getId()))
                 .findFirst().orElseThrow();
         assertThat(hpStock.availableQty()).isEqualByComparingTo("50.00");
+    }
+
+    private Vehicle vehicle(BigDecimal maxWeightKg, BigDecimal maxVolumeM3) {
+        Vehicle value = new Vehicle();
+        value.setId(700L);
+        value.setPlateNumber("29C-12345");
+        value.setVehicleType("TRUCK");
+        value.setMaxWeightKg(maxWeightKg);
+        value.setMaxVolumeM3(maxVolumeM3);
+        value.setWarehouse(sourceWarehouse);
+        value.setStatus(VehicleStatus.AVAILABLE);
+        value.setIsActive(true);
+        return value;
     }
 }
