@@ -88,4 +88,20 @@ public class DeliveryOtpAttempt {
 
     @Column(name = "issued_at")
     private OffsetDateTime issuedAt;
+
+    @PrePersist
+    void initializeTimestamps() {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void refreshUpdatedAt() {
+        updatedAt = OffsetDateTime.now();
+    }
 }
