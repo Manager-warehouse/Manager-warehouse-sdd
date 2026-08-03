@@ -251,6 +251,10 @@ const QuarantineWorkspace = () => {
                         <span className="bg-shade-30 text-ink border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Điều chuyển kho: {item.receipt_number}
                         </span>
+                      ) : item.origin_type === 'OUTBOUND_QC' ? (
+                        <span className="bg-danger-50 text-danger-700 border border-danger-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                          QC xuất kho: {item.receipt_number}
+                        </span>
                       ) : (
                         <span className="bg-canvas-cream text-shade-70 border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Nhập từ NCC: {item.receipt_number}
@@ -265,6 +269,11 @@ const QuarantineWorkspace = () => {
                     ) : item.origin_type === 'RECEIPT' ? (
                       <div>
                         <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
+                      </div>
+                    ) : item.origin_type === 'OUTBOUND_QC' ? (
+                      <div>
+                        <span className="font-semibold text-shade-50">Đại lý nhận hàng:</span>{' '}
+                        <strong className="text-ink">{item.dealer_name || (item.dealer_id ? `Đại lý ID: ${item.dealer_id}` : 'N/A')}</strong>
                       </div>
                     ) : null}
                     <div>
