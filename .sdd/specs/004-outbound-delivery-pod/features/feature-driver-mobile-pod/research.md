@@ -62,7 +62,7 @@
 
 ## Decision: Use one lead-driver POD/OTP flow for a split Delivery Order
 
-**Rationale**: The dealer accepts one Delivery Order, not independent vehicle fragments. One current delivery attempt, one complete POD pair, and one OTP row prevent duplicate invoice/inventory finalization. Every leg must confirm arrival before handover, and every leg must confirm handover before the lead driver can mutate POD or OTP.
+**Rationale**: The dealer accepts one Delivery Order, not independent vehicle fragments. One current delivery attempt, one complete POD pair, and one OTP row prevent duplicate invoice/inventory finalization. The lead driver is accountable for the whole split convoy and is the only mobile actor who confirms departure, whole-convoy arrival, handover, POD, OTP, failure, and return completion. This avoids requiring support-vehicle drivers to operate mobile checkpoints that do not create separate business outcomes.
 
 **Alternatives considered**: Separate POD/OTP per leg was rejected because it could complete or invoice only part of the Delivery Order and contradicts full-delivery confirmation.
 
@@ -72,8 +72,8 @@
 
 **Alternatives considered**: Keeping the old OTP after evidence replacement was rejected because the dealer would confirm evidence that has changed.
 
-## Decision: Reuse the existing trip-complete command for each split vehicle return
+## Decision: Use one lead-driver return completion for the whole split convoy
 
-**Rationale**: Every split leg already owns a regular trip, driver, and vehicle. Calling `PUT /api/v1/trips/{tripId}/complete` independently releases only that trip's resources and avoids a second endpoint with identical lifecycle responsibility. OTP success never invokes trip completion automatically.
+**Rationale**: Split delivery is operated as one lead-owned Delivery Order workflow. After OTP success or whole-order return, only the lead driver confirms the convoy has returned; the system then completes all linked leg trips and releases all split drivers and vehicles together. OTP success still never invokes trip completion automatically.
 
-**Alternatives considered**: A dedicated `/split-delivery-plans/{planId}/legs/{legId}/return` endpoint was rejected as duplicate command surface.
+**Alternatives considered**: Per-leg trip completion by each support driver was rejected because support drivers should not need mobile actions in this split delivery flow.

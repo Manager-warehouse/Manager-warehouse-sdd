@@ -10,7 +10,10 @@ vi.mock('../../services/outbound.service', () => ({
     getTrips: vi.fn(),
     getTripById: vi.fn(),
     getDriverTripById: vi.fn(),
+    departSplitDeliveryPlan: vi.fn(),
     confirmSplitDealerArrival: vi.fn(),
+    confirmSplitHandover: vi.fn(),
+    completeSplitDeliveryPlan: vi.fn(),
     completeTrip: vi.fn(),
   },
 }));
@@ -205,7 +208,7 @@ describe('DriverTrip list filters', () => {
     await waitFor(() => expect(interWarehouseTransferService.returnArrive).toHaveBeenCalledWith(500));
   });
 
-  it('lets a split-leg driver confirm arrival at the dealer', async () => {
+  it('lets only the split lead confirm whole-convoy arrival', async () => {
     outboundService.getDriverTripById.mockResolvedValue({
       ...deliveryTrip,
       status: 'IN_TRANSIT',
@@ -216,7 +219,7 @@ describe('DriverTrip list filters', () => {
         delivery_status: 'IN_TRANSIT',
         split_plan_id: 900,
         split_leg_id: 901,
-        is_split_lead: false,
+        is_split_lead: true,
         dealer_arrived_at: null,
       }],
     });
@@ -233,10 +236,38 @@ describe('DriverTrip list filters', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận đến đại lý' }));
 
     await waitFor(() => expect(outboundService.confirmSplitDealerArrival)
-      .toHaveBeenCalledWith(900, 901));
+      .toHaveBeenCalledWith(900));
   });
 
-  it('lets each split-leg driver complete only their own returned trip', async () => {
+  it('hides split workflow actions from a support driver', async () => {
+    outboundService.getDriverTripById.mockResolvedValue({
+      ...deliveryTrip,
+      status: 'IN_TRANSIT',
+      delivery_orders: [{
+        do_id: 101,
+        do_number: 'DO-101',
+        dealer_name: 'Dai ly A',
+        delivery_status: 'IN_TRANSIT',
+        split_plan_id: 900,
+        split_leg_id: 901,
+        is_split_lead: false,
+      }],
+    });
+    render(
+      <MemoryRouter initialEntries={['/outbound/driver/trips/1']}>
+        <Routes>
+          <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('DO-101');
+
+    expect(screen.queryByRole('button', { name: 'Xác nhận đến đại lý' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xác nhận xe đã về kho' })).not.toBeInTheDocument();
+  });
+
+  it('lets the split lead complete the whole convoy return', async () => {
     outboundService.getDriverTripById.mockResolvedValue({
       ...deliveryTrip,
       status: 'IN_TRANSIT',
@@ -247,10 +278,10 @@ describe('DriverTrip list filters', () => {
         delivery_status: 'COMPLETED',
         split_plan_id: 900,
         split_leg_id: 901,
-        is_split_lead: false,
+        is_split_lead: true,
       }],
     });
-    outboundService.completeTrip.mockResolvedValue({});
+    outboundService.completeSplitDeliveryPlan.mockResolvedValue({});
 
     render(
       <MemoryRouter initialEntries={['/outbound/driver/trips/1']}>
@@ -262,6 +293,7 @@ describe('DriverTrip list filters', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận xe đã về kho' }));
 
-    await waitFor(() => expect(outboundService.completeTrip).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(outboundService.completeSplitDeliveryPlan).toHaveBeenCalledWith(900));
+    expect(outboundService.completeTrip).not.toHaveBeenCalled();
   });
 });

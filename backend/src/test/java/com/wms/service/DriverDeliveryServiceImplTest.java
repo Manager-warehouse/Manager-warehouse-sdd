@@ -475,27 +475,18 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
-    void completeTrip_releasesCurrentSplitLegWithoutWaitingForOtherVehicles() {
+    void completeTrip_rejectsPerLegSplitCompletion() {
         order.setStatus(DeliveryOrderStatus.COMPLETED);
         SplitDeliveryPlan plan = SplitDeliveryPlan.builder().id(900L).deliveryOrder(order)
                 .warehouse(warehouse).status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
         SplitDeliveryLeg currentLeg = SplitDeliveryLeg.builder().id(901L).splitPlan(plan).trip(trip)
                 .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
-        SplitDeliveryLeg otherLeg = SplitDeliveryLeg.builder().id(902L).splitPlan(plan)
-                .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
-        TripDeliveryOrder row = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order)
-                .splitPlan(plan).stopOrder(1).build();
         when(tripRepository.findAssignedDriverTrip(50L, actor.getId())).thenReturn(Optional.of(trip));
-        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(50L)).thenReturn(List.of(row));
         when(splitDeliveryLegRepository.findByTripId(50L)).thenReturn(Optional.of(currentLeg));
-        when(splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L))
-                .thenReturn(List.of(currentLeg, otherLeg));
-        when(tripRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.completeTrip(50L, new TripCompleteRequest(), actor);
-
-        assertThat(trip.getVehicle().getStatus()).isEqualTo(VehicleStatus.AVAILABLE);
-        assertThat(trip.getDriver().getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+        assertThatThrownBy(() -> service.completeTrip(50L, new TripCompleteRequest(), actor))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("SPLIT_LEAD_DRIVER_REQUIRED");
         assertThat(plan.getStatus()).isEqualTo(SplitDeliveryPlanStatus.IN_TRANSIT);
         verify(splitDeliveryPlanRepository, never()).save(plan);
     }

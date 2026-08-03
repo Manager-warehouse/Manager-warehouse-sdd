@@ -211,15 +211,15 @@ Expected result:
 
 ### Split Delivery Order driver walkthrough
 
-1. Every assigned leg driver calls `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/dealer-arrival` for their own leg.
-2. Handover remains blocked with `SPLIT_DELIVERY_INCOMPLETE` until all legs arrive.
-3. Every assigned leg driver calls `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/handover` for their own leg.
-4. Only the lead driver uploads the one complete POD pair and requests the one shared OTP after all handovers.
+1. Only the lead driver confirms split-plan departure for the whole convoy.
+2. Only the lead driver calls `PUT /api/v1/split-delivery-plans/{planId}/dealer-arrival` when the whole convoy has arrived at the dealer.
+3. Only the lead driver calls `PUT /api/v1/split-delivery-plans/{planId}/handover` when the whole Delivery Order has been handed over.
+4. The lead driver uploads the one complete POD pair and requests the one shared OTP after whole-convoy handover.
 5. Replacing both POD images expires the current usable OTP; the lead driver requests a new code.
 6. `SEND_FAILED` may be retried immediately on the same OTP row.
-7. A failure reported by any leg moves the entire Delivery Order and every leg to `RETURNED`.
+7. A failure reported by the lead driver moves the entire Delivery Order and every leg to `RETURNED`.
 8. OTP success completes the Delivery Order but leaves every driver/vehicle `ON_TRIP`.
-9. Each leg driver independently calls `PUT /api/v1/trips/{tripId}/complete`; only that trip's driver/vehicle becomes `AVAILABLE`.
+9. Only the lead driver calls `PUT /api/v1/split-delivery-plans/{planId}/complete`; all split leg trips, drivers, and vehicles become `AVAILABLE` together.
 
 - Service test: driver cannot access a trip or Delivery Order outside the assigned driver profile.
 - Service/controller test: assigned trip list returns mixed `DELIVERY` and `TRANSFER` summaries with `tripType` labels and hides other drivers' trips.
@@ -239,7 +239,7 @@ Expected result:
 - Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
 - Controller integration test: returned goods flow state read, Storekeeper arrival confirmation, count/QC submit/resubmit, Storekeeper accept/reject, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
-- Service/controller tests: split arrival and handover ownership, all-arrived/all-handover gates, whole-DO failure, lead-driver POD/OTP, complete-pair replacement, `SEND_FAILED` retry, and independent split-leg trip completion.
+- Service/controller tests: lead-only split departure, whole-convoy arrival/handover, non-lead rejection, whole-DO failure, lead-driver POD/OTP, complete-pair replacement, `SEND_FAILED` retry, and lead-only whole-convoy completion.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 
 ## Definition of done reminders

@@ -221,29 +221,29 @@
 
 ## Phase 9: User Story 6 - Drivers complete coordinated split delivery POD/OTP (Priority: P1)
 
-**Goal**: Multiple assigned drivers deliver one Delivery Order with arrival/handover coordination, while the lead driver owns one shared POD/OTP flow and every driver independently returns their own vehicle.
+**Goal**: Multiple vehicles deliver one Delivery Order while only the lead driver operates the mobile workflow: departure, whole-convoy arrival, whole-order handover, shared POD/OTP, failure reporting, and whole-convoy return.
 
-**Independent Test**: Depart one split Delivery Order on two legs, confirm both arrivals and handovers, replace the complete POD pair and verify the current OTP expires, retry a `SEND_FAILED` email immediately on the same row, confirm delivery once through the lead driver, and complete each linked trip independently without releasing sibling resources.
+**Independent Test**: Depart one split Delivery Order on two legs through the lead driver, confirm whole-convoy arrival and handover through the lead driver, reject non-lead split actions, replace the complete POD pair and verify the current OTP expires, retry a `SEND_FAILED` email immediately on the same row, confirm delivery once through the lead driver, and complete the whole split convoy return through the lead driver.
 
 ### Tests for User Story 6
 
-- [X] T093 [P] [US6] Add service tests for assigned-leg dealer arrival, all-arrived handover gate, and all-handover milestone response in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
-- [X] T094 [P] [US6] Add service test proving one failed split leg moves the whole Delivery Order, attempt, plan, and all legs to return handling in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
-- [X] T095 [P] [US6] Add controller tests for dealer-arrival, handover, and split-leg fail-delivery endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
-- [X] T096 [P] [US6] Add driver service tests for lead-driver identity through `Driver.user.id`, all-handover POD/OTP gate, and non-lead rejection in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [X] T093 [P] [US6] Add service tests for lead-driver whole-convoy dealer arrival, whole-order handover gate, and milestone response in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T094 [P] [US6] Add service test proving lead-reported split failure moves the whole Delivery Order, attempt, plan, and all legs to return handling in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T095 [P] [US6] Add controller tests for lead-only dealer-arrival, handover, and split fail-delivery endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
+- [X] T096 [P] [US6] Add driver service tests for lead-driver identity through `Driver.user.id`, whole-convoy handover POD/OTP gate, and non-lead rejection in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
 - [X] T097 [P] [US6] Add driver service tests requiring complete-pair POD replacement and expiring current PENDING/ACTIVE/SEND_FAILED OTP while preserving LOCKED in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
-- [X] T098 [P] [US6] Add driver service test proving OTP confirmation does not release split resources and each linked trip completes independently through `PUT /api/v1/trips/{tripId}/complete` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [X] T098 [P] [US6] Add driver service test proving OTP confirmation does not release split resources and lead-driver return completion releases all linked split resources in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
 
 ### Implementation for User Story 6
 
 - [X] T099 [US6] Enforce complete-pair POD upload/replacement and current usable OTP invalidation in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
-- [X] T100 [US6] Centralize split lead-driver authorization using `leadDriver.user.id` and require every active leg handover before shared POD, OTP request, or OTP confirmation in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
+- [X] T100 [US6] Centralize split lead-driver authorization using `leadDriver.user.id` and require lead-confirmed whole-convoy handover before shared POD, OTP request, or OTP confirmation in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
 - [X] T101 [US6] Verify immediate same-row retry from `SEND_FAILED` and preserve no-automatic-resource-release behavior in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
-- [X] T102 [US6] Verify assigned-leg arrival/handover and whole-Delivery-Order failure behavior in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
-- [X] T103 [US6] Verify Swagger metadata for split dealer-arrival, handover, and fail-delivery routes in `backend/src/main/java/com/wms/controller/order_fulfillment/SplitDeliveryPlanController.java`
-- [X] T104 [P] [US6] Update driver OpenAPI contract for split milestones, shared POD/OTP errors, `SEND_FAILED`, and independent trip completion in `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml`
+- [X] T102 [US6] Verify lead-only arrival/handover and whole-Delivery-Order failure behavior in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T103 [US6] Verify Swagger metadata for lead-only split dealer-arrival, handover, fail-delivery, and complete routes in `backend/src/main/java/com/wms/controller/order_fulfillment/SplitDeliveryPlanController.java`
+- [X] T104 [P] [US6] Update driver OpenAPI contract for lead-only split milestones, shared POD/OTP errors, `SEND_FAILED`, and whole-convoy completion in `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml`
 - [X] T105 [P] [US6] Update Driver plan, research, data model, quickstart, parent outbound spec, and active plan marker in `.sdd/specs/004-outbound-delivery-pod`
-- [X] T106 [P] [US6] Add frontend driver tests for split milestone action gating and independent return actions in `frontend/src/pages/Outbound/DriverTrip.test.jsx`
+- [X] T106 [P] [US6] Add frontend driver tests for lead-only split milestone action gating and whole-convoy return action in `frontend/src/pages/Outbound/DriverTrip.test.jsx`
 - [X] T107 [US6] Align Driver mobile split milestone controls and service calls in `frontend/src/pages/Outbound/DriverTrip.jsx` and `frontend/src/services/outbound.service.js`
 - [X] T108 [US6] Run targeted backend tests, frontend tests/build, Maven compile, and `git diff --check` for the restored Driver split flow
 
@@ -351,7 +351,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 5. Finish polish verification and OpenAPI alignment.
 6. Deliver the shared driver trip list labels and filters so mixed `TRIP-*`/`TTR-*` assignments are easy to identify.
 7. Deliver US5 returned-goods processing so `RETURNED` orders close as `DELIVERY_FAILED` only after Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway completion.
-8. Deliver US6 coordinated split arrival/handover, lead-driver shared POD/OTP, whole-DO failure, and independent vehicle return.
+8. Deliver US6 lead-only split departure, whole-convoy arrival/handover, shared POD/OTP, whole-DO failure, and whole-convoy vehicle return.
 
 ### Validation Checklist
 
@@ -368,4 +368,4 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 - Returned-goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved destination location with non-negative quantity and version checks.
 - Service and controller tests cover happy paths and business-error paths for each user story.
 - Driver trip list uses neutral transport wording, exposes `Tat ca` / `Noi bo` / `Dai ly` filters, and renders `DELIVERY` versus `TRANSFER` summaries without enabling the wrong action set.
-- Split delivery uses one Delivery attempt/POD pair/OTP row, blocks shared POD/OTP until all handovers, returns the whole Delivery Order when one leg fails, and releases each vehicle only through its own trip completion.
+- Split delivery uses one Delivery attempt/POD pair/OTP row, allows only the lead driver to confirm split milestones and shared POD/OTP, returns the whole Delivery Order when the lead reports failure, and releases all split vehicles only through lead-driver whole-convoy return completion.

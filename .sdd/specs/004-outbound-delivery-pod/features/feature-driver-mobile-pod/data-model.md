@@ -144,16 +144,16 @@
 
 ## SplitDeliveryPlan / SplitDeliveryLeg
 
-**Purpose**: Coordinates physical milestones for multiple vehicles delivering one Delivery Order while preserving one Delivery attempt and one financial finalization.
+**Purpose**: Coordinates multiple vehicles delivering one Delivery Order while preserving one Delivery attempt, one lead-driver mobile workflow, and one financial finalization.
 
 Driver POD fields and rules:
 
-- `lead_driver_id`: the only driver allowed to upload/replace POD, request/resend OTP, and confirm delivery.
-- `dealer_arrived_at`: set independently by the driver assigned to each leg.
-- `handover_confirmed_at`: set independently after every active leg has `dealer_arrived_at`.
-- `failure_reported_at` and `failure_reason`: identify the reporting leg; any leg failure moves the plan, all legs, Delivery attempt, and Delivery Order to the return path.
-- Shared POD/OTP actions require every active leg to have `handover_confirmed_at`.
-- Vehicle return is not inferred from Delivery Order completion. Each linked leg trip is completed separately through the existing trip-complete command.
+- `lead_driver_id`: the only driver allowed to confirm split departure, whole-convoy dealer arrival, whole-Delivery-Order handover, POD upload/replacement, OTP request/resend, OTP confirmation, failure reporting, and whole-convoy return completion.
+- `dealer_arrived_at`: records the lead driver's confirmation that the whole split convoy has arrived at the dealer; non-lead drivers do not set per-leg arrival.
+- `handover_confirmed_at`: records the lead driver's confirmation that the whole Delivery Order has been handed over; non-lead drivers do not set per-leg handover.
+- `failure_reported_at` and `failure_reason`: set by the lead driver for the whole split Delivery Order; the failure moves the plan, all legs, Delivery attempt, and Delivery Order to the return path.
+- Shared POD/OTP actions require the lead driver's whole-convoy handover confirmation.
+- Vehicle return is not inferred from Delivery Order completion. The lead driver completes the whole split convoy return, which completes all linked leg trips and releases every split driver/vehicle together.
 - Successful verification sets `status = VERIFIED` and `consumed_at`.
 
 ## DeliveryOrder
@@ -337,9 +337,9 @@ Driver POD fields and rules:
 - `UPLOAD_POD`: POD files accepted and saved on the current attempt.
 - `REQUEST_OTP`: first OTP issue or valid resend after expiry.
 - `CONFIRM_DELIVERY`: OTP verified, attempt delivered, `IN_TRANSIT` inventory decremented, invoice/receivable created, Delivery Order completed.
-- `SPLIT_LEG_ARRIVAL_CONFIRM`: assigned leg driver confirmed dealer arrival.
-- `SPLIT_LEG_HANDOVER_CONFIRM`: assigned leg driver confirmed handover after every leg arrived.
-- `SPLIT_LEG_DELIVERY_FAIL`: one leg failure returned the whole split Delivery Order.
+- `SPLIT_LEG_ARRIVAL_CONFIRM`: lead driver confirmed whole-convoy dealer arrival for the split Delivery Order.
+- `SPLIT_LEG_HANDOVER_CONFIRM`: lead driver confirmed whole-Delivery-Order handover for the split Delivery Order.
+- `SPLIT_LEG_DELIVERY_FAIL`: lead driver reported split delivery failure and returned the whole split Delivery Order.
 - `FAIL_DELIVERY`: current attempt failed and Delivery Order moved to `RETURNED`.
 - `RETURN_FLOW_RECEIVE_CONFIRM`: Storekeeper confirmed returned goods physically arrived back at the warehouse.
 - `RETURN_FLOW_COUNT_QC_SUBMIT`: warehouse staff submitted or resubmitted actual/pass/fail returned-goods count/QC.

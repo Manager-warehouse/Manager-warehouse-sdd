@@ -135,17 +135,17 @@
 
 ## Phase 7: User Story 4 - Dispatcher splits one overloaded Delivery Order across multiple vehicles (Priority: P1)
 
-**Goal**: Dispatcher can allocate one `WAREHOUSE_APPROVED` Delivery Order across multiple ready vehicles/drivers in one coordinated split plan when the order exceeds a single vehicle capacity.
+**Goal**: Dispatcher can allocate one `WAREHOUSE_APPROVED` Delivery Order across multiple vehicles/drivers in one coordinated split plan when the order exceeds a single vehicle capacity.
 
-**Independent Test**: Submit a valid `POST /api/v1/split-delivery-plans` request and verify one split plan plus one planned leg trip per vehicle are created, the full Delivery Order quantity is allocated exactly once, all resources are reserved from active assignment, and departure is blocked until every assigned split driver is ready.
+**Independent Test**: Submit a valid `POST /api/v1/split-delivery-plans` request and verify one split plan plus one planned leg trip per vehicle are created, the full Delivery Order quantity is allocated exactly once, all resources are reserved from active assignment, non-lead departure is rejected, and lead-driver departure starts every split leg together.
 
 ### Tests for User Story 4
 
 - [X] T053 [P] [US4] Add controller tests for split create/update/cancel endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
-- [X] T054 [P] [US4] Add controller tests for driver-readiness and split departure endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
+- [X] T054 [P] [US4] Add controller tests for lead-only split departure endpoint in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
 - [X] T055 [P] [US4] Add service tests for full-allocation, duplicate vehicle/driver, lead-driver, same-warehouse, and active-assignment validation in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
 - [X] T056 [P] [US4] Add service tests for per-leg capacity rejection and unavailable vehicle/driver replacement handling in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
-- [X] T057 [P] [US4] Add service tests for all-driver readiness gate and coordinated departure in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T057 [P] [US4] Add service tests for lead-driver scope and coordinated departure in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
 
 ### Implementation for User Story 4
 
@@ -155,7 +155,7 @@
 - [X] T061 [P] [US4] Add split delivery repositories in `backend/src/main/java/com/wms/repository`
 - [X] T062 [US4] Add `SplitDeliveryPlanService` contract in `backend/src/main/java/com/wms/service/order_fulfillment/SplitDeliveryPlanService.java`
 - [X] T063 [US4] Implement split plan create/update/cancel validation and planned leg-trip persistence in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
-- [X] T064 [US4] Implement split driver readiness and coordinated lead-driver departure in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T064 [US4] Implement lead-only coordinated split departure in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
 - [X] T065 [US4] Implement version-safe full Delivery Order staged-to-`IN_TRANSIT` movement and one lead Delivery attempt for split departure in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
 - [X] T066 [US4] Add split delivery controller endpoints and Swagger metadata in `backend/src/main/java/com/wms/controller/order_fulfillment/SplitDeliveryPlanController.java`
 - [X] T067 [US4] Link regular trip active-assignment checks with active split plans in `backend/src/main/java/com/wms/repository/TripRepository.java` and split repositories
