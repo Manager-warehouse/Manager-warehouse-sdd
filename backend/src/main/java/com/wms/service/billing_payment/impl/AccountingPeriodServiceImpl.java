@@ -18,6 +18,7 @@ import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AccountingPeriodRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
+import com.wms.service.user_configuration.SystemConfigService;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -34,17 +35,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountingPeriodServiceImpl implements AccountingPeriodService {
 
+    private static final String MONTHLY_CLOSING_DAY_KEY = "MONTHLY_CLOSING_DAY";
+    private static final int DEFAULT_CLOSING_DAY = 25;
+
     private final AccountingPeriodRepository accountingPeriodRepository;
     private final AuditLogService auditLogService;
     private final EntityManager entityManager;
+    private final SystemConfigService systemConfigService;
 
     public AccountingPeriodServiceImpl(
             AccountingPeriodRepository accountingPeriodRepository,
             AuditLogService auditLogService,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            SystemConfigService systemConfigService) {
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.auditLogService = auditLogService;
         this.entityManager = entityManager;
+        this.systemConfigService = systemConfigService;
     }
 
     @Override
@@ -269,6 +276,25 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
                 .closedAt(entity.getClosedAt())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
+                .overdue(isOverdue(entity))
                 .build();
+    }
+
+    /**
+     * A period is overdue once it has actually ended (so it's closeable via the UI's
+     * own periodHasEnded gate) and today has reached/passed MONTHLY_CLOSING_DAY - mirrors
+     * MonthlyClosingReminderScheduledJob's threshold, but anchored to the period that can
+     * actually be closed rather than whichever period happens to cover today.
+     */
+    private boolean isOverdue(AccountingPeriod entity) {
+        if (entity.getStatus() != AccountingPeriodStatus.OPEN) {
+            return false;
+        }
+        LocalDate today = LocalDate.now();
+        if (!entity.getEndDate().isBefore(today)) {
+            return false;
+        }
+        int closingDay = systemConfigService.getIntValue(MONTHLY_CLOSING_DAY_KEY, DEFAULT_CLOSING_DAY);
+        return today.getDayOfMonth() >= closingDay;
     }
 }

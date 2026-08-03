@@ -68,6 +68,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +100,8 @@ class AccountingPeriodServiceImplTest {
     private AuditLogService auditLogService;
     @Mock
     private EntityManager entityManager;
+    @Mock
+    private SystemConfigService systemConfigService;
 
     private AccountingPeriodServiceImpl service;
     private User accountantManager;
@@ -106,7 +109,9 @@ class AccountingPeriodServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new AccountingPeriodServiceImpl(accountingPeriodRepository, auditLogService, entityManager);
+        service = new AccountingPeriodServiceImpl(accountingPeriodRepository, auditLogService, entityManager,
+                systemConfigService);
+        lenient().when(systemConfigService.getIntValue(anyString(), anyInt())).thenReturn(25);
         accountantManager = new User();
         accountantManager.setId(1L);
         accountantManager.setRole(UserRole.ACCOUNTANT_MANAGER);
@@ -227,6 +232,65 @@ class AccountingPeriodServiceImplTest {
                 () -> service.closePeriod(20L, new AccountingPeriodCloseRequest(), accountantManager));
 
         assertTrue(ex.getMessage().contains("PREVIOUS_PERIOD_NOT_CLOSED"));
+    }
+
+    // ── overdue flag ──────────────────────────────────────────────────────────
+
+    @Test
+    void getAllPeriods_openAndEndedPastClosingDay_marksOverdue() {
+        AccountingPeriod ended = AccountingPeriod.builder()
+                .id(30L).periodName("2026-06").status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.now().minusDays(1))
+                .build();
+        when(accountingPeriodRepository.findAllByOrderByStartDateDesc()).thenReturn(List.of(ended));
+        // day-of-month is always >= 1, so this always crosses the threshold regardless
+        // of the actual date the test runs on.
+        when(systemConfigService.getIntValue(anyString(), anyInt())).thenReturn(1);
+
+        var response = service.getAllPeriods(accountantManager);
+
+        assertTrue(response.get(0).isOverdue());
+    }
+
+    @Test
+    void getAllPeriods_openAndEndedButClosingDayNotReached_notOverdue() {
+        AccountingPeriod ended = AccountingPeriod.builder()
+                .id(31L).periodName("2026-06").status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.now().minusDays(1))
+                .build();
+        when(accountingPeriodRepository.findAllByOrderByStartDateDesc()).thenReturn(List.of(ended));
+        // day-of-month never reaches 32, so this never crosses the threshold.
+        when(systemConfigService.getIntValue(anyString(), anyInt())).thenReturn(32);
+
+        var response = service.getAllPeriods(accountantManager);
+
+        assertTrue(!response.get(0).isOverdue());
+    }
+
+    @Test
+    void getAllPeriods_openButNotYetEnded_notOverdueRegardlessOfClosingDay() {
+        AccountingPeriod current = AccountingPeriod.builder()
+                .id(32L).periodName("2026-08").status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.now().plusDays(5))
+                .build();
+        when(accountingPeriodRepository.findAllByOrderByStartDateDesc()).thenReturn(List.of(current));
+
+        var response = service.getAllPeriods(accountantManager);
+
+        assertTrue(!response.get(0).isOverdue());
+    }
+
+    @Test
+    void getAllPeriods_closedPeriod_neverOverdue() {
+        AccountingPeriod closed = AccountingPeriod.builder()
+                .id(33L).periodName("2026-06").status(AccountingPeriodStatus.CLOSED)
+                .endDate(LocalDate.now().minusDays(1))
+                .build();
+        when(accountingPeriodRepository.findAllByOrderByStartDateDesc()).thenReturn(List.of(closed));
+
+        var response = service.getAllPeriods(accountantManager);
+
+        assertTrue(!response.get(0).isOverdue());
     }
 
     @Test

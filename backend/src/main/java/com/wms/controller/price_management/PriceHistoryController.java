@@ -113,9 +113,12 @@ public class PriceHistoryController {
 
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ADMIN')")
-    @Operation(summary = "Import bảng giá từ file Excel (.xlsx)")
-    public ResponseEntity<PriceImportResponse> importExcel(@RequestParam("file") MultipartFile file) {
-        PriceImportResponse result = priceHistoryService.importFromExcel(file, currentUserService.getRequiredCurrentUser());
+    @Operation(summary = "Import bảng giá từ file Excel (.xlsx); targetWarehouseId ghi đè cột warehouse_code trong file nếu có (áp dụng cho kho hiện tại)")
+    public ResponseEntity<PriceImportResponse> importExcel(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) Long targetWarehouseId) {
+        PriceImportResponse result = priceHistoryService.importFromExcel(
+                file, targetWarehouseId, currentUserService.getRequiredCurrentUser());
         int status = result.getFailedCount() == 0 ? 201 : 207;
         return ResponseEntity.status(status).body(result);
     }
@@ -180,15 +183,19 @@ public class PriceHistoryController {
 class ProductPriceHistoryController {
 
     private final PriceHistoryService priceHistoryService;
+    private final CurrentUserService currentUserService;
 
-    ProductPriceHistoryController(PriceHistoryService priceHistoryService) {
+    ProductPriceHistoryController(PriceHistoryService priceHistoryService, CurrentUserService currentUserService) {
         this.priceHistoryService = priceHistoryService;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping("/{id}/price-history")
     @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
-    @Operation(summary = "Lịch sử tất cả bản giá của một sản phẩm")
-    public ProductPriceHistoryResponse getByProduct(@PathVariable Long id) {
-        return priceHistoryService.getByProduct(id);
+    @Operation(summary = "Lịch sử tất cả bản giá của một sản phẩm (filter theo warehouse_id nếu có)")
+    public ProductPriceHistoryResponse getByProduct(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long warehouseId) {
+        return priceHistoryService.getByProduct(id, warehouseId, currentUserService.getRequiredCurrentUser());
     }
 }
