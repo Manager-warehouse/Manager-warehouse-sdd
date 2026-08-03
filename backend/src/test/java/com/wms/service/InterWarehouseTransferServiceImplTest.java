@@ -654,18 +654,30 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void assignTrip_cancelsApprovedTransferWhenRequiredArrivalDateExpired() {
+    void approveTransfer_cancelsNewTransferWhenRequiredArrivalDateExpired() {
         transfer.setPlannedDate(LocalDate.now().minusDays(1));
-        service.approveTransfer(1L, sourceManager);
-        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
 
-        InterWarehouseTransferResponse response = service.assignTrip(1L,
-                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
-                        VALID_TRIP_START, VALID_TRIP_END),
-                dispatcher);
+        InterWarehouseTransferResponse response = service.approveTransfer(1L, sourceManager);
 
         assertThat(response.status()).isEqualTo(InterWarehouseTransferStatus.CANCELLED);
         assertThat(sourceInventory.getReservedQty()).isZero();
+        assertThat(transfer.getRejectionReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_CANCEL);
+    }
+
+    @Test
+    void getTransferById_cancelsApprovedTransferWhenTripPlannedEndExpiredBeforeDepart() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        transfer.getTrip().setPlannedEndAt(LocalDateTime.now().minusHours(1));
+        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
+
+        InterWarehouseTransferResponse response = service.getTransferById(1L, sourceManager);
+
+        assertThat(response.status()).isEqualTo(InterWarehouseTransferStatus.CANCELLED);
+        assertThat(sourceInventory.getReservedQty()).isZero();
+        assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.CANCELLED);
         assertThat(transfer.getRejectionReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
         assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_CANCEL);
     }
@@ -1342,7 +1354,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void getTransferById_reportsOverdueWithoutMutatingTransferOrTrip() {
+    void getTransferById_forcesReturnWhenInTransitTripPlannedEndExpired() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1356,12 +1368,14 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(response.tripOverdue()).isTrue();
         assertThat(transfer.getStatus()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
         assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.IN_TRANSIT);
-        assertThat(transfer.getRejectionReason()).isNull();
+        assertThat(transfer.isReturned()).isTrue();
+        assertThat(transfer.getReturnReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_RETURN_TO_SOURCE);
         assertThat(transferItem.getSentQty()).isEqualByComparingTo(new BigDecimal("5.00"));
     }
 
     @Test
-    void receiving_blocksWhenTripIsOverdueBeforeReturnDecision() {
+    void receiving_routesToReturnScopeWhenTripIsOverdue() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1374,7 +1388,9 @@ class InterWarehouseTransferServiceImplTest {
                 new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
                 destinationWorker))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("TRANSFER_TRIP_OVERDUE");
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+        assertThat(transfer.isReturned()).isTrue();
+        assertThat(transfer.getReturnReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
     }
 
     @Test

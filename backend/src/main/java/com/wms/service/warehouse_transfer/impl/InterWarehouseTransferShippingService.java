@@ -90,7 +90,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: lấy phiếu và chỉ cho gán xe khi phiếu đã được duyệt, tức là kho nguồn đã giữ hàng cho phiếu này.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 
@@ -177,11 +177,14 @@ public class InterWarehouseTransferShippingService {
         return helper.toResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
         // Công nhân xem các kệ đang có tồn của đúng SKU để chọn kệ lấy hàng thực tế.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUIRED_DATE_EXPIRED");
+        }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         ensureSingleTransferTrip(transfer);
 
@@ -220,7 +223,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: phiếu phải APPROVED và đã có trip điều chuyển trước khi công nhân báo số lượng xếp.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -289,7 +292,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ chốt gửi khi phiếu đã duyệt, đúng kho nguồn, đã có chuyến xe và đã báo cáo xếp đủ.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -338,7 +341,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: QC xuất chỉ chạy sau khi đã báo cáo xếp đủ và phiếu đang ở trạng thái đã duyệt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -370,7 +373,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ được bàn giao khi đã xếp đủ, không còn yêu cầu xếp lại và QC xuất đã đạt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -401,7 +404,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ tài xế được gán mới được bấm rời kho và mọi bước xuất kho phải hoàn tất.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         ensureAssignedDriver(transfer, actor);
@@ -436,42 +439,6 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_DEPART, before, helper.snapshot(saved));
         return helper.toResponse(saved);
-    }
-
-    private boolean autoCancelIfDeadlineExpiredBeforeDeparture(InterWarehouseTransfer transfer, User actor) {
-        // HÀM HỖ TRỢ: tự hủy phiếu nếu quá ngày cần hàng trước khi xe rời kho.
-        // Ngày cần hàng là deadline cứng: quá deadline mà xe chưa rời kho thì phiếu bị hủy và trả lại hàng đang giữ chỗ.
-        if (!helper.isPastRequiredArrivalDate(transfer)) {
-            return false;
-        }
-        Map<String, Object> before = helper.snapshot(transfer);
-        helper.releaseReservations(transfer);
-        for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            item.setSentQty(null);
-            transferItemRepository.save(item);
-        }
-        transfer.setStatus(InterWarehouseTransferStatus.CANCELLED);
-        transfer.setRejectionReason("TRANSFER_REQUIRED_DATE_EXPIRED");
-        transfer.setUpdatedAt(OffsetDateTime.now());
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_CANCEL, before, helper.snapshot(saved));
-        return true;
-    }
-
-    private boolean autoForceReturnIfDeadlineMissedInTransit(InterWarehouseTransfer transfer, User actor) {
-        // HÀM HỖ TRỢ: quá hạn khi đang vận chuyển thì chuyển phiếu sang nhánh quay đầu.
-        // Khi hàng đã lên xe thì không được cancel mất dấu hàng; quá deadline bắt buộc chuyển sang nhánh quay đầu về kho nguồn.
-        if (transfer.isReturned() || !helper.isPastRequiredArrivalDate(transfer)) {
-            return false;
-        }
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturned(true);
-        transfer.setReturnRequested(false);
-        transfer.setReturnReason("TRANSFER_REQUIRED_DATE_EXPIRED");
-        transfer.setUpdatedAt(OffsetDateTime.now());
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
-        return true;
     }
 
     private void validateTripSchedule(InterWarehouseTransferTripAssignRequest request) {
@@ -738,7 +705,7 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         ensureAssignedDriver(transfer, actor);
-        if (autoForceReturnIfDeadlineMissedInTransit(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 
@@ -758,7 +725,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: xác định kho được phép bàn giao. Nếu xe quay đầu thì kho nhận lại chính là kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        if (autoForceReturnIfDeadlineMissedInTransit(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 
