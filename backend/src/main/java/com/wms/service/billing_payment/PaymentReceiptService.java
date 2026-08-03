@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface PaymentReceiptService {
     PaymentReceiptResponse createPaymentReceipt(PaymentReceiptCreateRequest request, User actor);
-    List<PaymentReceiptResponse> getPaymentReceipts(Long dealerId, Long periodId, User actor);
+    List<PaymentReceiptResponse> getPaymentReceipts(Long dealerId, Long periodId, Long warehouseId, User actor);
     List<CreditAgingReportResponse> getCreditAgingReport(User actor);
     void runDailyOverdueHoldJob();
 }

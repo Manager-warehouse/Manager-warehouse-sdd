@@ -38,8 +38,9 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 
 - Thủ kho chỉ check sau khi có receive count và trước khi check được duyệt.
 - `confirmedReceivedQty`, `qcPassedQty`, `qcFailedQty` phải là số nguyên không âm.
-- `qcPassedQty + qcFailedQty = confirmedReceivedQty`.
-- Nếu `confirmedReceivedQty` khác `receivedQty` do công nhân nhập, bắt buộc có `checkerNote`.
+- `confirmedReceivedQty` phải bằng count công nhân; thủ kho không nhập/sửa số lượng chốt ở bước QC.
+- Nếu count lệch số gửi, hệ thống đặt `qcPassedQty = confirmedReceivedQty`, `qcFailedQty = 0` và không mở quarantine ở bước này.
+- Nếu count khớp số gửi, `qcPassedQty + qcFailedQty = confirmedReceivedQty`.
 - Nếu `qcFailedQty > 0`, bắt buộc có `qcFailureReason`.
 - Nếu có hàng QC pass, bắt buộc chọn `destinationLocationId`.
 - Vị trí nhập hàng pass phải thuộc kho nhận, active, đủ sức chứa và không phải quarantine bin.
@@ -50,7 +51,7 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 ### 3.4. Final receive
 
 - Trưởng kho chỉ final receive sau receive-check.
-- Nếu `received_qty > sent_qty`, hệ thống không nhập thường phần thừa; phần thừa phải tạo discrepancy/hold.
+- Nếu `received_qty > sent_qty`, hệ thống vẫn cất đủ số công nhân count vào kho đích và tạo discrepancy/hold cho phần thừa.
 - Nếu nhận đủ, hệ thống trừ `IN_TRANSIT`, cộng kho đích cho hàng QC pass, cộng quarantine cho hàng QC fail và set `COMPLETED`.
 - Nếu thiếu hàng, bắt buộc `discrepancyReason`, trừ toàn bộ lượng sent khỏi `IN_TRANSIT`, cộng kho đích/quarantine theo lượng vật lý nhận được, tạo adjustment `TRANSFER_DISCREPANCY` và set `COMPLETED_WITH_DISCREPANCY`.
 - Số lượng thiếu không có mặt vật lý nên không được tạo quarantine inventory hoặc disposal candidate.
@@ -115,7 +116,7 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
       "qcFailureReason": "2 sản phẩm bị móp vỏ hộp"
     }
   ],
-  "checkerNote": "Đã đối chiếu số lượng với công nhân nhập ban đầu"
+  "qcPhotoRef": "transfer/receive-qc/1.jpg"
 }
 ```
 
@@ -162,14 +163,14 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 ## 6. Tiêu chí chấp nhận
 
 - **Nhận thiếu hàng**: Gửi 30, nhận 28, có reason; hệ thống nhập 28 theo QC, clear 30 khỏi `IN_TRANSIT`, tạo discrepancy 2 và status `COMPLETED_WITH_DISCREPANCY`.
-- **Chặn nhận thừa vào tồn thường**: Nếu nhận vượt số gửi, phần thừa không được nhập regular inventory và phải tạo hold/incident.
+- **Nhận thừa vẫn cất đủ**: Nếu nhận vượt số gửi, hệ thống nhập đủ số công nhân count vào regular inventory và tạo hold/incident cho phần thừa.
 - **Chặn shortage thiếu reason**: Thiếu hàng nhưng không có `issueReason` hoặc `discrepancyReason` bị reject.
 - **Chặn duplicate count/check item**: Payload trùng transfer item bị reject.
 - **QC fail vào quarantine**: Hàng vật lý QC fail được đưa vào quarantine với origin `INTERNAL_TRANSFER`.
 - **Thiếu hàng không vào quarantine**: Số thiếu không có mặt vật lý, không tạo quarantine/disposal.
 - **Quay đầu quá hạn**: Transfer quá hạn trong `IN_TRANSIT` được đánh dấu quay đầu, tài xế quay về và kho nguồn nhận lại theo ba bước.
 - **Chặn sửa count sau receive-check**: Sau khi thủ kho duyệt check, công nhân không sửa count.
-- **Thủ kho sửa count phải note**: Nếu confirmed khác worker count mà thiếu `checkerNote`, hệ thống reject.
+- **Chặn thủ kho sửa count**: Nếu confirmed khác worker count, hệ thống reject.
 - **Chặn QC fail thiếu reason/quarantine bin**: Có `qcFailedQty > 0` mà thiếu reason hoặc kho không có quarantine bin active thì reject.
 - **Chặn hàng pass vào quarantine bin**: `destinationLocationId` là quarantine bin bị reject.
 - **Chặn final trước receive-check**: Trưởng kho không final receive nếu thủ kho chưa check.

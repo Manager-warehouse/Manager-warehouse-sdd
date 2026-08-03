@@ -17,13 +17,22 @@ const LowStockAlerts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const user = useAuthStore((state) => state.user);
+  const isWarehouseManager = user?.role === ROLES.WAREHOUSE_MANAGER;
+  const assignedWarehouseIds = user?.warehouses || [];
+
   // Filters
   const [warehouseId, setWarehouseId] = useState('');
   const [isResolved, setIsResolved] = useState('false'); // default xem các active alerts
 
   useEffect(() => {
+    if (isWarehouseManager && assignedWarehouseIds.length > 0 && !warehouseId) {
+      setWarehouseId(String(assignedWarehouseIds[0]));
+      return;
+    }
+    if (isWarehouseManager && !warehouseId) return;
     fetchAlerts();
-  }, [page, warehouseId, isResolved]);
+  }, [page, warehouseId, isResolved, isWarehouseManager, assignedWarehouseIds]);
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -118,18 +127,20 @@ const LowStockAlerts = () => {
         </div>
 
         <div className="mobile-filter-bar md:flex md:flex-nowrap md:items-center md:gap-2">
-          <Input
-            type="select"
-            value={warehouseId}
-            onChange={(e) => { setWarehouseId(e.target.value); setPage(0); }}
-            options={[
-              { value: '', label: 'Tất cả kho vật lý' },
-              { value: '1', label: 'Kho Hải Phòng' },
-              { value: '2', label: 'Kho Hà Nội' },
-              { value: '3', label: 'Kho Hồ Chí Minh' },
-            ]}
-            className="md:flex-1"
-          />
+          {!isWarehouseManager && (
+            <Input
+              type="select"
+              value={warehouseId}
+              onChange={(e) => { setWarehouseId(e.target.value); setPage(0); }}
+              options={[
+                { value: '', label: 'Tất cả kho vật lý' },
+                { value: '1', label: 'Kho Hải Phòng' },
+                { value: '2', label: 'Kho Hà Nội' },
+                { value: '3', label: 'Kho Hồ Chí Minh' },
+              ]}
+              className="md:flex-1"
+            />
+          )}
           <Input
             type="select"
             value={isResolved}

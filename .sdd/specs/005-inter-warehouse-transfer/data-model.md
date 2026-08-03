@@ -223,7 +223,7 @@ Thao tác điều chuyển:
 
 Dùng cho điều chuyển:
 - Thiếu hàng: incident loại `SHORTAGE` với transfer, transfer item, product, expected quantity, actual quantity, missing quantity và reason.
-- Nhận thừa vật lý: incident loại `OVER_RECEIPT`; phần thừa không được nhập regular inventory cho đến khi có resolution được duyệt.
+- Nhận thừa vật lý: incident loại `OVER_RECEIPT`; phần thừa được cất theo count vật lý ở kho đích và được trace bằng hold entry để chốt trách nhiệm sau.
 - Incident phải giữ status điều tra, người tạo, thời điểm tạo và resolution note.
 - Incident phải liên kết được với audit log và adjustment nếu có.
 
