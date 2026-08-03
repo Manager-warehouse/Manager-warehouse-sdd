@@ -417,13 +417,13 @@ public class InterWarehouseTransferReceivingService {
         if (item.getWorkerReceivedQty() == null) {
             throw new BusinessRuleViolationException("WORKER_COUNT_REQUIRED");
         }
-        // Validate: thủ kho xác nhận khác số công nhân đếm thì phải ghi note giải trình.
-        if (line.confirmedQty().compareTo(item.getWorkerReceivedQty()) != 0 && helper.isBlank(line.checkerNote())) {
-            throw new BusinessRuleViolationException("CHECKER_NOTE_REQUIRED");
+        // Count là trách nhiệm của công nhân; thủ kho chỉ kiểm QC nên không được sửa số lượng ở bước này.
+        if (line.confirmedQty().compareTo(item.getWorkerReceivedQty()) != 0) {
+            throw new BusinessRuleViolationException("RECEIVE_CHECK_QTY_MUST_MATCH_WORKER_COUNT");
         }
         boolean countMismatch = item.getWorkerReceivedQty().compareTo(item.getSentQty()) != 0;
         if (countMismatch) {
-            BigDecimal expectedPutawayQty = line.confirmedQty().min(item.getSentQty());
+            BigDecimal expectedPutawayQty = line.confirmedQty();
             // Khi số đếm lệch số gửi, phần thiếu/thừa đi hồ sơ chênh lệch.
             // Không cho nhập QC lỗi ở đây để tránh vừa chênh lệch vừa quarantine cùng một phần hàng.
             if (line.qcFailedQty().signum() > 0 || line.qcPassedQty().compareTo(expectedPutawayQty) != 0) {
@@ -624,7 +624,8 @@ public class InterWarehouseTransferReceivingService {
                 }
             }
 
-            // Nếu nhận thừa so với hàng đang vận chuyển, đưa phần thừa vào danh sách tạm giữ của hồ sơ chênh lệch.
+            // Nếu nhận thừa so với hàng đang vận chuyển, vẫn cất đủ số thực nhận vào kho đích,
+            // đồng thời ghi phần thừa vào hồ sơ chênh lệch để quản lý xử lý/audit sau.
             BigDecimal overReceiptPassed = remainingPassed;
             BigDecimal overReceiptFailed = remainingFailed;
             BigDecimal totalOverReceipt = overReceiptPassed.add(overReceiptFailed);
@@ -674,6 +675,9 @@ public class InterWarehouseTransferReceivingService {
                 Batch batch = item.getBatch();
                 if (batch == null && !allocationRepository.findByTransferItemId(item.getId()).isEmpty()) {
                     batch = allocationRepository.findByTransferItemId(item.getId()).get(0).getInventory().getBatch();
+                }
+                if (batch == null) {
+                    throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_INCOMPLETE");
                 }
 
                 if (overReceiptPassed.signum() > 0) {
@@ -795,9 +799,11 @@ public class InterWarehouseTransferReceivingService {
                                        DiscrepancyIncident incident,
                                        BigDecimal quantity,
                                        Map<WarehouseLocation, BigDecimal> remainingPutaway) {
-        // Hàng nhận thừa được đưa vào danh sách tạm giữ của hồ sơ chênh lệch,
-        // chưa cộng tồn khả dụng cho tới khi hồ sơ chênh lệch được xử lý.
+        // Hàng nhận thừa vẫn được cất vào vị trí thường vì kho đích đang giữ hàng vật lý,
+        // nhưng giữ thêm entry chênh lệch để không mất truy vết phần vượt số gửi.
         distributeToBins(quantity, remainingPutaway, (location, movedQty) -> {
+            applyLocationOccupancy(location, item.getProduct(), movedQty);
+            helper.upsertInventory(warehouse, item.getProduct(), batch, location, movedQty, null);
             discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
                     .incident(incident)
                     .warehouse(warehouse)

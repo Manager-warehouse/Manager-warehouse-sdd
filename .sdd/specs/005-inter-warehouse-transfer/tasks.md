@@ -114,7 +114,7 @@
 - [x] T047 Triển khai driver arrival và receiving-warehouse handover tại `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
 - [x] T048 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` để chặn receive-count cho đến khi có arrival và handover.
 - [x] T049 Cập nhật receive-check/final-receive để kiểm capacity bin kho đích cho số lượng QC pass trước khi ghi tồn.
-- [x] T050 Thêm xử lý discrepancy incident/hold cho nhận thừa vật lý để tiếp tục chặn ghi tồn thường.
+- [x] T050 Thêm xử lý discrepancy incident/hold cho nhận thừa vật lý; phần thừa vẫn được cất theo count thực nhận và trace trách nhiệm bằng hold.
 - [x] T051 Thêm audit actions cho `TRANSFER_ARRIVE` và `TRANSFER_ARRIVAL_HANDOVER`.
 - [x] T052 Thêm test cho nhận trước arrival bị chặn, nhận sau handover được phép, vượt bin capacity và hold discrepancy nhận thừa.
 

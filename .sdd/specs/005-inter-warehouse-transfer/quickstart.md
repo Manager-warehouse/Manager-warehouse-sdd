@@ -86,9 +86,10 @@
 
 13. Thủ kho kho đích kiểm nhận:
    - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check`
-   - Tổng QC phải bằng `confirmedReceivedQty`.
+   - Thủ kho không sửa count; `confirmedReceivedQty` phải bằng số công nhân nhập.
+   - Nếu count lệch số gửi, QC pass bằng số công nhân nhập và không cho nhập QC fail/quarantine.
+   - Nếu count khớp số gửi, tổng QC phải bằng `confirmedReceivedQty`.
    - Bin kho đích phải đủ sức chứa cho số lượng QC pass.
-   - Chỉ bắt `checkerNote` khi số xác nhận khác số công nhân nhập.
 
 14. Quản lý kho đích nhập kho cuối:
     - `POST /api/v1/inter-warehouse-transfers/{id}/final-receive`
