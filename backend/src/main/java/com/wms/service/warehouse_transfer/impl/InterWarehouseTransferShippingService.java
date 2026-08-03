@@ -37,6 +37,7 @@ import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.LoadHandoverRequest;
+import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.exception.BusinessRuleViolationException;
@@ -602,9 +603,8 @@ public class InterWarehouseTransferShippingService {
     }
 
     @Transactional
-    public InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor) {
-        // HÀM CHÍNH: kho nhận ghi bằng chứng bàn giao khi xe đến.
-        // Kho nhận xác nhận bàn giao với ảnh; đây là bước bắt buộc trước khi nhập số lượng nhận.
+    public InterWarehouseTransferResponse receivingHandover(Long id, ReceivingHandoverRequest request, User actor) {
+        // HÀM CHÍNH: kho nhận xác nhận bàn giao khi xe đến.
         // Bước 1: xác định kho được phép bàn giao. Nếu xe quay đầu thì kho nhận lại chính là kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
@@ -620,9 +620,9 @@ public class InterWarehouseTransferShippingService {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
-        // Bước 2: lưu ảnh bàn giao khi xe đến nơi; bước nhập số lượng nhận sẽ kiểm mốc này.
+        // Bước 2: lưu mốc bàn giao; ảnh không bắt buộc ở kho đích để mở nhanh bước count.
         transfer.setArrivalHandoverAt(OffsetDateTime.now());
-        transfer.setArrivalHandoverPhotoRef(request.photoRef());
+        transfer.setArrivalHandoverPhotoRef(request != null ? request.photoRef() : null);
         transfer.setArrivalHandoverBy(actor);
         transfer.setUpdatedAt(OffsetDateTime.now());
 

@@ -351,11 +351,11 @@ public class TransferServiceIT {
 
         trf = transferService.receivingHandover(
                 trf.id(),
-                new LoadHandoverRequest("transfer/arrival-handover/trf-001.jpg"),
+                new ReceivingHandoverRequest(null),
                 storekeeper
         );
         assertThat(trf.arrivalHandoverAt()).isNotNull();
-        assertThat(trf.arrivalHandoverPhotoRef()).isEqualTo("transfer/arrival-handover/trf-001.jpg");
+        assertThat(trf.arrivalHandoverPhotoRef()).isNull();
 
         // 8. Receive Count at destination
         InterWarehouseTransferReceiveCountItemRequest countItem = new InterWarehouseTransferReceiveCountItemRequest(
@@ -470,5 +470,4 @@ public class TransferServiceIT {
         assertThat(snapshotItem.unitVolumeSnapshot()).isEqualByComparingTo(new BigDecimal("0.02000"));
     }
 }
-
 

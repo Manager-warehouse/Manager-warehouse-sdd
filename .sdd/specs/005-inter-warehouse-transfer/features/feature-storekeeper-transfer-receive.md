@@ -4,7 +4,7 @@
 
 Khi xe điều chuyển đến, công nhân kho đích ghi nhận số lượng thực nhận ban đầu. Thủ kho kho đích kiểm lại số lượng, chốt QC, chọn vị trí nhập cho hàng đạt. Trưởng kho đích xác nhận cuối cùng, xử lý chênh lệch nếu có và hoàn tất phiếu.
 
-Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`, không đi vào danh sách phiếu nhập `RN-*` từ nhà cung cấp. Sprint 1 giả định mỗi `TRF` có một lần ship và một lần final receive; không hỗ trợ split receive hoặc nhiều lần final receive độc lập. Mọi bước bàn giao có ảnh phải dùng chọn file hoặc chụp ảnh trực tiếp, không nhập link ảnh thủ công.
+Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`, không đi vào danh sách phiếu nhập `RN-*` từ nhà cung cấp. Sprint 1 giả định mỗi `TRF` có một lần ship và một lần final receive; không hỗ trợ split receive hoặc nhiều lần final receive độc lập. Bàn giao tại kho đích không yêu cầu ảnh; các bước khác nếu có ảnh bắt buộc phải dùng chọn file hoặc chụp ảnh trực tiếp, không nhập link ảnh thủ công.
 
 ## 2. Tác nhân
 
@@ -21,7 +21,9 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - Receive-count chỉ được thực hiện khi transfer đang `IN_TRANSIT`.
 - Luồng thường bắt buộc có driver arrival và receiving handover trước khi đếm.
 - Luồng quay đầu bắt buộc có return departure, return arrival và return handover trước khi kho nguồn đếm.
-- Các nút xác nhận handover có ảnh phải disabled cho đến khi chọn/chụp ảnh.
+- Receiving handover tại kho đích là nút xác nhận bàn giao của thủ kho, không cần chọn/chụp ảnh.
+- Sau receiving handover, công nhân kho đích thấy ngay phần receive count để nhập số thực nhận và gửi lại cho thủ kho kiểm nhận.
+- Return handover khi quay đầu về kho nguồn vẫn có ảnh và disabled cho đến khi chọn/chụp ảnh.
 
 ### 3.2. Receive count
 

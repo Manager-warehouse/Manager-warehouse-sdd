@@ -56,6 +56,6 @@
 
 ## Quyết định: Mô hình hóa nhu cầu bổ sung hàng của quản lý kho bằng `TransferRequest` trước `TRF`
 
-**Lý do**: Quản lý kho có thể phát hiện thiếu hàng bằng cách xem tồn read-only ở kho khác, nhưng yêu cầu đó vẫn cần CEO duyệt trước khi vận hành kho thực thi. Giữ luồng này trong `transfer_requests` giúp không làm quá tải status của `transfers`, đồng thời giữ flow `TRF` hiện tại: tồn kho chỉ được reserve sau khi quản lý kho nguồn duyệt.
+**Lý do**: Quản lý kho có thể phát hiện thiếu hàng bằng cách xem tồn read-only ở kho khác, nhưng kho nguồn mới là bên chịu trách nhiệm xác nhận khả năng cấp hàng. Giữ luồng này trong `transfer_requests` giúp không làm quá tải status của `transfers`, đồng thời tồn kho được reserve ngay khi quản lý kho nguồn duyệt.
 
-**Phương án đã cân nhắc**: Cho quản lý kho tạo trực tiếp `TRF`. Bị loại vì bỏ qua CEO approval và trách nhiệm của Planner. Tự động tạo `TRF` ngay sau khi CEO duyệt cũng bị loại vì Planner nguồn vẫn cần nhận template đã duyệt và tạo chứng từ vận hành có traceability.
+**Phương án đã cân nhắc**: Cho quản lý kho tạo trực tiếp `TRF`. Bị loại vì bỏ qua trách nhiệm điều phối/chốt chứng từ của Planner. Để Planner mới reserve ở bước convert cũng bị loại vì có thể làm kho nguồn hứa cấp hàng nhưng tồn khả dụng đã bị nghiệp vụ khác giữ trước.

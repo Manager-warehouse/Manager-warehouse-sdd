@@ -229,8 +229,8 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor) {
-        // Kho nhận chụp ảnh bàn giao khi xe đến; chỉ sau đó mới được nhập số lượng nhận.
+    public InterWarehouseTransferResponse receivingHandover(Long id, ReceivingHandoverRequest request, User actor) {
+        // Kho nhận xác nhận bàn giao khi xe đến; chỉ sau đó mới được nhập số lượng nhận.
         return shippingService.receivingHandover(id, request, actor);
     }
 

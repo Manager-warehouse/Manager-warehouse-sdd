@@ -52,7 +52,6 @@ import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.enums.stock_receiving.ReceiptType;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
-import com.wms.exception.ForbiddenReceiptWarehouseException;
 import com.wms.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,7 +66,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -178,7 +176,7 @@ class DisposalServiceTest {
         DisposalResponse response = disposalService.createDisposalRequest(200L, req, actor);
 
         assertThat(response).isNotNull();
-        assertThat(response.isAutoApproved()).isFalse(); // > 5M -> Needs approval
+        assertThat(response.isAutoApproved()).isFalse();
 
         verifyNoInteractions(inventoryRepository); // No stock deduction until approval
     }
@@ -222,8 +220,8 @@ class DisposalServiceTest {
     }
 
     @Test
-    void approveDisposal_highValueRequiresCeo_failsForManager() {
-        item.setUnitCost(BigDecimal.valueOf(12000000)); // 12M each -> Total 120M (Exceeds 100M threshold)
+    void approveDisposal_highValueAllowsManager() {
+        item.setUnitCost(BigDecimal.valueOf(12000000));
         Adjustment adjustment = Adjustment.builder()
                 .id(500L)
                 .adjustmentNumber("ADJ-001")
@@ -241,9 +239,22 @@ class DisposalServiceTest {
         when(adjustmentRepository.findById(500L)).thenReturn(Optional.of(adjustment));
         when(receiptItemRepository.findById(200L)).thenReturn(Optional.of(item));
 
-        assertThatThrownBy(() -> disposalService.approveDisposal(500L, manager))
-                .isInstanceOf(ForbiddenReceiptWarehouseException.class)
-                .hasMessageContaining("CEO approval is required");
+        Inventory inventory = Inventory.builder()
+                .warehouse(warehouse)
+                .product(product)
+                .batch(batch)
+                .location(location)
+                .totalQty(BigDecimal.valueOf(10))
+                .reservedQty(BigDecimal.ZERO)
+                .build();
+        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+                .thenReturn(Optional.of(inventory));
+
+        DisposalResponse response = disposalService.approveDisposal(500L, manager);
+
+        assertThat(response).isNotNull();
+        assertThat(adjustment.getApprovedBy()).isEqualTo(manager);
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test

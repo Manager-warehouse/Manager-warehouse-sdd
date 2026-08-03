@@ -310,6 +310,7 @@ public class GlobalExceptionHandler {
             case "INSUFFICIENT_AVAILABLE_STOCK": return "Tồn kho khả dụng không đủ để giữ chỗ cho số lượng yêu cầu. Vui lòng kiểm tra lại tồn kho.";
             case "WAREHOUSE_SCOPE_REQUIRED": return "Bạn không thuộc kho liên quan, không thể thực hiện thao tác này.";
             case "WAREHOUSE_MANAGER_ROLE_REQUIRED": return "Chỉ Quản lý kho mới có quyền thực hiện thao tác này.";
+            case "SOURCE_MANAGER_ROLE_REQUIRED": return "Chỉ Quản lý kho nguồn mới có quyền thực hiện thao tác này.";
             case "PLANNER_ROLE_REQUIRED": return "Chỉ Planner mới có quyền thực hiện thao tác này.";
             case "CEO_ROLE_REQUIRED": return "Chỉ CEO mới có quyền thực hiện thao tác này.";
             case "REJECTION_REASON_REQUIRED": return "Vui lòng nhập lý do từ chối.";
@@ -406,9 +407,9 @@ public class GlobalExceptionHandler {
             case "ONLY_DRAFT_CAN_BE_UPDATED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được sửa.";
             case "ONLY_DRAFT_CAN_BE_CANCELLED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được hủy.";
             case "ONLY_DRAFT_CAN_BE_SUBMITTED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được gửi duyệt.";
-            case "ONLY_SUBMITTED_CAN_BE_APPROVED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO phê duyệt.";
-            case "ONLY_SUBMITTED_CAN_BE_REJECTED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO từ chối.";
-            case "ONLY_APPROVED_CAN_BE_CONVERTED": return "Chỉ yêu cầu điều chuyển đã được CEO duyệt mới được lập phiếu điều chuyển.";
+            case "ONLY_SUBMITTED_CAN_BE_APPROVED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được Quản lý kho nguồn phê duyệt.";
+            case "ONLY_SUBMITTED_CAN_BE_REJECTED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được Quản lý kho nguồn từ chối.";
+            case "ONLY_APPROVED_CAN_BE_CONVERTED": return "Chỉ yêu cầu điều chuyển đã được Quản lý kho nguồn duyệt mới được lập phiếu điều chuyển.";
             case "TRANSFER_REQUEST_ALREADY_CONVERTED": return "Yêu cầu điều chuyển này đã được lập phiếu điều chuyển trước đó.";
             case "TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE": return "Tồn kho nguồn không đủ cho số lượng yêu cầu bổ sung. Vui lòng chọn kho nguồn khác hoặc giảm số lượng.";
             case "NEEDED_BY_DATE_MUST_NOT_BE_PAST": return "Ngày cần hàng không được ở quá khứ.";

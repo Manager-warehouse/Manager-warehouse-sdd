@@ -5,7 +5,7 @@
 **Cập nhật lần cuối**: 2026-07-22
 
 **Mục đích**: Thay danh sách task cũ/trùng lặp bằng backlog sửa chữa có thể thực thi cho luồng điều chuyển nội bộ đúng production:
-`TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> công nhân nguồn pick/load/report loaded số lượng -> thủ kho nguồn QC xuất -> QC fail trả về công nhân để rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
+`TRQ draft -> submit -> source manager approve and reserve -> Planner convert once -> Dispatcher capacity/overlap plan -> công nhân nguồn pick/load/report loaded số lượng -> thủ kho nguồn QC xuất -> QC fail trả về công nhân để rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive -> destination storekeeper handover confirm without photo -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 
 **Quan trọng**: Không sửa, đổi tên hoặc xóa Flyway migration đã áp dụng. Mọi sửa schema phải dùng migration cộng thêm tiếp theo sau version mới nhất đã deploy.
 
@@ -76,7 +76,7 @@
 
 - [x] T025 Cập nhật `backend/src/main/java/com/wms/dto/request/TransferRequestCreateRequest.java` và `TransferRequestUpdateRequest.java` để `neededByDate`, `businessReason`, observed quantities và lý do thiếu hàng khớp spec.
 - [x] T026 Cập nhật `backend/src/main/java/com/wms/enums/TransferRequestStatus.java` dùng status đã tài liệu hóa hoặc thêm compatibility mapping nếu giữ legacy values.
-- [x] T027 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/TransferRequestServiceImpl.java` để revalidate tồn khả dụng nguồn trước submit/CEO approve/conversion.
+- [x] T027 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/TransferRequestServiceImpl.java` để revalidate tồn khả dụng nguồn trước submit/source approval/conversion.
 - [x] T028 Thêm guard unique một active transfer cho `transfer_request_id` trong migration mới và path convert repository/service.
 - [x] T029 Thêm test stale conversion tại `backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java`.
 - [x] T030 Thêm controller test tại `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java` cho path approve/reject/convert và duplicate conversion.
@@ -185,7 +185,7 @@
 - [x] T093 Thêm service unhappy-path matrix test cho chuyển trạng thái sai, thiếu ảnh bắt buộc, thiếu lý do, warehouse scope sai, role sai, thiếu arrival/handover và stale version trong `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java`.
 - [x] T094 Thêm frontend action-nút coverage test cho mọi transfer workspace nút in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx`.
 - [x] T095 Thêm frontend transfer-request nút coverage test cho create, submit, approve, reject, convert, validation failure, API failure và refresh state in `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx`.
-- [x] T096 Thêm smoke frontend-to-backend test cho `TRQ -> CEO approve -> convert -> approve -> trip -> QC xuất photo -> ship -> bàn giao xếp hàng photo -> depart -> arrive -> handover -> receive-count -> receive-check -> final-receive`.
+- [x] T096 Thêm smoke frontend-to-backend test cho `TRQ -> source manager approve/reserve -> planner convert -> trip -> QC xuất photo -> ship -> bàn giao xếp hàng photo -> depart -> arrive -> handover không ảnh -> receive-count -> receive-check -> final-receive`.
 - [x] T097 Thêm smoke frontend-to-backend test cho overdue return bao gồm rời điểm nhận để quay đầu, source arrival/handover, và final receive tại nguồn; nhánh sai SKU return đã được loại khỏi smoke runtime.
 - [x] T098 Thêm smoke frontend-to-backend test cho blocker deploy unhappy: invalid driver scope, overloaded trip, missing QC xuất photo, receive trước arrival, bin capacity exceeded, và stale version conflict.
 - [x] T099 Thêm Tài liệu xác minh CI/deploy ghi rõ command bắt buộc cho backend test, DB migration test, frontend test, frontend build, backend compile, và full-stack smoke test.

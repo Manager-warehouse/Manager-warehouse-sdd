@@ -26,7 +26,6 @@ import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
-import com.wms.exception.ForbiddenReceiptWarehouseException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
 import com.wms.service.audit_trail.AuditLogService;
@@ -67,9 +66,6 @@ public class DisposalService {
     private final AuditLogService auditLogService;
     private final QuarantineRecordRepository quarantineRecordRepository;
     private final AccountingPeriodService accountingPeriodService;
-
-    private static final BigDecimal AUTO_APPROVAL_THRESHOLD = new BigDecimal("5000000"); // 5,000,000 VND
-    private static final BigDecimal CEO_APPROVAL_THRESHOLD = new BigDecimal("100000000"); // 100,000,000 VND
 
     public DisposalService(ReceiptItemRepository receiptItemRepository,
                            DamageReportRepository damageReportRepository,
@@ -184,7 +180,7 @@ public class DisposalService {
                 .createdAt(OffsetDateTime.now())
                 .build();
 
-        // All disposal requests require Warehouse Manager / CEO approval
+        // All disposal requests require Warehouse Manager approval.
         boolean autoApproved = false;
         if (autoApproved) {
             adjustment.setApprovedBy(actor);
@@ -296,7 +292,7 @@ public class DisposalService {
                 .createdAt(OffsetDateTime.now())
                 .build();
 
-        // All disposal requests require Warehouse Manager / CEO approval
+        // All disposal requests require Warehouse Manager approval.
         boolean autoApproved = false;
         if (autoApproved) {
             adjustment.setApprovedBy(actor);
@@ -443,36 +439,6 @@ public class DisposalService {
         receiptValidationService.assertWarehouseAccess(actor, adjustment.getWarehouse().getId());
 
         BigDecimal failedQty = adjustment.getQuantityAdjustment().abs();
-        BigDecimal unitCost = BigDecimal.ZERO;
-
-        if (adjustment.getReferenceId() != null) {
-            if ("RECEIPT_ITEM".equals(adjustment.getReferenceType())) {
-                var receiptItemOpt = receiptItemRepository.findById(adjustment.getReferenceId());
-                if (receiptItemOpt.isPresent()) {
-                    BigDecimal cost = receiptItemOpt.get().getUnitCost();
-                    if (cost != null) {
-                        unitCost = cost;
-                    }
-                }
-            }
-        }
-
-        if (unitCost.compareTo(BigDecimal.ZERO) == 0) {
-            List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
-                    adjustment.getProduct().getId(), adjustment.getWarehouse().getId());
-            if (!prices.isEmpty()) {
-                unitCost = prices.get(0).getCostPrice();
-            }
-        }
-
-        BigDecimal totalValue = failedQty.multiply(unitCost);
-
-        if (totalValue.compareTo(CEO_APPROVAL_THRESHOLD) > 0) {
-            if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-                throw new ForbiddenReceiptWarehouseException(
-                        "FORBIDDEN_RECEIPT_ROLE: CEO approval is required for disposal values exceeding 100M VND. Value: " + totalValue);
-            }
-        }
 
         adjustment.setApprovedBy(actor);
         adjustment.setApprovedAt(OffsetDateTime.now());

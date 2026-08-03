@@ -195,9 +195,9 @@ public class InterWarehouseTransferController {
 
     @PostMapping("/{id}/receiving-handover")
     @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
-    @Operation(summary = "Record arrival handover check and photo at destination warehouse")
+    @Operation(summary = "Record arrival handover confirmation at destination warehouse")
     public InterWarehouseTransferResponse receivingHandover(@PathVariable Long id,
-                                                            @Valid @RequestBody LoadHandoverRequest request) {
+                                                            @RequestBody(required = false) ReceivingHandoverRequest request) {
         return transferService.receivingHandover(id, request, currentUser());
     }
 

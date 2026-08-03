@@ -56,7 +56,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/transfer-requests")
 @RequiredArgsConstructor
-@Tag(name = "Transfer Requests Management", description = "Endpoints for warehouse manager transfer requests and CEO approval flow (Spec 005)")
+@Tag(name = "Transfer Requests Management", description = "Endpoints for warehouse manager transfer requests and source warehouse approval flow (Spec 005)")
 public class TransferRequestController {
 
     private final TransferRequestService requestService;
@@ -106,7 +106,7 @@ public class TransferRequestController {
     }
 
     @PostMapping("/{id}/submit")
-    @Operation(summary = "Gửi yêu cầu điều chuyển cho CEO duyệt (DRAFT -> SUBMITTED)")
+    @Operation(summary = "Gửi yêu cầu điều chuyển cho Quản lý kho nguồn duyệt (DRAFT -> SUBMITTED)")
     @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> submitRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
@@ -114,16 +114,16 @@ public class TransferRequestController {
     }
 
     @PostMapping("/{id}/approve")
-    @Operation(summary = "CEO phê duyệt yêu cầu điều chuyển (SUBMITTED -> APPROVED)")
-    @PreAuthorize("hasAnyRole('CEO','ADMIN')")
+    @Operation(summary = "Quản lý kho nguồn phê duyệt yêu cầu và giữ hàng (SUBMITTED -> APPROVED)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> approveRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.approveRequest(id, actor));
     }
 
     @PostMapping("/{id}/reject")
-    @Operation(summary = "CEO từ chối yêu cầu điều chuyển (SUBMITTED -> REJECTED)")
-    @PreAuthorize("hasAnyRole('CEO','ADMIN')")
+    @Operation(summary = "Quản lý kho nguồn từ chối yêu cầu điều chuyển (SUBMITTED -> REJECTED)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> rejectRequest(
             @PathVariable Long id,
             @Valid @RequestBody TransferRequestRejectRequest request) {
@@ -132,8 +132,8 @@ public class TransferRequestController {
     }
 
     @PostMapping("/{id}/convert")
-    @Operation(summary = "Planner convert yêu cầu điều chuyển đã duyệt thành phiếu điều chuyển TRF NEW")
-    @PreAuthorize("hasAnyRole('PLANNER','CEO','ADMIN')")
+    @Operation(summary = "Planner chốt yêu cầu đã duyệt thành phiếu điều chuyển TRF")
+    @PreAuthorize("hasAnyRole('PLANNER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> convertToTransfer(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.convertToTransfer(id, actor));

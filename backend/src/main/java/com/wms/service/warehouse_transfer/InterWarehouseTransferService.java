@@ -65,7 +65,7 @@ public interface InterWarehouseTransferService {
     InterWarehouseTransferResponse recordOutboundQc(Long id, OutboundQcRequest request, User actor);
     InterWarehouseTransferResponse loadHandover(Long id, LoadHandoverRequest request, User actor);
     InterWarehouseTransferResponse driverArrive(Long id, User actor);
-    InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor);
+    InterWarehouseTransferResponse receivingHandover(Long id, ReceivingHandoverRequest request, User actor);
     InterWarehouseTransferResponse returnDepart(Long id, User actor);
     InterWarehouseTransferResponse returnArrive(Long id, User actor);
     InterWarehouseTransferResponse returnHandover(Long id, LoadHandoverRequest request, User actor);
