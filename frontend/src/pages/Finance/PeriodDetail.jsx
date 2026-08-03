@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { financeService } from '../../services/finance.service';
 import { useUiStore } from '../../stores/ui.store';
+import { getLocalDateString } from '../../utils/format';
 import {
   ArrowLeft, FileSpreadsheet, FileText, Landmark, ShoppingCart,
   Receipt, Wrench, Tag
@@ -17,6 +18,10 @@ const TABS = [
 ];
 
 const money = (v) => `${Number(v || 0).toLocaleString()}đ`;
+
+// AP has no credit-hold/blocking mechanism (unlike AR) - this is purely informational,
+// flagging invoices past their due date so staff can prioritize payment.
+const isOverdue = (inv) => inv.status !== 'PAID' && inv.due_date && inv.due_date < getLocalDateString();
 
 const PeriodDetail = () => {
   const { id } = useParams();
@@ -193,15 +198,26 @@ const PeriodDetail = () => {
             <thead>
               <tr className="bg-canvas-cream border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
                 <th className="p-3">Số Hóa đơn</th><th className="p-3">Nhà cung cấp</th><th className="p-3">Ngày phát hành</th>
+                <th className="p-3">Hạn thanh toán</th>
                 <th className="p-3 text-right">Tổng tiền</th><th className="p-3 text-right">Đã trả</th><th className="p-3 text-center">Trạng thái</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline-light">
-              {summary.supplier_invoices.length === 0 ? <EmptyRow cols={6} /> : summary.supplier_invoices.map((e) => (
+              {summary.supplier_invoices.length === 0 ? <EmptyRow cols={7} /> : summary.supplier_invoices.map((e) => (
                 <tr key={e.id}>
                   <td className="p-3 font-bold text-ink">{e.invoice_number}</td>
                   <td className="p-3">{e.supplier_name}</td>
                   <td className="p-3 text-shade-60">{e.issue_date}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`whitespace-nowrap ${isOverdue(e) ? 'text-red-600 font-semibold' : 'text-shade-60'}`}>{e.due_date}</span>
+                      {isOverdue(e) && (
+                        <span className="px-1.5 py-0.5 rounded-pill bg-red-100 text-red-700 border border-red-200 text-[9px] font-bold uppercase whitespace-nowrap">
+                          Quá hạn
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 text-right font-bold">{money(e.total_amount)}</td>
                   <td className="p-3 text-right">{money(e.paid_amount)}</td>
                   <td className="p-3 text-center">{e.status}</td>

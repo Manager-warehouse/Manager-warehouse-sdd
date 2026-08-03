@@ -379,29 +379,31 @@ class InterWarehouseTransferFlowE2ETest {
         TransferRequestResponse draftResponse = requestService.createRequest(createReq, manager);
         assertThat(draftResponse.status()).isEqualTo(TransferRequestStatus.DRAFT);
 
-        // --- 2. Manager submits for CEO approval (SUBMITTED) ---
+        // --- 2. Manager submits for source warehouse approval (SUBMITTED) ---
         when(requestRepository.findById(transferRequest.getId())).thenReturn(Optional.of(transferRequest));
         when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
                 .thenReturn(new BigDecimal("50.00"));
         TransferRequestResponse submittedResponse = requestService.submitRequest(transferRequest.getId(), manager);
         assertThat(submittedResponse.status()).isEqualTo(submittedResponse.status());
 
-        // --- 3. CEO Approves (APPROVED) ---
-        TransferRequestResponse approvedResponse = requestService.approveRequest(transferRequest.getId(), ceo);
-        assertThat(approvedResponse.status()).isEqualTo(TransferRequestStatus.APPROVED);
-
-        // --- 4. Planner converts to actual TRF (CONVERTED) ---
+        // --- 3. Source manager approves and reserves stock (APPROVED) ---
         InterWarehouseTransferResponse mockTrfRes = new InterWarehouseTransferResponse(
                 800L, "TRF-20260628-0001", "TRQ-20260628-0001",
                 sourceWarehouse.getId(), sourceWarehouse.getCode(),
                 destinationWarehouse.getId(), destinationWarehouse.getCode(),
-                InterWarehouseTransferStatus.NEW, null, null, null, null, null, null, null,
+                InterWarehouseTransferStatus.APPROVED, null, null, null, null, null, null, null,
                 LocalDate.now(), LocalDate.now(), null, null, false, false, null, null, null,
                 null, "Cần chảo gấp cho Hà Nội", false, OffsetDateTime.now(), OffsetDateTime.now(), List.of()
         );
-        when(mockTransferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
+        when(assignmentRepository.findWarehouseIdsByUserId(sourceManager.getId())).thenReturn(List.of(sourceWarehouse.getId()));
+        when(mockTransferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(sourceManager)))
                 .thenReturn(mockTrfRes);
+        when(mockTransferService.approveTransfer(800L, sourceManager)).thenReturn(mockTrfRes);
         when(transferRepository.findById(800L)).thenReturn(Optional.of(transfer));
+        TransferRequestResponse approvedResponse = requestService.approveRequest(transferRequest.getId(), sourceManager);
+        assertThat(approvedResponse.status()).isEqualTo(TransferRequestStatus.APPROVED);
+
+        // --- 4. Planner converts the prepared TRF (CONVERTED) ---
         TransferRequestResponse convertedResponse = requestService.convertToTransfer(transferRequest.getId(), planner);
         assertThat(convertedResponse.status()).isEqualTo(TransferRequestStatus.CONVERTED);
         assertThat(convertedResponse.convertedTransferId()).isEqualTo(transfer.getId());

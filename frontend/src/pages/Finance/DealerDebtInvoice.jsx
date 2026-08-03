@@ -14,10 +14,6 @@ import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIco
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
-// Real-time entry only - no backdating invoices/payments (unlike correction vouchers,
-// which exist specifically to touch a past period).
-const todayDateStr = () => new Date().toISOString().slice(0, 10);
-
 const DealerDebtInvoice = () => {
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
@@ -40,8 +36,7 @@ const DealerDebtInvoice = () => {
   const [selectedNotif, setSelectedNotif] = useState(null);
   const [invoiceFormData, setInvoiceFormData] = useState({
     doId: '',
-    documentDate: new Date().toISOString().slice(0, 10),
-    notes: ''
+    documentDate: new Date().toISOString().slice(0, 10)
   });
 
   // Modal States - POD View
@@ -115,8 +110,7 @@ const DealerDebtInvoice = () => {
     setSelectedNotif(notif);
     setInvoiceFormData({
       doId: notif.do_id || notif.doId,
-      documentDate: new Date().toISOString().slice(0, 10),
-      notes: `Lập hóa đơn bán hàng cho đơn xuất ${notif.do_number || notif.doNumber}`
+      documentDate: new Date().toISOString().slice(0, 10)
     });
     setShowCreateInvoiceModal(true);
   };
@@ -124,13 +118,9 @@ const DealerDebtInvoice = () => {
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     if (submittingInvoice) return;
-    if (invoiceFormData.documentDate < todayDateStr()) {
-      addToast('Ngày hạch toán không được là ngày trong quá khứ', 'error');
-      return;
-    }
     setSubmittingInvoice(true);
     try {
-      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
+      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate);
       addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
       setShowCreateInvoiceModal(false);
       loadData();
@@ -294,10 +284,6 @@ const DealerDebtInvoice = () => {
     }
     if (Number(paymentFormData.amount) <= 0) {
       addToast('Số tiền thu phải lớn hơn 0', 'error');
-      return;
-    }
-    if (paymentFormData.paymentDate < todayDateStr()) {
-      addToast('Ngày thu tiền không được là ngày trong quá khứ', 'error');
       return;
     }
     if (submittingPayment) return;
@@ -690,20 +676,10 @@ const DealerDebtInvoice = () => {
                 id="documentDate"
                 label="Ngày hạch toán"
                 type="date"
-                min={todayDateStr()}
                 value={invoiceFormData.documentDate}
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
                 required
               />
-
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Ghi chú</label>
-                <textarea
-                  value={invoiceFormData.notes}
-                  onChange={e => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
-                />
-              </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
                 <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)} disabled={submittingInvoice}>
@@ -820,7 +796,6 @@ const DealerDebtInvoice = () => {
                   id="paymentDate"
                   label="Ngày thu tiền"
                   type="date"
-                  min={todayDateStr()}
                   value={paymentFormData.paymentDate}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                   required

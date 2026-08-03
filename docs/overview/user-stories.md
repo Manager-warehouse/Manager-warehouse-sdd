@@ -194,9 +194,9 @@
 
 ---
 
-### US-WMS-11A: Trưởng kho đề xuất điều chuyển từ tồn kho kho khác và CEO duyệt (Priority: P1)
+### US-WMS-11A: Trưởng kho đề xuất điều chuyển từ tồn kho kho khác và kho nguồn duyệt (Priority: P1)
 
-**Mô tả:** Là Trưởng kho của kho đang thiếu hàng, tôi muốn xem tồn kho khả dụng của các kho khác ở chế độ chỉ đọc và gửi yêu cầu điều chuyển để CEO duyệt trước khi Planner kho nguồn tạo phiếu `TRF-*`.
+**Mô tả:** Là Trưởng kho của kho đang thiếu hàng, tôi muốn xem tồn kho khả dụng của các kho khác ở chế độ chỉ đọc và gửi yêu cầu điều chuyển để Trưởng kho nguồn duyệt/giữ hàng trước khi Planner chốt phiếu `TRF-*`.
 
 **Tiêu chí nghiệm thu:**
 
@@ -204,10 +204,10 @@
 2. Trưởng kho chỉ được tạo yêu cầu cho kho mình phụ trách; kho yêu cầu trở thành kho đích, kho còn hàng là kho nguồn đề xuất.
 3. Yêu cầu điều chuyển phải có kho nguồn, kho đích, SKU/số lượng, ngày cần hàng, lý do nghiệp vụ, số tồn khả dụng quan sát tại kho nguồn và kho yêu cầu.
 4. Hệ thống chặn ngày cần hàng trong quá khứ, SKU trùng dòng, số lượng không nguyên/dưới hoặc bằng 0, thiếu lý do nghiệp vụ và yêu cầu vượt tồn khả dụng hiện tại của kho nguồn.
-5. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
-6. CEO duyệt yêu cầu **không** reserve tồn và **không** tạo/trừ/cộng inventory. Việc giữ chỗ chỉ xảy ra khi Trưởng kho nguồn duyệt phiếu `TRF-*`.
-7. Sau khi CEO duyệt, hệ thống tạo/gửi mẫu yêu cầu đã duyệt cho Planner kho nguồn hoặc Planner trung tâm để chuyển thành một phiếu `TRF-*`.
-8. Một yêu cầu đã CEO duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
+5. Trưởng kho nguồn có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit. CEO chỉ xem/giám sát read-only.
+6. Trưởng kho nguồn duyệt yêu cầu thì hệ thống giữ hàng nguồn ngay theo FIFO hợp lệ; nếu tồn khả dụng không đủ thì không duyệt và không tạo reservation một phần.
+7. Sau khi Trưởng kho nguồn duyệt, Planner kho nguồn hoặc Planner trung tâm chuyển yêu cầu đã duyệt/đã giữ hàng thành một phiếu `TRF-*`.
+8. Một yêu cầu đã được Trưởng kho nguồn duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
 
 ---
 

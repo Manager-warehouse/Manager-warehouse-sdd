@@ -10,8 +10,8 @@ Tài liệu này tập trung vào **các chức năng chính** của điều chu
 
 | Lớp | Mã | Mục đích |
 |---|---|---|
-| Yêu cầu điều chuyển | `TRQ` | Kho đích xin lấy hàng từ kho khác, CEO duyệt, Planner chuyển thành phiếu |
-| Phiếu điều chuyển | `TRF` | Phiếu thực thi thật: giữ hàng, gán xe, xuất, vận chuyển, nhận |
+| Yêu cầu điều chuyển | `TRQ` | Kho đích xin lấy hàng từ kho nguồn; trưởng kho nguồn duyệt và giữ hàng |
+| Phiếu điều chuyển | `TRF` | Phiếu thực thi thật: trưởng kho nguồn duyệt `TRQ` thì hệ thống chuẩn bị sẵn `TRF` đã giữ hàng/đã duyệt; Planner chỉ chuyển `TRQ` sang trạng thái đã convert để Dispatcher tiếp tục |
 | Chuyến xe điều chuyển | `TTR` | Xe/tài xế vận chuyển hàng giữa 2 kho |
 | Hồ sơ chênh lệch | Discrepancy | CEO xử lý thiếu/thừa sau nhận hàng |
 
@@ -19,11 +19,10 @@ Luồng chuẩn:
 
 ```mermaid
 flowchart TD
-    A[Trưởng kho đích tạo TRQ] --> B[Gửi CEO duyệt]
-    B --> C[CEO duyệt TRQ]
-    C --> D[Planner convert TRQ thành TRF]
-    D --> E[Trưởng kho nguồn duyệt TRF và giữ hàng FIFO]
-    E --> F[Dispatcher gán xe/tài xế]
+    A[Trưởng kho đích tạo TRQ] --> B[Gửi trưởng kho nguồn duyệt]
+    B --> C[Trưởng kho nguồn duyệt TRQ, giữ hàng FIFO và chuẩn bị TRF đã duyệt]
+    C --> D[Planner convert TRQ để mở bước Dispatcher]
+    D --> F[Dispatcher gán xe/tài xế]
     F --> G[Công nhân xếp hàng]
     G --> H[Thủ kho nguồn QC xuất và chốt gửi]
     H --> I[Tài xế depart, hàng vào IN_TRANSIT]
@@ -42,9 +41,9 @@ flowchart TD
 
 | File | Dòng | Trách nhiệm chính |
 |---|---:|---|
-| [TransferRequestServiceImpl.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:105) | 105 | Tạo/sửa/gửi/duyệt/từ chối/convert `TRQ` |
+| [TransferRequestServiceImpl.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:105) | 105 | Tạo/sửa/gửi/trưởng kho nguồn duyệt giữ hàng và chuẩn bị `TRF`/từ chối/Planner convert `TRQ` |
 | [InterWarehouseTransferPlanningService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferPlanningService.java:69) | 69 | Tạo/sửa/hủy `TRF` |
-| [InterWarehouseTransferApprovalService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferApprovalService.java:48) | 48 | Duyệt/từ chối `TRF`, giữ hàng FIFO |
+| [InterWarehouseTransferApprovalService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferApprovalService.java:48) | 48 | Duyệt/từ chối `TRF` nếu vẫn hỗ trợ phiếu tạo thủ công; không là bước giữ hàng cho `TRF` sinh từ `TRQ` |
 | [InterWarehouseTransferShippingService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) | 83 | Gán xe, xếp hàng, QC xuất, ship, depart, arrive, quay đầu |
 | [InterWarehouseTransferReceivingService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:89) | 89 | Count/QC nhận, cất kệ, nhập kho cuối, thiếu/thừa |
 | [DiscrepancyIncidentServiceImpl.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/DiscrepancyIncidentServiceImpl.java:83) | 83 | CEO xem/chốt hồ sơ chênh lệch |
@@ -80,7 +79,7 @@ public TransferRequestResponse createRequest(TransferRequestCreateRequest reques
 - Không chọn kho ảo `IN_TRANSIT`.
 - Không tạo trùng yêu cầu còn mở cùng tuyến/kỳ cần hàng.
 
-### 3.2. Gửi CEO duyệt
+### 3.2. Gửi trưởng kho nguồn duyệt
 
 File: [TransferRequestServiceImpl.java:201](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:201)
 
@@ -98,16 +97,14 @@ validateSourceAvailability(req);
 
 - Nếu quá ngày cần hàng thì tự hủy, không cho gửi tiếp.
 - Chỉ `DRAFT` được gửi duyệt.
-- Trước khi gửi CEO phải kiểm lại tồn kho nguồn còn đủ.
+- Trước khi gửi phải kiểm lại tồn kho nguồn còn đủ.
+- Sau khi gửi, yêu cầu chờ trưởng kho nguồn xử lý; CEO chỉ xem/giám sát, không duyệt nghiệp vụ điều chuyển.
 
-### 3.3. CEO duyệt
+### 3.3. Trưởng kho nguồn duyệt và giữ hàng
 
 File: [TransferRequestServiceImpl.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:230)
 
 ```java
-if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-    throw new BusinessRuleViolationException("CEO_ROLE_REQUIRED");
-}
 if (autoCancelExpiredRequest(req, actor)) {
     return toResponse(req);
 }
@@ -115,14 +112,18 @@ if (req.getStatus() != TransferRequestStatus.SUBMITTED) {
     throw new BusinessRuleViolationException("ONLY_SUBMITTED_CAN_BE_APPROVED");
 }
 validateSourceAvailability(req);
+allocateSourceReservation(req);
 ```
 
 Ý nghĩa:
 
-- Chỉ CEO/Admin được duyệt.
+- Chỉ trưởng kho nguồn/Admin được duyệt.
+- Người duyệt phải thuộc kho nguồn.
 - Quá ngày cần hàng thì hủy trước, không duyệt trễ.
 - Chỉ `SUBMITTED` được duyệt.
 - Kiểm tồn lại lần nữa vì tồn có thể đổi sau lúc gửi duyệt.
+- Khi duyệt, hệ thống tạo trước `TRF` liên kết `TRQ`, duyệt `TRF` đó và giữ hàng FIFO ngay; `available = totalQty - reservedQty` giảm nhưng `totalQty` chưa giảm.
+- Nếu giữ hàng không đủ toàn bộ số lượng, không reserve một phần và không chuyển `APPROVED`.
 
 ### 3.4. Planner convert TRQ thành TRF
 
@@ -131,13 +132,15 @@ File: [TransferRequestServiceImpl.java:296](../backend/src/main/java/com/wms/ser
 Điểm chính:
 
 - Chỉ Planner được convert.
-- Chỉ `APPROVED` được convert.
+- Chỉ `APPROVED` đã giữ hàng được convert.
 - Một `TRQ` chỉ convert được một lần.
 - Nếu đã có `TRF` còn hiệu lực liên kết `TRQ`, không cho convert lại.
+- `TRF` đã được chuẩn bị ở bước trưởng kho nguồn duyệt `TRQ`; Planner convert chỉ đổi `TRQ` sang `CONVERTED`, gắn lại liên kết và không tạo thêm giữ hàng lần hai.
+- Với dữ liệu cũ chưa có `TRF` liên kết, code vẫn có nhánh tương thích: tạo `TRF`, duyệt/giữ hàng một lần, rồi convert `TRQ`.
 
 ---
 
-## 4. Luồng Chính 2: TRF - Tạo Phiếu Và Duyệt Giữ Hàng
+## 4. Luồng Chính 2: TRF - Tạo Phiếu Thực Thi
 
 ### 4.1. Planner tạo phiếu TRF
 
@@ -162,7 +165,7 @@ ensureUniqueExternalInstruction(request.externalInstructionCode(), request.sourc
 - Dòng hàng không trùng, số lượng nguyên, vị trí đúng kho.
 - Không trùng mã lệnh ngoài theo kho nguồn/kho đích/ngày chứng từ.
 
-### 4.2. Trưởng kho nguồn duyệt TRF
+### 4.2. Duyệt TRF thủ công nếu còn hỗ trợ
 
 File: [InterWarehouseTransferApprovalService.java:48](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferApprovalService.java:48)
 
@@ -176,18 +179,17 @@ transfer.setStatus(InterWarehouseTransferStatus.APPROVED);
 
 Ý nghĩa:
 
-- Chỉ phiếu `NEW` được duyệt.
-- Người duyệt phải thuộc kho nguồn.
-- Khi duyệt, hệ thống giữ hàng FIFO qua `allocateReservations`.
-- Sau khi duyệt, tồn khả dụng kho nguồn giảm vì `reservedQty` tăng, nhưng `totalQty` chưa giảm.
+- Với `TRF` tạo thủ công không đi từ `TRQ`, trưởng kho nguồn vẫn có thể duyệt và giữ hàng theo FIFO nếu hệ thống giữ nhánh này.
+- Với `TRF` sinh từ `TRQ`, hàng đã được giữ và phiếu đã ở trạng thái `APPROVED` từ bước trưởng kho nguồn duyệt `TRQ`; không được reserve lại lần hai.
+- Sau khi Planner convert `TRQ` đã duyệt, Dispatcher lập chuyến trực tiếp trên `TRF` đã `APPROVED`.
 
 ### 4.3. Giữ hàng FIFO
 
 File: [InterWarehouseTransferHelper.java:170](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferHelper.java:170)
 
-Ý nghĩa chính của `allocateReservations`:
+Ý nghĩa chính của reservation:
 
-- Xóa reservation cũ của phiếu.
+- Xóa reservation cũ của request/phiếu khi nghiệp vụ cho phép sửa hoặc hủy.
 - Lấy các dòng tồn khả dụng của sản phẩm tại kho nguồn.
 - Tính `available = totalQty - reservedQty`.
 - Nếu không đủ thì ném `INSUFFICIENT_AVAILABLE_STOCK`.
@@ -252,8 +254,8 @@ File: [InterWarehouseTransferShippingService.java:574](../backend/src/main/java/
 Chức năng chính:
 
 - Tài xế xác nhận đến kho.
-- Thủ kho đích chụp ảnh bàn giao.
-- Sau bàn giao, công nhân/thủ kho mới được count và QC nhận.
+- Thủ kho đích chỉ bấm nút xác nhận nhận bàn giao hàng; request có thể mang `photoRef` nếu muốn lưu bằng chứng, nhưng code không bắt chọn/chụp ảnh ở bước này.
+- Sau khi thủ kho đích xác nhận bàn giao, công nhân kho đích thấy ngay phần count để nhập số thực nhận và gửi lại cho thủ kho kiểm nhận.
 
 ### 6.2. Count nhận
 
@@ -367,8 +369,9 @@ Chức năng chính:
 | Tạo/sửa item TRQ | Số lượng lẻ | `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` | [TransferRequestServiceImpl.java:501](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:501) |
 | Submit TRQ | Không phải `DRAFT` | `ONLY_DRAFT_CAN_BE_SUBMITTED` | [TransferRequestServiceImpl.java:201](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:201) |
 | Submit/approve TRQ | Kho nguồn thiếu tồn khả dụng | `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` | [TransferRequestServiceImpl.java:426](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:426) |
-| Approve/reject TRQ | Actor không phải CEO/Admin | `CEO_ROLE_REQUIRED` | [TransferRequestServiceImpl.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:230) |
+| Approve/reject TRQ | Actor không phải trưởng kho nguồn/Admin hoặc không thuộc kho nguồn | `SOURCE_MANAGER_ROLE_REQUIRED` / `WAREHOUSE_SCOPE_REQUIRED` | [TransferRequestServiceImpl.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:230) |
 | Approve TRQ | Không phải `SUBMITTED` | `ONLY_SUBMITTED_CAN_BE_APPROVED` | [TransferRequestServiceImpl.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:230) |
+| Approve TRQ | Tồn khả dụng không đủ để giữ hàng | `INSUFFICIENT_AVAILABLE_STOCK` | [TransferRequestServiceImpl.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:230) |
 | Reject TRQ | Không nhập lý do | `REJECTION_REASON_REQUIRED` | [TransferRequestServiceImpl.java:264](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:264) |
 | Convert TRQ | Actor không phải Planner | `PLANNER_ROLE_REQUIRED` | [TransferRequestServiceImpl.java:296](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:296) |
 | Convert TRQ | Không phải `APPROVED` | `ONLY_APPROVED_CAN_BE_CONVERTED` | [TransferRequestServiceImpl.java:296](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:296) |
@@ -501,9 +504,9 @@ stateDiagram-v2
 
 Điều chuyển nội bộ có 6 chức năng chính:
 
-1. `TRQ`: xin điều chuyển và CEO duyệt.
-2. `TRF planning`: tạo phiếu thực thi.
-3. `Approval`: trưởng kho nguồn duyệt và giữ hàng FIFO.
+1. `TRQ`: kho đích xin điều chuyển, trưởng kho nguồn duyệt, chuẩn bị `TRF` và giữ hàng FIFO.
+2. `TRF planning`: Planner convert yêu cầu đã duyệt để mở bước điều phối trên `TRF` đã `APPROVED`.
+3. `Dispatch`: Dispatcher lập chuyến từ phiếu đã sẵn sàng vận hành.
 4. `Shipping`: gán xe, xếp, QC xuất, depart.
 5. `Receiving`: arrive, count, QC nhận, cất kệ, nhập cuối.
 6. `Discrepancy/return`: xử lý thiếu/thừa và nhận hàng quay đầu.

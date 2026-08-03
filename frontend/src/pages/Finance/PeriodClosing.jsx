@@ -155,7 +155,7 @@ const PeriodClosing = () => {
                         </button>
                         {p.period_name || p.periodName}
                         {periodVouchers.length > 0 && (
-                          <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold">
+                          <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold whitespace-nowrap inline-flex items-center leading-none">
                             {periodVouchers.length} điều chỉnh
                           </span>
                         )}
