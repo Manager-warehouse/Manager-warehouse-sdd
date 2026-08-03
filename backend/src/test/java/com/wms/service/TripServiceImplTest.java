@@ -181,6 +181,31 @@ class TripServiceImplTest {
     }
 
     @Test
+    void listTrips_includesSplitPlanMetadataForFleetGrouping() {
+        Trip trip = plannedTrip();
+        SplitDeliveryPlan splitPlan = SplitDeliveryPlan.builder()
+                .id(77L)
+                .leadDriver(driver)
+                .status(SplitDeliveryPlanStatus.PLANNED)
+                .build();
+        TripDeliveryOrder membership = member(trip, order, 1);
+        membership.setSplitPlan(splitPlan);
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(tripRepository.findByWarehouseIdInAndOptionalStatus(List.of(20L), TripStatus.PLANNED))
+                .thenReturn(List.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(membership));
+
+        var stop = service.listTrips(null, TripStatus.PLANNED, dispatcher)
+                .get(0).getDeliveryOrders().get(0);
+
+        assertThat(stop.getSplitPlanId()).isEqualTo(77L);
+        assertThat(stop.getLeadDriverId()).isEqualTo(401L);
+        assertThat(stop.getSplitPlanStatus()).isEqualTo(SplitDeliveryPlanStatus.PLANNED);
+        assertThat(stop.getIsSplitLead()).isTrue();
+    }
+
+    @Test
     void getTrip_returnsVehicleAndDriverDetailsForDispatcherScope() {
         Trip trip = plannedTrip();
         when(tripRepository.findWithWarehouseAndResourcesById(900L)).thenReturn(Optional.of(trip));
