@@ -43,5 +43,5 @@ import java.util.List;
 public interface InvoiceService {
     InvoiceResponse createInvoice(InvoiceCreateRequest request, User actor);
     InvoiceResponse getInvoiceById(Long id, User actor);
-    List<InvoiceResponse> getInvoices(Long dealerId, String status, User actor);
+    List<InvoiceResponse> getInvoices(Long dealerId, String status, Long warehouseId, User actor);
 }

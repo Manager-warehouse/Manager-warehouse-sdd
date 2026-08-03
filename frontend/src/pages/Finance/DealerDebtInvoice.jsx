@@ -16,7 +16,7 @@ const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
 const DealerDebtInvoice = () => {
   const { addToast } = useUiStore();
-  const { hasRole } = useAuthStore();
+  const { hasRole, activeWarehouse } = useAuthStore();
   const isAccountant = hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ADMIN);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,9 +79,10 @@ const DealerDebtInvoice = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const warehouseId = activeWarehouse?.id;
       const [dealersList, invs] = await Promise.all([
         masterDataService.getDealers(),
-        financeService.getInvoices()
+        financeService.getInvoices({ warehouseId })
       ]);
       setDealers(dealersList || []);
       setInvoices(invs || []);
@@ -90,7 +91,7 @@ const DealerDebtInvoice = () => {
         const notifs = await financeService.getBillingNotifications();
         setNotifications(notifs || []);
       } else if (activeTab === 'payments') {
-        const pmts = await financeService.getPaymentReceipts();
+        const pmts = await financeService.getPaymentReceipts({ warehouseId });
         setPaymentReceipts(pmts || []);
       }
     } catch (err) {
@@ -99,7 +100,7 @@ const DealerDebtInvoice = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, addToast]);
+  }, [activeTab, activeWarehouse?.id, addToast]);
 
   useEffect(() => {
     loadData();

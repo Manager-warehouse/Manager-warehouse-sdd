@@ -45,6 +45,7 @@ import com.wms.enums.access_control.UserRole;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.BillingNotificationRepository;
 import com.wms.repository.DeliveryRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.notification_delivery.BillingNotificationService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -57,23 +58,37 @@ public class BillingNotificationServiceImpl implements BillingNotificationServic
 
     private final BillingNotificationRepository billingNotificationRepository;
     private final DeliveryRepository deliveryRepository;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     public BillingNotificationServiceImpl(
             BillingNotificationRepository billingNotificationRepository,
-            DeliveryRepository deliveryRepository) {
+            DeliveryRepository deliveryRepository,
+            UserWarehouseAssignmentRepository userWarehouseAssignmentRepository) {
         this.billingNotificationRepository = billingNotificationRepository;
         this.deliveryRepository = deliveryRepository;
+        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<BillingNotificationResponse> getActiveNotifications(User actor) {
         requireAccountantOrManager(actor);
+        
+        List<Long> allowedWarehouseIds = null;
+        if (actor.getRole() == UserRole.ACCOUNTANT) {
+            allowedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (allowedWarehouseIds.isEmpty()) {
+                return List.of();
+            }
+        }
+
         List<BillingNotification> notifications = billingNotificationRepository
                 .findByInvoiceStatusOrderByCreatedAtDesc(BillingNotificationInvoiceStatus.NOT_INVOICED);
         
+        final List<Long> finalAllowedWarehouseIds = allowedWarehouseIds;
         return notifications.stream()
                 .filter(n -> n.getStatus() == BillingNotificationStatus.ACTIVE)
+                .filter(n -> finalAllowedWarehouseIds == null || finalAllowedWarehouseIds.contains(n.getWarehouse().getId()))
                 .map(this::toResponse)
                 .toList();
     }

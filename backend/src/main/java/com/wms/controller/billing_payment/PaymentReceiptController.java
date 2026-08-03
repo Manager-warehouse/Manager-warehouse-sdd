@@ -99,9 +99,10 @@ public class PaymentReceiptController {
     public ResponseEntity<List<PaymentReceiptResponse>> getPaymentReceipts(
             @RequestParam(required = false, name = "dealerId") Long dealerId,
             @RequestParam(required = false, name = "accountingPeriodId") Long accountingPeriodId,
+            @RequestParam(required = false, name = "warehouseId") Long warehouseId,
             Principal principal) {
         User actor = getActor(principal);
-        return ResponseEntity.ok(paymentReceiptService.getPaymentReceipts(dealerId, accountingPeriodId, actor));
+        return ResponseEntity.ok(paymentReceiptService.getPaymentReceipts(dealerId, accountingPeriodId, warehouseId, actor));
     }
 
     private User getActor(Principal principal) {

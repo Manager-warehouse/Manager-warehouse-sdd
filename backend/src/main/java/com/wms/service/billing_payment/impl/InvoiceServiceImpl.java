@@ -54,18 +54,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final DeliveryRepository deliveryRepository;
     private final AutoInvoiceService autoInvoiceService;
     private final PaymentReceiptRepository paymentReceiptRepository;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             DeliveryOrderRepository deliveryOrderRepository,
             DeliveryRepository deliveryRepository,
             AutoInvoiceService autoInvoiceService,
-            PaymentReceiptRepository paymentReceiptRepository) {
+            PaymentReceiptRepository paymentReceiptRepository,
+            UserWarehouseAssignmentRepository userWarehouseAssignmentRepository) {
         this.invoiceRepository = invoiceRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryRepository = deliveryRepository;
         this.autoInvoiceService = autoInvoiceService;
         this.paymentReceiptRepository = paymentReceiptRepository;
+        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
     }
 
     // Manual backfill entrypoint (POST /api/v1/invoices) — only used when automatic
@@ -90,21 +93,52 @@ public class InvoiceServiceImpl implements InvoiceService {
         requireAccountantOrManager(actor);
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + id));
+
+        // Enforce warehouse scope check for Accountant role
+        if (actor.getRole() == UserRole.ACCOUNTANT) {
+            List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (!assignedWarehouseIds.contains(invoice.getDeliveryOrder().getWarehouse().getId())) {
+                throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
+            }
+        }
         return toResponse(invoice);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<InvoiceResponse> getInvoices(Long dealerId, String status, User actor) {
+    public List<InvoiceResponse> getInvoices(Long dealerId, String status, Long warehouseId, User actor) {
         requireAccountantOrManager(actor);
-        List<Invoice> invoices;
-        if (dealerId != null) {
-            invoices = invoiceRepository.findByDealerIdOrderByCreatedAtDesc(dealerId);
-        } else if (status != null && !status.isEmpty()) {
-            invoices = invoiceRepository.findByStatusOrderByCreatedAtDesc(InvoiceStatus.valueOf(status.toUpperCase()));
+        
+        List<Long> allowedWarehouseIds = null;
+        if (actor.getRole() == UserRole.ACCOUNTANT) {
+            allowedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (allowedWarehouseIds.isEmpty()) {
+                return List.of();
+            }
+            if (warehouseId != null) {
+                if (!allowedWarehouseIds.contains(warehouseId)) {
+                    throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
+                }
+                allowedWarehouseIds = List.of(warehouseId);
+            }
         } else {
-            invoices = invoiceRepository.findAll();
+            // Admin, CEO, Accountant Manager
+            if (warehouseId != null) {
+                allowedWarehouseIds = List.of(warehouseId);
+            }
         }
+
+        InvoiceStatus invoiceStatus = (status != null && !status.isEmpty()) 
+                ? InvoiceStatus.valueOf(status.toUpperCase()) 
+                : null;
+
+        List<Invoice> invoices;
+        if (allowedWarehouseIds != null) {
+            invoices = invoiceRepository.findFilteredInvoicesWithWarehouses(allowedWarehouseIds, dealerId, invoiceStatus);
+        } else {
+            invoices = invoiceRepository.findFilteredInvoicesWithoutWarehouses(dealerId, invoiceStatus);
+        }
+
         return invoices.stream().map(this::toResponse).toList();
     }
 

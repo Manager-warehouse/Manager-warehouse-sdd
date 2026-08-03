@@ -78,6 +78,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     public PaymentReceiptServiceImpl(
             PaymentReceiptRepository paymentReceiptRepository,
@@ -90,7 +91,8 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
             AccountingPeriodService accountingPeriodService,
             AuditLogService auditLogService,
             UserRepository userRepository,
-            EmailService emailService) {
+            EmailService emailService,
+            UserWarehouseAssignmentRepository userWarehouseAssignmentRepository) {
         this.paymentReceiptRepository = paymentReceiptRepository;
         this.invoiceRepository = invoiceRepository;
         this.dealerRepository = dealerRepository;
@@ -102,6 +104,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         this.auditLogService = auditLogService;
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
     }
 
     @Override
@@ -209,15 +212,33 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentReceiptResponse> getPaymentReceipts(Long dealerId, Long periodId, User actor) {
+    public List<PaymentReceiptResponse> getPaymentReceipts(Long dealerId, Long periodId, Long warehouseId, User actor) {
         requireAccountantOrManager(actor);
-        List<PaymentReceipt> receipts;
-        if (dealerId != null) {
-            receipts = paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(dealerId);
-        } else if (periodId != null) {
-            receipts = paymentReceiptRepository.findByAccountingPeriodIdOrderByCreatedAtDesc(periodId);
+
+        List<Long> allowedWarehouseIds = null;
+        if (actor.getRole() == UserRole.ACCOUNTANT) {
+            allowedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (allowedWarehouseIds.isEmpty()) {
+                return List.of();
+            }
+            if (warehouseId != null) {
+                if (!allowedWarehouseIds.contains(warehouseId)) {
+                    throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
+                }
+                allowedWarehouseIds = List.of(warehouseId);
+            }
         } else {
-            receipts = paymentReceiptRepository.findAll();
+            // Admin, CEO, Accountant Manager
+            if (warehouseId != null) {
+                allowedWarehouseIds = List.of(warehouseId);
+            }
+        }
+
+        List<PaymentReceipt> receipts;
+        if (allowedWarehouseIds != null) {
+            receipts = paymentReceiptRepository.findFilteredPaymentReceiptsWithWarehouses(allowedWarehouseIds, dealerId, periodId);
+        } else {
+            receipts = paymentReceiptRepository.findFilteredPaymentReceiptsWithoutWarehouses(dealerId, periodId);
         }
         return receipts.stream().map(this::toResponse).toList();
     }

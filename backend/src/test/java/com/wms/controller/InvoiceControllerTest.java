@@ -160,7 +160,7 @@ class InvoiceControllerTest {
                 InvoiceResponse.builder().id(100L).invoiceNumber("INV-001").totalAmount(BigDecimal.TEN).build()
         );
         when(userRepository.findByEmail("accountant@wms.com")).thenReturn(Optional.of(accountant));
-        when(invoiceService.getInvoices(null, null, accountant)).thenReturn(list);
+        when(invoiceService.getInvoices(null, null, null, accountant)).thenReturn(list);
 
         mockMvc.perform(get("/api/v1/invoices").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())

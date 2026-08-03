@@ -103,6 +103,7 @@ class PaymentReceiptServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private UserRepository userRepository;
     @Mock private EmailService emailService;
+    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     @InjectMocks
     private PaymentReceiptServiceImpl paymentReceiptService;
