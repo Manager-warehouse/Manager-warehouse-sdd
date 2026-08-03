@@ -52,6 +52,4 @@ public class InvoiceCreateRequest {
     @NotNull(message = "Document date is required")
     @JsonProperty("document_date")
     private LocalDate documentDate;
-
-    private String notes;
 }

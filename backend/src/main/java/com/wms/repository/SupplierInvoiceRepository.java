@@ -16,4 +16,9 @@ public interface SupplierInvoiceRepository extends JpaRepository<SupplierInvoice
     List<SupplierInvoice> findBySupplierId(Long supplierId);
     List<SupplierInvoice> findBySupplierIdAndStatus(Long supplierId, InvoiceStatus status);
     List<SupplierInvoice> findByAccountingPeriodId(Long accountingPeriodId);
+
+    // Catches double-entry of the same paper/PDF VAT invoice for a supplier - this row can
+    // never be edited after creation, so catching a duplicate before it's saved is the only
+    // recovery path.
+    boolean existsBySupplierIdAndSupplierInvoiceNumber(Long supplierId, String supplierInvoiceNumber);
 }

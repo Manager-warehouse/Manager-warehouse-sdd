@@ -46,7 +46,6 @@ const SupplierInvoices = () => {
     supplierInvoiceNumber: '',
     documentDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    notes: '',
     confirmedTotalAmount: ''
   });
 
@@ -127,7 +126,6 @@ const SupplierInvoices = () => {
       supplierInvoiceNumber: '',
       documentDate: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`,
       // Pre-fill with the system estimate; the Accountant edits this against the
       // supplier's real paper invoice before submitting - it is not auto-trusted.
       confirmedTotalAmount: String(notif.totalAmountEstimate || notif.total_amount_estimate || 0)
@@ -694,6 +692,7 @@ const SupplierInvoices = () => {
                 value={invoiceFormData.supplierInvoiceNumber}
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, supplierInvoiceNumber: e.target.value }))}
                 required
+                maxLength={100}
                 placeholder="ví dụ: VAT-88392"
               />
 
@@ -731,15 +730,6 @@ const SupplierInvoices = () => {
                   value={invoiceFormData.dueDate}
                   onChange={e => setInvoiceFormData(prev => ({ ...prev, dueDate: e.target.value }))}
                   required
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Ghi chú</label>
-                <textarea
-                  value={invoiceFormData.notes}
-                  onChange={e => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
                 />
               </div>
 
