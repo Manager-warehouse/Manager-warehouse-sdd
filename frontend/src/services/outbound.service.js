@@ -376,6 +376,8 @@ const normalizeDoItem = (item = {}) => ({
   id: value(item, 'id', 'id'),
   do_id: value(item, 'deliveryOrderId', 'do_id'),
   product_id: value(item, 'productId', 'product_id'),
+  batch_id: value(item, 'batchId', 'batch_id'),
+  batch_code: value(item, 'batchCode', 'batch_code'),
   product_name: value(item, 'productName', 'product_name', `Sản phẩm #${value(item, 'productId', 'product_id', '')}`),
   sku: value(item, 'sku', 'sku', ''),
   requested_qty: Number(value(item, 'requestedQty', 'requested_qty', 0)),
