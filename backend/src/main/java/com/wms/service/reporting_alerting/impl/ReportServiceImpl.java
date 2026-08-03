@@ -55,6 +55,7 @@ public class ReportServiceImpl implements ReportService {
     private final OutboundQcRecordRepository outboundQcRecordRepository;
     private final ReceiptItemRepository receiptItemRepository;
     private final DeliveryRepository deliveryRepository;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     @Override
     @Transactional
@@ -220,7 +221,14 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("ACCESS_DENIED");
         }
 
-        // Ghi Audit Log ngoại lệ
+        List<Long> assignedWarehouseIds = null;
+        if (user.getRole() == UserRole.WAREHOUSE_MANAGER) {
+            assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(currentUserId);
+            if (warehouseId != null && !assignedWarehouseIds.contains(warehouseId)) {
+                throw new IllegalArgumentException("FORBIDDEN_WAREHOUSE");
+            }
+        }
+
         List<Inventory> inventories = inventoryRepository.findAll().stream()
                 .filter(i -> i.getLocation() != null && !i.getLocation().getIsQuarantine() && i.getTotalQty().compareTo(BigDecimal.ZERO) > 0)
                 .collect(Collectors.toList());
@@ -228,6 +236,11 @@ public class ReportServiceImpl implements ReportService {
         if (warehouseId != null) {
             inventories = inventories.stream()
                     .filter(i -> i.getWarehouse().getId().equals(warehouseId))
+                    .collect(Collectors.toList());
+        } else if (assignedWarehouseIds != null) {
+            final List<Long> finalAssignedIds = assignedWarehouseIds;
+            inventories = inventories.stream()
+                    .filter(i -> finalAssignedIds.contains(i.getWarehouse().getId()))
                     .collect(Collectors.toList());
         }
 
