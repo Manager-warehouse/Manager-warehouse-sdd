@@ -1,9 +1,9 @@
 package com.wms.controller.stock_receiving;
 
 
-import com.wms.dto.request.ReceiptRtvConfirmRequest;
-import com.wms.dto.request.ReceiptRtvCreateRequest;
-import com.wms.dto.response.RtvActionResponse;
+import com.wms.dto.request.stock_receiving.ReceiptRtvConfirmRequest;
+import com.wms.dto.request.stock_receiving.ReceiptRtvCreateRequest;
+import com.wms.dto.response.stock_receiving.RtvActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.service.stock_receiving.QuarantineRtvService;
 import com.wms.service.user_context.CurrentUserService;

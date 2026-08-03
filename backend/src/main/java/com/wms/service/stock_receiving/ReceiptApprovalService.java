@@ -1,11 +1,11 @@
 package com.wms.service.stock_receiving;
 
-import com.wms.dto.request.ReceiptDecisionRequest;
-import com.wms.dto.request.ReceiptItemUnitCostRequest;
-import com.wms.dto.request.ReceiptPutawayItem;
-import com.wms.dto.request.ReceiptPutawayRequest;
-import com.wms.dto.request.ReceiptReturnConfirmRequest;
-import com.wms.dto.response.ReceiptActionResponse;
+import com.wms.dto.request.stock_receiving.ReceiptDecisionRequest;
+import com.wms.dto.request.stock_receiving.ReceiptItemUnitCostRequest;
+import com.wms.dto.request.stock_receiving.ReceiptPutawayItem;
+import com.wms.dto.request.stock_receiving.ReceiptPutawayRequest;
+import com.wms.dto.request.stock_receiving.ReceiptReturnConfirmRequest;
+import com.wms.dto.response.stock_receiving.ReceiptActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.stock_control.Inventory;

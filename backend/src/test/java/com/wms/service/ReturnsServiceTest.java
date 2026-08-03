@@ -62,7 +62,7 @@ import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.*;
 import com.wms.dto.response.CreditNoteResponse;
-import com.wms.dto.response.ReceiptActionResponse;
+import com.wms.dto.response.stock_receiving.ReceiptActionResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.*;
 import com.wms.repository.stock_receiving.*;

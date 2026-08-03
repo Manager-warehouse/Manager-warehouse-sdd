@@ -1,4 +1,4 @@
-package com.wms.dto.response;
+package com.wms.dto.response.stock_receiving;
 
 
 import com.wms.enums.stock_receiving.ReceiptStatus;

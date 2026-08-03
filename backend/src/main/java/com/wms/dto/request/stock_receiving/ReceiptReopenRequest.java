@@ -1,4 +1,4 @@
-package com.wms.dto.request;
+package com.wms.dto.request.stock_receiving;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,7 +8,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ReceiptCancelRequest {
+public class ReceiptReopenRequest {
 
     @NotNull(message = "EXPECTED_VERSION_REQUIRED")
     private Integer expectedVersion;

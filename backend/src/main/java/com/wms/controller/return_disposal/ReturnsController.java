@@ -5,7 +5,7 @@ import com.wms.dto.request.CreateCreditNoteRequest;
 import com.wms.dto.request.CreateReturnRequest;
 import com.wms.dto.request.ReturnQcRequest;
 import com.wms.dto.response.CreditNoteResponse;
-import com.wms.dto.response.ReceiptActionResponse;
+import com.wms.dto.response.stock_receiving.ReceiptActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.dealer_management.Dealer;
 import com.wms.entity.order_fulfillment.Delivery;

@@ -1,4 +1,4 @@
-package com.wms.dto.request;
+package com.wms.dto.request.stock_receiving;
 
 
 import com.fasterxml.jackson.annotation.JsonProperty;

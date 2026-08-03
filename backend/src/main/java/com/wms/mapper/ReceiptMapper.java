@@ -1,8 +1,8 @@
 package com.wms.mapper;
 
 
-import com.wms.dto.response.ReceiptItemResponse;
-import com.wms.dto.response.ReceiptResponse;
+import com.wms.dto.response.stock_receiving.ReceiptItemResponse;
+import com.wms.dto.response.stock_receiving.ReceiptResponse;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;

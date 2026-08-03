@@ -61,7 +61,7 @@ import com.wms.service.fleet_management.impl.*;
 import com.wms.service.warehouse_location.*;
 import com.wms.service.warehouse_location.impl.*;
 
-import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.stock_receiving.CreateReceiptRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderItemCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
