@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
 import { masterDataService } from '../../services/masterData.service';
 import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
-import { WAREHOUSES } from '../../utils/constants';
+import { WAREHOUSES, ROLES } from '../../utils/constants';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import useAuthStore from '../../stores/auth.store';
 
 const InventoryValuation = () => {
   const [data, setData] = useState(null);
@@ -12,6 +13,10 @@ const InventoryValuation = () => {
   const [error, setError] = useState(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+  const user = useAuthStore((state) => state.user);
+
+  const isWarehouseManager = user?.role === ROLES.WAREHOUSE_MANAGER;
+  const assignedWarehouseIds = user?.warehouses || [];
 
   useEffect(() => {
     masterDataService.getWarehouses()
@@ -24,8 +29,13 @@ const InventoryValuation = () => {
   }, []);
 
   useEffect(() => {
+    if (isWarehouseManager && assignedWarehouseIds.length > 0 && !selectedWarehouse) {
+      setSelectedWarehouse(String(assignedWarehouseIds[0]));
+      return;
+    }
+    if (isWarehouseManager && !selectedWarehouse) return;
     fetchData();
-  }, [selectedWarehouse]);
+  }, [selectedWarehouse, isWarehouseManager, assignedWarehouseIds]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -50,9 +60,13 @@ const InventoryValuation = () => {
     (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
   );
 
+  const filteredWarehouses = isWarehouseManager
+    ? physicalWarehouses.filter((w) => assignedWarehouseIds.includes(w.id))
+    : physicalWarehouses;
+
   const warehouseOptions = [
-    { value: '', label: 'Tất cả kho vật lý' },
-    ...physicalWarehouses.map((w) => ({
+    ...(isWarehouseManager ? [] : [{ value: '', label: 'Tất cả kho vật lý' }]),
+    ...filteredWarehouses.map((w) => ({
       value: String(w.id),
       label: w.name,
     })),
