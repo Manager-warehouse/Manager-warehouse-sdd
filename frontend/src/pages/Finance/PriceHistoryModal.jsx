@@ -5,7 +5,7 @@ import pricingService from '../../services/pricing.service';
 import { useUiStore } from '../../stores/ui.store';
 import { STATUS_LABEL, STATUS_STYLE, formatVND } from './PriceListManagement';
 
-export default function PriceHistoryModal({ product, onClose }) {
+export default function PriceHistoryModal({ product, warehouseId, onClose }) {
   const { addToast } = useUiStore();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,7 +13,7 @@ export default function PriceHistoryModal({ product, onClose }) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    pricingService.getByProduct(product.id)
+    pricingService.getByProduct(product.id, warehouseId)
       .then(res => {
         if (!active) return;
         // effective_date DESC, created_at as tiebreaker — newest price first
@@ -27,7 +27,7 @@ export default function PriceHistoryModal({ product, onClose }) {
       .catch(err => addToast(err.message || 'Không tải được lịch sử giá', 'error'))
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [product.id, addToast]);
+  }, [product.id, warehouseId, addToast]);
 
   return (
     <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">

@@ -44,4 +44,10 @@ public class AccountingPeriodResponse {
 
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
+
+    // OPEN, already ended, and today is at/past the configured MONTHLY_CLOSING_DAY -
+    // i.e. actionable via the close button but not yet closed. Drives the reminder
+    // banner on the period-closing page.
+    @JsonProperty("is_overdue")
+    private boolean overdue;
 }

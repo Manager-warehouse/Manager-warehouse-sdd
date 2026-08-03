@@ -12118,7 +12118,2729 @@
     });
   }
 
+  function resample$1(project, delta2) {
 
+    function resampleLineTo(x0, y0, lambda0, a0, b0, c0, x1, y1, lambda1, a1, b1, c1, depth, stream) {
+      var dx = x1 - x0,
+        dy = y1 - y0,
+        d2 = dx * dx + dy * dy;
+      if (d2 > 4 * delta2 && depth--) {
+        var a = a0 + a1,
+          b = b0 + b1,
+          c = c0 + c1,
+          m = sqrt$2(a * a + b * b + c * c),
+          phi2 = asin$1(c /= m),
+          lambda2 = abs$1(abs$1(c) - 1) < epsilon$1 || abs$1(lambda0 - lambda1) < epsilon$1 ? (lambda0 + lambda1) / 2 : atan2$1(b, a),
+          p = project(lambda2, phi2),
+          x2 = p[0],
+          y2 = p[1],
+          dx2 = x2 - x0,
+          dy2 = y2 - y0,
+          dz = dy * dx2 - dx * dy2;
+        if (dz * dz / d2 > delta2 // perpendicular projected distance
+          || abs$1((dx * dx2 + dy * dy2) / d2 - 0.5) > 0.3 // midpoint close to an end
+          || a0 * a1 + b0 * b1 + c0 * c1 < cosMinDistance) { // angular distance
+          resampleLineTo(x0, y0, lambda0, a0, b0, c0, x2, y2, lambda2, a /= m, b /= m, c, depth, stream);
+          stream.point(x2, y2);
+          resampleLineTo(x2, y2, lambda2, a, b, c, x1, y1, lambda1, a1, b1, c1, depth, stream);
+        }
+      }
+    }
+    return function (stream) {
+      var lambda00, x00, y00, a00, b00, c00, // first point
+        lambda0, x0, y0, a0, b0, c0; // previous point
+
+      var resampleStream = {
+        point: point,
+        lineStart: lineStart,
+        lineEnd: lineEnd,
+        polygonStart: function () { stream.polygonStart(); resampleStream.lineStart = ringStart; },
+        polygonEnd: function () { stream.polygonEnd(); resampleStream.lineStart = lineStart; }
+      };
+
+      function point(x, y) {
+        x = project(x, y);
+        stream.point(x[0], x[1]);
+      }
+
+      function lineStart() {
+        x0 = NaN;
+        resampleStream.point = linePoint;
+        stream.lineStart();
+      }
+
+      function linePoint(lambda, phi) {
+        var c = cartesian([lambda, phi]), p = project(lambda, phi);
+        resampleLineTo(x0, y0, lambda0, a0, b0, c0, x0 = p[0], y0 = p[1], lambda0 = lambda, a0 = c[0], b0 = c[1], c0 = c[2], maxDepth, stream);
+        stream.point(x0, y0);
+      }
+
+      function lineEnd() {
+        resampleStream.point = point;
+        stream.lineEnd();
+      }
+
+      function ringStart() {
+        lineStart();
+        resampleStream.point = ringPoint;
+        resampleStream.lineEnd = ringEnd;
+      }
+
+      function ringPoint(lambda, phi) {
+        linePoint(lambda00 = lambda, phi), x00 = x0, y00 = y0, a00 = a0, b00 = b0, c00 = c0;
+        resampleStream.point = linePoint;
+      }
+
+      function ringEnd() {
+        resampleLineTo(x0, y0, lambda0, a0, b0, c0, x00, y00, lambda00, a00, b00, c00, maxDepth, stream);
+        resampleStream.lineEnd = lineEnd;
+        lineEnd();
+      }
+
+      return resampleStream;
+    };
+  }
+
+  var transformRadians = transformer$3({
+    point: function (x, y) {
+      this.stream.point(x * radians, y * radians);
+    }
+  });
+
+  function transformRotate(rotate) {
+    return transformer$3({
+      point: function (x, y) {
+        var r = rotate(x, y);
+        return this.stream.point(r[0], r[1]);
+      }
+    });
+  }
+
+  function scaleTranslate(k, dx, dy, sx, sy) {
+    function transform(x, y) {
+      x *= sx; y *= sy;
+      return [dx + k * x, dy - k * y];
+    }
+    transform.invert = function (x, y) {
+      return [(x - dx) / k * sx, (dy - y) / k * sy];
+    };
+    return transform;
+  }
+
+  function scaleTranslateRotate(k, dx, dy, sx, sy, alpha) {
+    if (!alpha) return scaleTranslate(k, dx, dy, sx, sy);
+    var cosAlpha = cos$1(alpha),
+      sinAlpha = sin$1(alpha),
+      a = cosAlpha * k,
+      b = sinAlpha * k,
+      ai = cosAlpha / k,
+      bi = sinAlpha / k,
+      ci = (sinAlpha * dy - cosAlpha * dx) / k,
+      fi = (sinAlpha * dx + cosAlpha * dy) / k;
+    function transform(x, y) {
+      x *= sx; y *= sy;
+      return [a * x - b * y + dx, dy - b * x - a * y];
+    }
+    transform.invert = function (x, y) {
+      return [sx * (ai * x - bi * y + ci), sy * (fi - bi * x - ai * y)];
+    };
+    return transform;
+  }
+
+  function projection(project) {
+    return projectionMutator(function () { return project; })();
+  }
+
+  function projectionMutator(projectAt) {
+    var project,
+      k = 150, // scale
+      x = 480, y = 250, // translate
+      lambda = 0, phi = 0, // center
+      deltaLambda = 0, deltaPhi = 0, deltaGamma = 0, rotate, // pre-rotate
+      alpha = 0, // post-rotate angle
+      sx = 1, // reflectX
+      sy = 1, // reflectX
+      theta = null, preclip = clipAntimeridian, // pre-clip angle
+      x0 = null, y0, x1, y1, postclip = identity$5, // post-clip extent
+      delta2 = 0.5, // precision
+      projectResample,
+      projectTransform,
+      projectRotateTransform,
+      cache,
+      cacheStream;
+
+    function projection(point) {
+      return projectRotateTransform(point[0] * radians, point[1] * radians);
+    }
+
+    function invert(point) {
+      point = projectRotateTransform.invert(point[0], point[1]);
+      return point && [point[0] * degrees, point[1] * degrees];
+    }
+
+    projection.stream = function (stream) {
+      return cache && cacheStream === stream ? cache : cache = transformRadians(transformRotate(rotate)(preclip(projectResample(postclip(cacheStream = stream)))));
+    };
+
+    projection.preclip = function (_) {
+      return arguments.length ? (preclip = _, theta = undefined, reset()) : preclip;
+    };
+
+    projection.postclip = function (_) {
+      return arguments.length ? (postclip = _, x0 = y0 = x1 = y1 = null, reset()) : postclip;
+    };
+
+    projection.clipAngle = function (_) {
+      return arguments.length ? (preclip = +_ ? clipCircle(theta = _ * radians) : (theta = null, clipAntimeridian), reset()) : theta * degrees;
+    };
+
+    projection.clipExtent = function (_) {
+      return arguments.length ? (postclip = _ == null ? (x0 = y0 = x1 = y1 = null, identity$5) : clipRectangle(x0 = +_[0][0], y0 = +_[0][1], x1 = +_[1][0], y1 = +_[1][1]), reset()) : x0 == null ? null : [[x0, y0], [x1, y1]];
+    };
+
+    projection.scale = function (_) {
+      return arguments.length ? (k = +_, recenter()) : k;
+    };
+
+    projection.translate = function (_) {
+      return arguments.length ? (x = +_[0], y = +_[1], recenter()) : [x, y];
+    };
+
+    projection.center = function (_) {
+      return arguments.length ? (lambda = _[0] % 360 * radians, phi = _[1] % 360 * radians, recenter()) : [lambda * degrees, phi * degrees];
+    };
+
+    projection.rotate = function (_) {
+      return arguments.length ? (deltaLambda = _[0] % 360 * radians, deltaPhi = _[1] % 360 * radians, deltaGamma = _.length > 2 ? _[2] % 360 * radians : 0, recenter()) : [deltaLambda * degrees, deltaPhi * degrees, deltaGamma * degrees];
+    };
+
+    projection.angle = function (_) {
+      return arguments.length ? (alpha = _ % 360 * radians, recenter()) : alpha * degrees;
+    };
+
+    projection.reflectX = function (_) {
+      return arguments.length ? (sx = _ ? -1 : 1, recenter()) : sx < 0;
+    };
+
+    projection.reflectY = function (_) {
+      return arguments.length ? (sy = _ ? -1 : 1, recenter()) : sy < 0;
+    };
+
+    projection.precision = function (_) {
+      return arguments.length ? (projectResample = resample(projectTransform, delta2 = _ * _), reset()) : sqrt$2(delta2);
+    };
+
+    projection.fitExtent = function (extent, object) {
+      return fitExtent(projection, extent, object);
+    };
+
+    projection.fitSize = function (size, object) {
+      return fitSize(projection, size, object);
+    };
+
+    projection.fitWidth = function (width, object) {
+      return fitWidth(projection, width, object);
+    };
+
+    projection.fitHeight = function (height, object) {
+      return fitHeight(projection, height, object);
+    };
+
+    function recenter() {
+      var center = scaleTranslateRotate(k, 0, 0, sx, sy, alpha).apply(null, project(lambda, phi)),
+        transform = scaleTranslateRotate(k, x - center[0], y - center[1], sx, sy, alpha);
+      rotate = rotateRadians(deltaLambda, deltaPhi, deltaGamma);
+      projectTransform = compose(project, transform);
+      projectRotateTransform = compose(rotate, projectTransform);
+      projectResample = resample(projectTransform, delta2);
+      return reset();
+    }
+
+    function reset() {
+      cache = cacheStream = null;
+      return projection;
+    }
+
+    return function () {
+      project = projectAt.apply(this, arguments);
+      projection.invert = project.invert && invert;
+      return recenter();
+    };
+  }
+
+  function conicProjection(projectAt) {
+    var phi0 = 0,
+      phi1 = pi$1 / 3,
+      m = projectionMutator(projectAt),
+      p = m(phi0, phi1);
+
+    p.parallels = function (_) {
+      return arguments.length ? m(phi0 = _[0] * radians, phi1 = _[1] * radians) : [phi0 * degrees, phi1 * degrees];
+    };
+
+    return p;
+  }
+
+  function cylindricalEqualAreaRaw(phi0) {
+    var cosPhi0 = cos$1(phi0);
+
+    function forward(lambda, phi) {
+      return [lambda * cosPhi0, sin$1(phi) / cosPhi0];
+    }
+
+    forward.invert = function (x, y) {
+      return [x / cosPhi0, asin$1(y * cosPhi0)];
+    };
+
+    return forward;
+  }
+
+  function conicEqualAreaRaw(y0, y1) {
+    var sy0 = sin$1(y0), n = (sy0 + sin$1(y1)) / 2;
+
+    // Are the parallels symmetrical around the Equator?
+    if (abs$1(n) < epsilon$1) return cylindricalEqualAreaRaw(y0);
+
+    var c = 1 + sy0 * (2 * n - sy0), r0 = sqrt$2(c) / n;
+
+    function project(x, y) {
+      var r = sqrt$2(c - 2 * n * sin$1(y)) / n;
+      return [r * sin$1(x *= n), r0 - r * cos$1(x)];
+    }
+
+    project.invert = function (x, y) {
+      var r0y = r0 - y,
+        l = atan2$1(x, abs$1(r0y)) * sign$1(r0y);
+      if (r0y * n < 0)
+        l -= pi$1 * sign$1(x) * sign$1(r0y);
+      return [l / n, asin$1((c - (x * x + r0y * r0y) * n * n) / (2 * n))];
+    };
+
+    return project;
+  }
+
+  function conicEqualArea() {
+    return conicProjection(conicEqualAreaRaw)
+      .scale(155.424)
+      .center([0, 33.6442]);
+  }
+
+  function albers() {
+    return conicEqualArea()
+      .parallels([29.5, 45.5])
+      .scale(1070)
+      .translate([480, 250])
+      .rotate([96, 0])
+      .center([-0.6, 38.7]);
+  }
+
+  // The projections must have mutually exclusive clip regions on the sphere,
+  // as this will avoid emitting interleaving lines and polygons.
+  function multiplex(streams) {
+    var n = streams.length;
+    return {
+      point: function (x, y) { var i = -1; while (++i < n) streams[i].point(x, y); },
+      sphere: function () { var i = -1; while (++i < n) streams[i].sphere(); },
+      lineStart: function () { var i = -1; while (++i < n) streams[i].lineStart(); },
+      lineEnd: function () { var i = -1; while (++i < n) streams[i].lineEnd(); },
+      polygonStart: function () { var i = -1; while (++i < n) streams[i].polygonStart(); },
+      polygonEnd: function () { var i = -1; while (++i < n) streams[i].polygonEnd(); }
+    };
+  }
+
+  // A composite projection for the United States, configured by default for
+  // 960×500. The projection also works quite well at 960×600 if you change the
+  // scale to 1285 and adjust the translate accordingly. The set of standard
+  // parallels for each region comes from USGS, which is published here:
+  // http://egsc.usgs.gov/isb/pubs/MapProjections/projections.html#albers
+  function albersUsa() {
+    var cache,
+      cacheStream,
+      lower48 = albers(), lower48Point,
+      alaska = conicEqualArea().rotate([154, 0]).center([-2, 58.5]).parallels([55, 65]), alaskaPoint, // EPSG:3338
+      hawaii = conicEqualArea().rotate([157, 0]).center([-3, 19.9]).parallels([8, 18]), hawaiiPoint, // ESRI:102007
+      point, pointStream = { point: function (x, y) { point = [x, y]; } };
+
+    function albersUsa(coordinates) {
+      var x = coordinates[0], y = coordinates[1];
+      return point = null,
+        (lower48Point.point(x, y), point)
+        || (alaskaPoint.point(x, y), point)
+        || (hawaiiPoint.point(x, y), point);
+    }
+
+    albersUsa.invert = function (coordinates) {
+      var k = lower48.scale(),
+        t = lower48.translate(),
+        x = (coordinates[0] - t[0]) / k,
+        y = (coordinates[1] - t[1]) / k;
+      return (y >= 0.120 && y < 0.234 && x >= -0.425 && x < -0.214 ? alaska
+        : y >= 0.166 && y < 0.234 && x >= -0.214 && x < -0.115 ? hawaii
+          : lower48).invert(coordinates);
+    };
+
+    albersUsa.stream = function (stream) {
+      return cache && cacheStream === stream ? cache : cache = multiplex([lower48.stream(cacheStream = stream), alaska.stream(stream), hawaii.stream(stream)]);
+    };
+
+    albersUsa.precision = function (_) {
+      if (!arguments.length) return lower48.precision();
+      lower48.precision(_), alaska.precision(_), hawaii.precision(_);
+      return reset();
+    };
+
+    albersUsa.scale = function (_) {
+      if (!arguments.length) return lower48.scale();
+      lower48.scale(_), alaska.scale(_ * 0.35), hawaii.scale(_);
+      return albersUsa.translate(lower48.translate());
+    };
+
+    albersUsa.translate = function (_) {
+      if (!arguments.length) return lower48.translate();
+      var k = lower48.scale(), x = +_[0], y = +_[1];
+
+      lower48Point = lower48
+        .translate(_)
+        .clipExtent([[x - 0.455 * k, y - 0.238 * k], [x + 0.455 * k, y + 0.238 * k]])
+        .stream(pointStream);
+
+      alaskaPoint = alaska
+        .translate([x - 0.307 * k, y + 0.201 * k])
+        .clipExtent([[x - 0.425 * k + epsilon$1, y + 0.120 * k + epsilon$1], [x - 0.214 * k - epsilon$1, y + 0.234 * k - epsilon$1]])
+        .stream(pointStream);
+
+      hawaiiPoint = hawaii
+        .translate([x - 0.205 * k, y + 0.212 * k])
+        .clipExtent([[x - 0.214 * k + epsilon$1, y + 0.166 * k + epsilon$1], [x - 0.115 * k - epsilon$1, y + 0.234 * k - epsilon$1]])
+        .stream(pointStream);
+
+      return reset();
+    };
+
+    albersUsa.fitExtent = function (extent, object) {
+      return fitExtent(albersUsa, extent, object);
+    };
+
+    albersUsa.fitSize = function (size, object) {
+      return fitSize(albersUsa, size, object);
+    };
+
+    albersUsa.fitWidth = function (width, object) {
+      return fitWidth(albersUsa, width, object);
+    };
+
+    albersUsa.fitHeight = function (height, object) {
+      return fitHeight(albersUsa, height, object);
+    };
+
+    function reset() {
+      cache = cacheStream = null;
+      return albersUsa;
+    }
+
+    return albersUsa.scale(1070);
+  }
+
+  function azimuthalRaw(scale) {
+    return function (x, y) {
+      var cx = cos$1(x),
+        cy = cos$1(y),
+        k = scale(cx * cy);
+      if (k === Infinity) return [2, 0];
+      return [
+        k * cy * sin$1(x),
+        k * sin$1(y)
+      ];
+    }
+  }
+
+  function azimuthalInvert(angle) {
+    return function (x, y) {
+      var z = sqrt$2(x * x + y * y),
+        c = angle(z),
+        sc = sin$1(c),
+        cc = cos$1(c);
+      return [
+        atan2$1(x * sc, z * cc),
+        asin$1(z && y * sc / z)
+      ];
+    }
+  }
+
+  var azimuthalEqualAreaRaw = azimuthalRaw(function (cxcy) {
+    return sqrt$2(2 / (1 + cxcy));
+  });
+
+  azimuthalEqualAreaRaw.invert = azimuthalInvert(function (z) {
+    return 2 * asin$1(z / 2);
+  });
+
+  function azimuthalEqualArea() {
+    return projection(azimuthalEqualAreaRaw)
+      .scale(124.75)
+      .clipAngle(180 - 1e-3);
+  }
+
+  var azimuthalEquidistantRaw = azimuthalRaw(function (c) {
+    return (c = acos$1(c)) && c / sin$1(c);
+  });
+
+  azimuthalEquidistantRaw.invert = azimuthalInvert(function (z) {
+    return z;
+  });
+
+  function azimuthalEquidistant() {
+    return projection(azimuthalEquidistantRaw)
+      .scale(79.4188)
+      .clipAngle(180 - 1e-3);
+  }
+
+  function mercatorRaw(lambda, phi) {
+    return [lambda, log$1(tan((halfPi$1 + phi) / 2))];
+  }
+
+  mercatorRaw.invert = function (x, y) {
+    return [x, 2 * atan(exp(y)) - halfPi$1];
+  };
+
+  function mercator() {
+    return mercatorProjection(mercatorRaw)
+      .scale(961 / tau$1);
+  }
+
+  function mercatorProjection(project) {
+    var m = projection(project),
+      center = m.center,
+      scale = m.scale,
+      translate = m.translate,
+      clipExtent = m.clipExtent,
+      x0 = null, y0, x1, y1; // clip extent
+
+    m.scale = function (_) {
+      return arguments.length ? (scale(_), reclip()) : scale();
+    };
+
+    m.translate = function (_) {
+      return arguments.length ? (translate(_), reclip()) : translate();
+    };
+
+    m.center = function (_) {
+      return arguments.length ? (center(_), reclip()) : center();
+    };
+
+    m.clipExtent = function (_) {
+      return arguments.length ? ((_ == null ? x0 = y0 = x1 = y1 = null : (x0 = +_[0][0], y0 = +_[0][1], x1 = +_[1][0], y1 = +_[1][1])), reclip()) : x0 == null ? null : [[x0, y0], [x1, y1]];
+    };
+
+    function reclip() {
+      var k = pi$1 * scale(),
+        t = m(rotation(m.rotate()).invert([0, 0]));
+      return clipExtent(x0 == null
+        ? [[t[0] - k, t[1] - k], [t[0] + k, t[1] + k]] : project === mercatorRaw
+          ? [[Math.max(t[0] - k, x0), y0], [Math.min(t[0] + k, x1), y1]]
+          : [[x0, Math.max(t[1] - k, y0)], [x1, Math.min(t[1] + k, y1)]]);
+    }
+
+    return reclip();
+  }
+
+  function tany(y) {
+    return tan((halfPi$1 + y) / 2);
+  }
+
+  function conicConformalRaw(y0, y1) {
+    var cy0 = cos$1(y0),
+      n = y0 === y1 ? sin$1(y0) : log$1(cy0 / cos$1(y1)) / log$1(tany(y1) / tany(y0)),
+      f = cy0 * pow$1(tany(y0), n) / n;
+
+    if (!n) return mercatorRaw;
+
+    function project(x, y) {
+      if (f > 0) { if (y < -halfPi$1 + epsilon$1) y = -halfPi$1 + epsilon$1; }
+      else { if (y > halfPi$1 - epsilon$1) y = halfPi$1 - epsilon$1; }
+      var r = f / pow$1(tany(y), n);
+      return [r * sin$1(n * x), f - r * cos$1(n * x)];
+    }
+
+    project.invert = function (x, y) {
+      var fy = f - y, r = sign$1(n) * sqrt$2(x * x + fy * fy),
+        l = atan2$1(x, abs$1(fy)) * sign$1(fy);
+      if (fy * n < 0)
+        l -= pi$1 * sign$1(x) * sign$1(fy);
+      return [l / n, 2 * atan(pow$1(f / r, 1 / n)) - halfPi$1];
+    };
+
+    return project;
+  }
+
+  function conicConformal() {
+    return conicProjection(conicConformalRaw)
+      .scale(109.5)
+      .parallels([30, 30]);
+  }
+
+  function equirectangularRaw(lambda, phi) {
+    return [lambda, phi];
+  }
+
+  equirectangularRaw.invert = equirectangularRaw;
+
+  function equirectangular() {
+    return projection(equirectangularRaw)
+      .scale(152.63);
+  }
+
+  function conicEquidistantRaw(y0, y1) {
+    var cy0 = cos$1(y0),
+      n = y0 === y1 ? sin$1(y0) : (cy0 - cos$1(y1)) / (y1 - y0),
+      g = cy0 / n + y0;
+
+    if (abs$1(n) < epsilon$1) return equirectangularRaw;
+
+    function project(x, y) {
+      var gy = g - y, nx = n * x;
+      return [gy * sin$1(nx), g - gy * cos$1(nx)];
+    }
+
+    project.invert = function (x, y) {
+      var gy = g - y,
+        l = atan2$1(x, abs$1(gy)) * sign$1(gy);
+      if (gy * n < 0)
+        l -= pi$1 * sign$1(x) * sign$1(gy);
+      return [l / n, g - sign$1(n) * sqrt$2(x * x + gy * gy)];
+    };
+
+    return project;
+  }
+
+  function conicEquidistant() {
+    return conicProjection(conicEquidistantRaw)
+      .scale(131.154)
+      .center([0, 13.9389]);
+  }
+
+  var A1 = 1.340264,
+    A2 = -0.081106,
+    A3 = 0.000893,
+    A4 = 0.003796,
+    M = sqrt$2(3) / 2,
+    iterations = 12;
+
+  function equalEarthRaw(lambda, phi) {
+    var l = asin$1(M * sin$1(phi)), l2 = l * l, l6 = l2 * l2 * l2;
+    return [
+      lambda * cos$1(l) / (M * (A1 + 3 * A2 * l2 + l6 * (7 * A3 + 9 * A4 * l2))),
+      l * (A1 + A2 * l2 + l6 * (A3 + A4 * l2))
+    ];
+  }
+
+  equalEarthRaw.invert = function (x, y) {
+    var l = y, l2 = l * l, l6 = l2 * l2 * l2;
+    for (var i = 0, delta, fy, fpy; i < iterations; ++i) {
+      fy = l * (A1 + A2 * l2 + l6 * (A3 + A4 * l2)) - y;
+      fpy = A1 + 3 * A2 * l2 + l6 * (7 * A3 + 9 * A4 * l2);
+      l -= delta = fy / fpy, l2 = l * l, l6 = l2 * l2 * l2;
+      if (abs$1(delta) < epsilon2) break;
+    }
+    return [
+      M * x * (A1 + 3 * A2 * l2 + l6 * (7 * A3 + 9 * A4 * l2)) / cos$1(l),
+      asin$1(sin$1(l) / M)
+    ];
+  };
+
+  function equalEarth() {
+    return projection(equalEarthRaw)
+      .scale(177.158);
+  }
+
+  function gnomonicRaw(x, y) {
+    var cy = cos$1(y), k = cos$1(x) * cy;
+    return [cy * sin$1(x) / k, sin$1(y) / k];
+  }
+
+  gnomonicRaw.invert = azimuthalInvert(atan);
+
+  function gnomonic() {
+    return projection(gnomonicRaw)
+      .scale(144.049)
+      .clipAngle(60);
+  }
+
+  function identity$4() {
+    var k = 1, tx = 0, ty = 0, sx = 1, sy = 1, // scale, translate and reflect
+      alpha = 0, ca, sa, // angle
+      x0 = null, y0, x1, y1, // clip extent
+      kx = 1, ky = 1,
+      transform = transformer$3({
+        point: function (x, y) {
+          var p = projection([x, y]);
+          this.stream.point(p[0], p[1]);
+        }
+      }),
+      postclip = identity$5,
+      cache,
+      cacheStream;
+
+    function reset() {
+      kx = k * sx;
+      ky = k * sy;
+      cache = cacheStream = null;
+      return projection;
+    }
+
+    function projection(p) {
+      var x = p[0] * kx, y = p[1] * ky;
+      if (alpha) {
+        var t = y * ca - x * sa;
+        x = x * ca + y * sa;
+        y = t;
+      }
+      return [x + tx, y + ty];
+    }
+    projection.invert = function (p) {
+      var x = p[0] - tx, y = p[1] - ty;
+      if (alpha) {
+        var t = y * ca + x * sa;
+        x = x * ca - y * sa;
+        y = t;
+      }
+      return [x / kx, y / ky];
+    };
+    projection.stream = function (stream) {
+      return cache && cacheStream === stream ? cache : cache = transform(postclip(cacheStream = stream));
+    };
+    projection.postclip = function (_) {
+      return arguments.length ? (postclip = _, x0 = y0 = x1 = y1 = null, reset()) : postclip;
+    };
+    projection.clipExtent = function (_) {
+      return arguments.length ? (postclip = _ == null ? (x0 = y0 = x1 = y1 = null, identity$5) : clipRectangle(x0 = +_[0][0], y0 = +_[0][1], x1 = +_[1][0], y1 = +_[1][1]), reset()) : x0 == null ? null : [[x0, y0], [x1, y1]];
+    };
+    projection.scale = function (_) {
+      return arguments.length ? (k = +_, reset()) : k;
+    };
+    projection.translate = function (_) {
+      return arguments.length ? (tx = +_[0], ty = +_[1], reset()) : [tx, ty];
+    };
+    projection.angle = function (_) {
+      return arguments.length ? (alpha = _ % 360 * radians, sa = sin$1(alpha), ca = cos$1(alpha), reset()) : alpha * degrees;
+    };
+    projection.reflectX = function (_) {
+      return arguments.length ? (sx = _ ? -1 : 1, reset()) : sx < 0;
+    };
+    projection.reflectY = function (_) {
+      return arguments.length ? (sy = _ ? -1 : 1, reset()) : sy < 0;
+    };
+    projection.fitExtent = function (extent, object) {
+      return fitExtent(projection, extent, object);
+    };
+    projection.fitSize = function (size, object) {
+      return fitSize(projection, size, object);
+    };
+    projection.fitWidth = function (width, object) {
+      return fitWidth(projection, width, object);
+    };
+    projection.fitHeight = function (height, object) {
+      return fitHeight(projection, height, object);
+    };
+
+    return projection;
+  }
+
+  function naturalEarth1Raw(lambda, phi) {
+    var phi2 = phi * phi, phi4 = phi2 * phi2;
+    return [
+      lambda * (0.8707 - 0.131979 * phi2 + phi4 * (-0.013791 + phi4 * (0.003971 * phi2 - 0.001529 * phi4))),
+      phi * (1.007226 + phi2 * (0.015085 + phi4 * (-0.044475 + 0.028874 * phi2 - 0.005916 * phi4)))
+    ];
+  }
+
+  naturalEarth1Raw.invert = function (x, y) {
+    var phi = y, i = 25, delta;
+    do {
+      var phi2 = phi * phi, phi4 = phi2 * phi2;
+      phi -= delta = (phi * (1.007226 + phi2 * (0.015085 + phi4 * (-0.044475 + 0.028874 * phi2 - 0.005916 * phi4))) - y) /
+        (1.007226 + phi2 * (0.015085 * 3 + phi4 * (-0.044475 * 7 + 0.028874 * 9 * phi2 - 0.005916 * 11 * phi4)));
+    } while (abs$1(delta) > epsilon$1 && --i > 0);
+    return [
+      x / (0.8707 + (phi2 = phi * phi) * (-0.131979 + phi2 * (-0.013791 + phi2 * phi2 * phi2 * (0.003971 - 0.001529 * phi2)))),
+      phi
+    ];
+  };
+
+  function naturalEarth1() {
+    return projection(naturalEarth1Raw)
+      .scale(175.295);
+  }
+
+  function orthographicRaw(x, y) {
+    return [cos$1(y) * sin$1(x), sin$1(y)];
+  }
+
+  orthographicRaw.invert = azimuthalInvert(asin$1);
+
+  function orthographic() {
+    return projection(orthographicRaw)
+      .scale(249.5)
+      .clipAngle(90 + epsilon$1);
+  }
+
+  function stereographicRaw(x, y) {
+    var cy = cos$1(y), k = 1 + cos$1(x) * cy;
+    return [cy * sin$1(x) / k, sin$1(y) / k];
+  }
+
+  stereographicRaw.invert = azimuthalInvert(function (z) {
+    return 2 * atan(z);
+  });
+
+  function stereographic() {
+    return projection(stereographicRaw)
+      .scale(250)
+      .clipAngle(142);
+  }
+
+  function transverseMercatorRaw(lambda, phi) {
+    return [log$1(tan((halfPi$1 + phi) / 2)), -lambda];
+  }
+
+  transverseMercatorRaw.invert = function (x, y) {
+    return [-y, 2 * atan(exp(x)) - halfPi$1];
+  };
+
+  function transverseMercator() {
+    var m = mercatorProjection(transverseMercatorRaw),
+      center = m.center,
+      rotate = m.rotate;
+
+    m.center = function (_) {
+      return arguments.length ? center([-_[1], _[0]]) : (_ = center(), [_[1], -_[0]]);
+    };
+
+    m.rotate = function (_) {
+      return arguments.length ? rotate([_[0], _[1], _.length > 2 ? _[2] + 90 : 90]) : (_ = rotate(), [_[0], _[1], _[2] - 90]);
+    };
+
+    return rotate([0, 0, 90])
+      .scale(159.155);
+  }
+
+  function defaultSeparation$1(a, b) {
+    return a.parent === b.parent ? 1 : 2;
+  }
+
+  function meanX(children) {
+    return children.reduce(meanXReduce, 0) / children.length;
+  }
+
+  function meanXReduce(x, c) {
+    return x + c.x;
+  }
+
+  function maxY(children) {
+    return 1 + children.reduce(maxYReduce, 0);
+  }
+
+  function maxYReduce(y, c) {
+    return Math.max(y, c.y);
+  }
+
+  function leafLeft(node) {
+    var children;
+    while (children = node.children) node = children[0];
+    return node;
+  }
+
+  function leafRight(node) {
+    var children;
+    while (children = node.children) node = children[children.length - 1];
+    return node;
+  }
+
+  function cluster() {
+    var separation = defaultSeparation$1,
+      dx = 1,
+      dy = 1,
+      nodeSize = false;
+
+    function cluster(root) {
+      var previousNode,
+        x = 0;
+
+      // First walk, computing the initial x & y values.
+      root.eachAfter(function (node) {
+        var children = node.children;
+        if (children) {
+          node.x = meanX(children);
+          node.y = maxY(children);
+        } else {
+          node.x = previousNode ? x += separation(node, previousNode) : 0;
+          node.y = 0;
+          previousNode = node;
+        }
+      });
+
+      var left = leafLeft(root),
+        right = leafRight(root),
+        x0 = left.x - separation(left, right) / 2,
+        x1 = right.x + separation(right, left) / 2;
+
+      // Second walk, normalizing x & y to the desired size.
+      return root.eachAfter(nodeSize ? function (node) {
+        node.x = (node.x - root.x) * dx;
+        node.y = (root.y - node.y) * dy;
+      } : function (node) {
+        node.x = (node.x - x0) / (x1 - x0) * dx;
+        node.y = (1 - (root.y ? node.y / root.y : 1)) * dy;
+      });
+    }
+
+    cluster.separation = function (x) {
+      return arguments.length ? (separation = x, cluster) : separation;
+    };
+
+    cluster.size = function (x) {
+      return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? null : [dx, dy]);
+    };
+
+    cluster.nodeSize = function (x) {
+      return arguments.length ? (nodeSize = true, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? [dx, dy] : null);
+    };
+
+    return cluster;
+  }
+
+  function count(node) {
+    var sum = 0,
+      children = node.children,
+      i = children && children.length;
+    if (!i) sum = 1;
+    else while (--i >= 0) sum += children[i].value;
+    node.value = sum;
+  }
+
+  function node_count() {
+    return this.eachAfter(count);
+  }
+
+  function node_each(callback, that) {
+    let index = -1;
+    for (const node of this) {
+      callback.call(that, node, ++index, this);
+    }
+    return this;
+  }
+
+  function node_eachBefore(callback, that) {
+    var node = this, nodes = [node], children, i, index = -1;
+    while (node = nodes.pop()) {
+      callback.call(that, node, ++index, this);
+      if (children = node.children) {
+        for (i = children.length - 1; i >= 0; --i) {
+          nodes.push(children[i]);
+        }
+      }
+    }
+    return this;
+  }
+
+  function node_eachAfter(callback, that) {
+    var node = this, nodes = [node], next = [], children, i, n, index = -1;
+    while (node = nodes.pop()) {
+      next.push(node);
+      if (children = node.children) {
+        for (i = 0, n = children.length; i < n; ++i) {
+          nodes.push(children[i]);
+        }
+      }
+    }
+    while (node = next.pop()) {
+      callback.call(that, node, ++index, this);
+    }
+    return this;
+  }
+
+  function node_find(callback, that) {
+    let index = -1;
+    for (const node of this) {
+      if (callback.call(that, node, ++index, this)) {
+        return node;
+      }
+    }
+  }
+
+  function node_sum(value) {
+    return this.eachAfter(function (node) {
+      var sum = +value(node.data) || 0,
+        children = node.children,
+        i = children && children.length;
+      while (--i >= 0) sum += children[i].value;
+      node.value = sum;
+    });
+  }
+
+  function node_sort(compare) {
+    return this.eachBefore(function (node) {
+      if (node.children) {
+        node.children.sort(compare);
+      }
+    });
+  }
+
+  function node_path(end) {
+    var start = this,
+      ancestor = leastCommonAncestor(start, end),
+      nodes = [start];
+    while (start !== ancestor) {
+      start = start.parent;
+      nodes.push(start);
+    }
+    var k = nodes.length;
+    while (end !== ancestor) {
+      nodes.splice(k, 0, end);
+      end = end.parent;
+    }
+    return nodes;
+  }
+
+  function leastCommonAncestor(a, b) {
+    if (a === b) return a;
+    var aNodes = a.ancestors(),
+      bNodes = b.ancestors(),
+      c = null;
+    a = aNodes.pop();
+    b = bNodes.pop();
+    while (a === b) {
+      c = a;
+      a = aNodes.pop();
+      b = bNodes.pop();
+    }
+    return c;
+  }
+
+  function node_ancestors() {
+    var node = this, nodes = [node];
+    while (node = node.parent) {
+      nodes.push(node);
+    }
+    return nodes;
+  }
+
+  function node_descendants() {
+    return Array.from(this);
+  }
+
+  function node_leaves() {
+    var leaves = [];
+    this.eachBefore(function (node) {
+      if (!node.children) {
+        leaves.push(node);
+      }
+    });
+    return leaves;
+  }
+
+  function node_links() {
+    var root = this, links = [];
+    root.each(function (node) {
+      if (node !== root) { // Don’t include the root’s parent, if any.
+        links.push({ source: node.parent, target: node });
+      }
+    });
+    return links;
+  }
+
+  function* node_iterator() {
+    var node = this, current, next = [node], children, i, n;
+    do {
+      current = next.reverse(), next = [];
+      while (node = current.pop()) {
+        yield node;
+        if (children = node.children) {
+          for (i = 0, n = children.length; i < n; ++i) {
+            next.push(children[i]);
+          }
+        }
+      }
+    } while (next.length);
+  }
+
+  function hierarchy(data, children) {
+    if (data instanceof Map) {
+      data = [undefined, data];
+      if (children === undefined) children = mapChildren;
+    } else if (children === undefined) {
+      children = objectChildren;
+    }
+
+    var root = new Node$1(data),
+      node,
+      nodes = [root],
+      child,
+      childs,
+      i,
+      n;
+
+    while (node = nodes.pop()) {
+      if ((childs = children(node.data)) && (n = (childs = Array.from(childs)).length)) {
+        node.children = childs;
+        for (i = n - 1; i >= 0; --i) {
+          nodes.push(child = childs[i] = new Node$1(childs[i]));
+          child.parent = node;
+          child.depth = node.depth + 1;
+        }
+      }
+    }
+
+    return root.eachBefore(computeHeight);
+  }
+
+  function node_copy() {
+    return hierarchy(this).eachBefore(copyData);
+  }
+
+  function objectChildren(d) {
+    return d.children;
+  }
+
+  function mapChildren(d) {
+    return Array.isArray(d) ? d[1] : null;
+  }
+
+  function copyData(node) {
+    if (node.data.value !== undefined) node.value = node.data.value;
+    node.data = node.data.data;
+  }
+
+  function computeHeight(node) {
+    var height = 0;
+    do node.height = height;
+    while ((node = node.parent) && (node.height < ++height));
+  }
+
+  function Node$1(data) {
+    this.data = data;
+    this.depth =
+      this.height = 0;
+    this.parent = null;
+  }
+
+  Node$1.prototype = hierarchy.prototype = {
+    constructor: Node$1,
+    count: node_count,
+    each: node_each,
+    eachAfter: node_eachAfter,
+    eachBefore: node_eachBefore,
+    find: node_find,
+    sum: node_sum,
+    sort: node_sort,
+    path: node_path,
+    ancestors: node_ancestors,
+    descendants: node_descendants,
+    leaves: node_leaves,
+    links: node_links,
+    copy: node_copy,
+    [Symbol.iterator]: node_iterator
+  };
+
+  function optional(f) {
+    return f == null ? null : required(f);
+  }
+
+  function required(f) {
+    if (typeof f !== "function") throw new Error;
+    return f;
+  }
+
+  function constantZero() {
+    return 0;
+  }
+
+  function constant$2(x) {
+    return function () {
+      return x;
+    };
+  }
+
+  // https://en.wikipedia.org/wiki/Linear_congruential_generator#Parameters_in_common_use
+  const a$1 = 1664525;
+  const c$3 = 1013904223;
+  const m = 4294967296; // 2^32
+
+  function lcg$1() {
+    let s = 1;
+    return () => (s = (a$1 * s + c$3) % m) / m;
+  }
+
+  function array$1(x) {
+    return typeof x === "object" && "length" in x
+      ? x // Array, TypedArray, NodeList, array-like
+      : Array.from(x); // Map, Set, iterable, string, or anything else
+  }
+
+  function shuffle(array, random) {
+    let m = array.length,
+      t,
+      i;
+
+    while (m) {
+      i = random() * m-- | 0;
+      t = array[m];
+      array[m] = array[i];
+      array[i] = t;
+    }
+
+    return array;
+  }
+
+  function enclose(circles) {
+    return packEncloseRandom(circles, lcg$1());
+  }
+
+  function packEncloseRandom(circles, random) {
+    var i = 0, n = (circles = shuffle(Array.from(circles), random)).length, B = [], p, e;
+
+    while (i < n) {
+      p = circles[i];
+      if (e && enclosesWeak(e, p)) ++i;
+      else e = encloseBasis(B = extendBasis(B, p)), i = 0;
+    }
+
+    return e;
+  }
+
+  function extendBasis(B, p) {
+    var i, j;
+
+    if (enclosesWeakAll(p, B)) return [p];
+
+    // If we get here then B must have at least one element.
+    for (i = 0; i < B.length; ++i) {
+      if (enclosesNot(p, B[i])
+        && enclosesWeakAll(encloseBasis2(B[i], p), B)) {
+        return [B[i], p];
+      }
+    }
+
+    // If we get here then B must have at least two elements.
+    for (i = 0; i < B.length - 1; ++i) {
+      for (j = i + 1; j < B.length; ++j) {
+        if (enclosesNot(encloseBasis2(B[i], B[j]), p)
+          && enclosesNot(encloseBasis2(B[i], p), B[j])
+          && enclosesNot(encloseBasis2(B[j], p), B[i])
+          && enclosesWeakAll(encloseBasis3(B[i], B[j], p), B)) {
+          return [B[i], B[j], p];
+        }
+      }
+    }
+
+    // If we get here then something is very wrong.
+    throw new Error;
+  }
+
+  function enclosesNot(a, b) {
+    var dr = a.r - b.r, dx = b.x - a.x, dy = b.y - a.y;
+    return dr < 0 || dr * dr < dx * dx + dy * dy;
+  }
+
+  function enclosesWeak(a, b) {
+    var dr = a.r - b.r + Math.max(a.r, b.r, 1) * 1e-9, dx = b.x - a.x, dy = b.y - a.y;
+    return dr > 0 && dr * dr > dx * dx + dy * dy;
+  }
+
+  function enclosesWeakAll(a, B) {
+    for (var i = 0; i < B.length; ++i) {
+      if (!enclosesWeak(a, B[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function encloseBasis(B) {
+    switch (B.length) {
+      case 1: return encloseBasis1(B[0]);
+      case 2: return encloseBasis2(B[0], B[1]);
+      case 3: return encloseBasis3(B[0], B[1], B[2]);
+    }
+  }
+
+  function encloseBasis1(a) {
+    return {
+      x: a.x,
+      y: a.y,
+      r: a.r
+    };
+  }
+
+  function encloseBasis2(a, b) {
+    var x1 = a.x, y1 = a.y, r1 = a.r,
+      x2 = b.x, y2 = b.y, r2 = b.r,
+      x21 = x2 - x1, y21 = y2 - y1, r21 = r2 - r1,
+      l = Math.sqrt(x21 * x21 + y21 * y21);
+    return {
+      x: (x1 + x2 + x21 / l * r21) / 2,
+      y: (y1 + y2 + y21 / l * r21) / 2,
+      r: (l + r1 + r2) / 2
+    };
+  }
+
+  function encloseBasis3(a, b, c) {
+    var x1 = a.x, y1 = a.y, r1 = a.r,
+      x2 = b.x, y2 = b.y, r2 = b.r,
+      x3 = c.x, y3 = c.y, r3 = c.r,
+      a2 = x1 - x2,
+      a3 = x1 - x3,
+      b2 = y1 - y2,
+      b3 = y1 - y3,
+      c2 = r2 - r1,
+      c3 = r3 - r1,
+      d1 = x1 * x1 + y1 * y1 - r1 * r1,
+      d2 = d1 - x2 * x2 - y2 * y2 + r2 * r2,
+      d3 = d1 - x3 * x3 - y3 * y3 + r3 * r3,
+      ab = a3 * b2 - a2 * b3,
+      xa = (b2 * d3 - b3 * d2) / (ab * 2) - x1,
+      xb = (b3 * c2 - b2 * c3) / ab,
+      ya = (a3 * d2 - a2 * d3) / (ab * 2) - y1,
+      yb = (a2 * c3 - a3 * c2) / ab,
+      A = xb * xb + yb * yb - 1,
+      B = 2 * (r1 + xa * xb + ya * yb),
+      C = xa * xa + ya * ya - r1 * r1,
+      r = -(Math.abs(A) > 1e-6 ? (B + Math.sqrt(B * B - 4 * A * C)) / (2 * A) : C / B);
+    return {
+      x: x1 + xa + xb * r,
+      y: y1 + ya + yb * r,
+      r: r
+    };
+  }
+
+  function place(b, a, c) {
+    var dx = b.x - a.x, x, a2,
+      dy = b.y - a.y, y, b2,
+      d2 = dx * dx + dy * dy;
+    if (d2) {
+      a2 = a.r + c.r, a2 *= a2;
+      b2 = b.r + c.r, b2 *= b2;
+      if (a2 > b2) {
+        x = (d2 + b2 - a2) / (2 * d2);
+        y = Math.sqrt(Math.max(0, b2 / d2 - x * x));
+        c.x = b.x - x * dx - y * dy;
+        c.y = b.y - x * dy + y * dx;
+      } else {
+        x = (d2 + a2 - b2) / (2 * d2);
+        y = Math.sqrt(Math.max(0, a2 / d2 - x * x));
+        c.x = a.x + x * dx - y * dy;
+        c.y = a.y + x * dy + y * dx;
+      }
+    } else {
+      c.x = a.x + c.r;
+      c.y = a.y;
+    }
+  }
+
+  function intersects(a, b) {
+    var dr = a.r + b.r - 1e-6, dx = b.x - a.x, dy = b.y - a.y;
+    return dr > 0 && dr * dr > dx * dx + dy * dy;
+  }
+
+
+
+  function quantize() {
+    var x0 = 0,
+      x1 = 1,
+      n = 1,
+      domain = [0.5],
+      range = [0, 1],
+      unknown;
+
+    function scale(x) {
+      return x != null && x <= x ? range[bisect(domain, x, 0, n)] : unknown;
+    }
+
+    function rescale() {
+      var i = -1;
+      domain = new Array(n);
+      while (++i < n) domain[i] = ((i + 1) * x1 - (i - n) * x0) / (n + 1);
+      return scale;
+    }
+
+    scale.domain = function (_) {
+      return arguments.length ? ([x0, x1] = _, x0 = +x0, x1 = +x1, rescale()) : [x0, x1];
+    };
+
+    scale.range = function (_) {
+      return arguments.length ? (n = (range = Array.from(_)).length - 1, rescale()) : range.slice();
+    };
+
+    scale.invertExtent = function (y) {
+      var i = range.indexOf(y);
+      return i < 0 ? [NaN, NaN]
+        : i < 1 ? [x0, domain[0]]
+          : i >= n ? [domain[n - 1], x1]
+            : [domain[i - 1], domain[i]];
+    };
+
+    scale.unknown = function (_) {
+      return arguments.length ? (unknown = _, scale) : scale;
+    };
+
+    scale.thresholds = function () {
+      return domain.slice();
+    };
+
+    scale.copy = function () {
+      return quantize()
+        .domain([x0, x1])
+        .range(range)
+        .unknown(unknown);
+    };
+
+    return initRange.apply(linearish(scale), arguments);
+  }
+
+  function threshold() {
+    var domain = [0.5],
+      range = [0, 1],
+      unknown,
+      n = 1;
+
+    function scale(x) {
+      return x != null && x <= x ? range[bisect(domain, x, 0, n)] : unknown;
+    }
+
+    scale.domain = function (_) {
+      return arguments.length ? (domain = Array.from(_), n = Math.min(domain.length, range.length - 1), scale) : domain.slice();
+    };
+
+    scale.range = function (_) {
+      return arguments.length ? (range = Array.from(_), n = Math.min(domain.length, range.length - 1), scale) : range.slice();
+    };
+
+    scale.invertExtent = function (y) {
+      var i = range.indexOf(y);
+      return [domain[i - 1], domain[i]];
+    };
+
+    scale.unknown = function (_) {
+      return arguments.length ? (unknown = _, scale) : unknown;
+    };
+
+    scale.copy = function () {
+      return threshold()
+        .domain(domain)
+        .range(range)
+        .unknown(unknown);
+    };
+
+    return initRange.apply(scale, arguments);
+  }
+
+  const t0 = new Date, t1 = new Date;
+
+  function timeInterval(floori, offseti, count, field) {
+
+    function interval(date) {
+      return floori(date = arguments.length === 0 ? new Date : new Date(+date)), date;
+    }
+
+    interval.floor = (date) => {
+      return floori(date = new Date(+date)), date;
+    };
+
+    interval.ceil = (date) => {
+      return floori(date = new Date(date - 1)), offseti(date, 1), floori(date), date;
+    };
+
+    interval.round = (date) => {
+      const d0 = interval(date), d1 = interval.ceil(date);
+      return date - d0 < d1 - date ? d0 : d1;
+    };
+
+    interval.offset = (date, step) => {
+      return offseti(date = new Date(+date), step == null ? 1 : Math.floor(step)), date;
+    };
+
+    interval.range = (start, stop, step) => {
+      const range = [];
+      start = interval.ceil(start);
+      step = step == null ? 1 : Math.floor(step);
+      if (!(start < stop) || !(step > 0)) return range; // also handles Invalid Date
+      let previous;
+      do range.push(previous = new Date(+start)), offseti(start, step), floori(start);
+      while (previous < start && start < stop);
+      return range;
+    };
+
+    interval.filter = (test) => {
+      return timeInterval((date) => {
+        if (date >= date) while (floori(date), !test(date)) date.setTime(date - 1);
+      }, (date, step) => {
+        if (date >= date) {
+          if (step < 0) while (++step <= 0) {
+            while (offseti(date, -1), !test(date)) { } // eslint-disable-line no-empty
+          } else while (--step >= 0) {
+            while (offseti(date, +1), !test(date)) { } // eslint-disable-line no-empty
+          }
+        }
+      });
+    };
+
+    if (count) {
+      interval.count = (start, end) => {
+        t0.setTime(+start), t1.setTime(+end);
+        floori(t0), floori(t1);
+        return Math.floor(count(t0, t1));
+      };
+
+      interval.every = (step) => {
+        step = Math.floor(step);
+        return !isFinite(step) || !(step > 0) ? null
+          : !(step > 1) ? interval
+            : interval.filter(field
+              ? (d) => field(d) % step === 0
+              : (d) => interval.count(0, d) % step === 0);
+      };
+    }
+
+    return interval;
+  }
+
+  const millisecond = timeInterval(() => {
+    // noop
+  }, (date, step) => {
+    date.setTime(+date + step);
+  }, (start, end) => {
+    return end - start;
+  });
+
+  // An optimized implementation for this simple case.
+  millisecond.every = (k) => {
+    k = Math.floor(k);
+    if (!isFinite(k) || !(k > 0)) return null;
+    if (!(k > 1)) return millisecond;
+    return timeInterval((date) => {
+      date.setTime(Math.floor(date / k) * k);
+    }, (date, step) => {
+      date.setTime(+date + step * k);
+    }, (start, end) => {
+      return (end - start) / k;
+    });
+  };
+
+  const milliseconds = millisecond.range;
+
+  const durationSecond = 1000;
+  const durationMinute = durationSecond * 60;
+  const durationHour = durationMinute * 60;
+  const durationDay = durationHour * 24;
+  const durationWeek = durationDay * 7;
+  const durationMonth = durationDay * 30;
+  const durationYear = durationDay * 365;
+
+  const second = timeInterval((date) => {
+    date.setTime(date - date.getMilliseconds());
+  }, (date, step) => {
+    date.setTime(+date + step * durationSecond);
+  }, (start, end) => {
+    return (end - start) / durationSecond;
+  }, (date) => {
+    return date.getUTCSeconds();
+  });
+
+  const seconds = second.range;
+
+  const timeMinute = timeInterval((date) => {
+    date.setTime(date - date.getMilliseconds() - date.getSeconds() * durationSecond);
+  }, (date, step) => {
+    date.setTime(+date + step * durationMinute);
+  }, (start, end) => {
+    return (end - start) / durationMinute;
+  }, (date) => {
+    return date.getMinutes();
+  });
+
+  const timeMinutes = timeMinute.range;
+
+  const utcMinute = timeInterval((date) => {
+    date.setUTCSeconds(0, 0);
+  }, (date, step) => {
+    date.setTime(+date + step * durationMinute);
+  }, (start, end) => {
+    return (end - start) / durationMinute;
+  }, (date) => {
+    return date.getUTCMinutes();
+  });
+
+  const utcMinutes = utcMinute.range;
+
+  const timeHour = timeInterval((date) => {
+    date.setTime(date - date.getMilliseconds() - date.getSeconds() * durationSecond - date.getMinutes() * durationMinute);
+  }, (date, step) => {
+    date.setTime(+date + step * durationHour);
+  }, (start, end) => {
+    return (end - start) / durationHour;
+  }, (date) => {
+    return date.getHours();
+  });
+
+  const timeHours = timeHour.range;
+
+  const utcHour = timeInterval((date) => {
+    date.setUTCMinutes(0, 0, 0);
+  }, (date, step) => {
+    date.setTime(+date + step * durationHour);
+  }, (start, end) => {
+    return (end - start) / durationHour;
+  }, (date) => {
+    return date.getUTCHours();
+  });
+
+  const utcHours = utcHour.range;
+
+  const timeDay = timeInterval(
+    date => date.setHours(0, 0, 0, 0),
+    (date, step) => date.setDate(date.getDate() + step),
+    (start, end) => (end - start - (end.getTimezoneOffset() - start.getTimezoneOffset()) * durationMinute) / durationDay,
+    date => date.getDate() - 1
+  );
+
+  const timeDays = timeDay.range;
+
+  const utcDay = timeInterval((date) => {
+    date.setUTCHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setUTCDate(date.getUTCDate() + step);
+  }, (start, end) => {
+    return (end - start) / durationDay;
+  }, (date) => {
+    return date.getUTCDate() - 1;
+  });
+
+  const utcDays = utcDay.range;
+
+  const unixDay = timeInterval((date) => {
+    date.setUTCHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setUTCDate(date.getUTCDate() + step);
+  }, (start, end) => {
+    return (end - start) / durationDay;
+  }, (date) => {
+    return Math.floor(date / durationDay);
+  });
+
+  const unixDays = unixDay.range;
+
+  function timeWeekday(i) {
+    return timeInterval((date) => {
+      date.setDate(date.getDate() - (date.getDay() + 7 - i) % 7);
+      date.setHours(0, 0, 0, 0);
+    }, (date, step) => {
+      date.setDate(date.getDate() + step * 7);
+    }, (start, end) => {
+      return (end - start - (end.getTimezoneOffset() - start.getTimezoneOffset()) * durationMinute) / durationWeek;
+    });
+  }
+
+  const timeSunday = timeWeekday(0);
+  const timeMonday = timeWeekday(1);
+  const timeTuesday = timeWeekday(2);
+  const timeWednesday = timeWeekday(3);
+  const timeThursday = timeWeekday(4);
+  const timeFriday = timeWeekday(5);
+  const timeSaturday = timeWeekday(6);
+
+  const timeSundays = timeSunday.range;
+  const timeMondays = timeMonday.range;
+  const timeTuesdays = timeTuesday.range;
+  const timeWednesdays = timeWednesday.range;
+  const timeThursdays = timeThursday.range;
+  const timeFridays = timeFriday.range;
+  const timeSaturdays = timeSaturday.range;
+
+  function utcWeekday(i) {
+    return timeInterval((date) => {
+      date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 7 - i) % 7);
+      date.setUTCHours(0, 0, 0, 0);
+    }, (date, step) => {
+      date.setUTCDate(date.getUTCDate() + step * 7);
+    }, (start, end) => {
+      return (end - start) / durationWeek;
+    });
+  }
+
+  const utcSunday = utcWeekday(0);
+  const utcMonday = utcWeekday(1);
+  const utcTuesday = utcWeekday(2);
+  const utcWednesday = utcWeekday(3);
+  const utcThursday = utcWeekday(4);
+  const utcFriday = utcWeekday(5);
+  const utcSaturday = utcWeekday(6);
+
+  const utcSundays = utcSunday.range;
+  const utcMondays = utcMonday.range;
+  const utcTuesdays = utcTuesday.range;
+  const utcWednesdays = utcWednesday.range;
+  const utcThursdays = utcThursday.range;
+  const utcFridays = utcFriday.range;
+  const utcSaturdays = utcSaturday.range;
+
+  const timeMonth = timeInterval((date) => {
+    date.setDate(1);
+    date.setHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setMonth(date.getMonth() + step);
+  }, (start, end) => {
+    return end.getMonth() - start.getMonth() + (end.getFullYear() - start.getFullYear()) * 12;
+  }, (date) => {
+    return date.getMonth();
+  });
+
+  const timeMonths = timeMonth.range;
+
+  const utcMonth = timeInterval((date) => {
+    date.setUTCDate(1);
+    date.setUTCHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setUTCMonth(date.getUTCMonth() + step);
+  }, (start, end) => {
+    return end.getUTCMonth() - start.getUTCMonth() + (end.getUTCFullYear() - start.getUTCFullYear()) * 12;
+  }, (date) => {
+    return date.getUTCMonth();
+  });
+
+  const utcMonths = utcMonth.range;
+
+  const timeYear = timeInterval((date) => {
+    date.setMonth(0, 1);
+    date.setHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setFullYear(date.getFullYear() + step);
+  }, (start, end) => {
+    return end.getFullYear() - start.getFullYear();
+  }, (date) => {
+    return date.getFullYear();
+  });
+
+  // An optimized implementation for this simple case.
+  timeYear.every = (k) => {
+    return !isFinite(k = Math.floor(k)) || !(k > 0) ? null : timeInterval((date) => {
+      date.setFullYear(Math.floor(date.getFullYear() / k) * k);
+      date.setMonth(0, 1);
+      date.setHours(0, 0, 0, 0);
+    }, (date, step) => {
+      date.setFullYear(date.getFullYear() + step * k);
+    });
+  };
+
+  const timeYears = timeYear.range;
+
+  const utcYear = timeInterval((date) => {
+    date.setUTCMonth(0, 1);
+    date.setUTCHours(0, 0, 0, 0);
+  }, (date, step) => {
+    date.setUTCFullYear(date.getUTCFullYear() + step);
+  }, (start, end) => {
+    return end.getUTCFullYear() - start.getUTCFullYear();
+  }, (date) => {
+    return date.getUTCFullYear();
+  });
+
+  // An optimized implementation for this simple case.
+  utcYear.every = (k) => {
+    return !isFinite(k = Math.floor(k)) || !(k > 0) ? null : timeInterval((date) => {
+      date.setUTCFullYear(Math.floor(date.getUTCFullYear() / k) * k);
+      date.setUTCMonth(0, 1);
+      date.setUTCHours(0, 0, 0, 0);
+    }, (date, step) => {
+      date.setUTCFullYear(date.getUTCFullYear() + step * k);
+    });
+  };
+
+  const utcYears = utcYear.range;
+
+  function ticker(year, month, week, day, hour, minute) {
+
+    const tickIntervals = [
+      [second, 1, durationSecond],
+      [second, 5, 5 * durationSecond],
+      [second, 15, 15 * durationSecond],
+      [second, 30, 30 * durationSecond],
+      [minute, 1, durationMinute],
+      [minute, 5, 5 * durationMinute],
+      [minute, 15, 15 * durationMinute],
+      [minute, 30, 30 * durationMinute],
+      [hour, 1, durationHour],
+      [hour, 3, 3 * durationHour],
+      [hour, 6, 6 * durationHour],
+      [hour, 12, 12 * durationHour],
+      [day, 1, durationDay],
+      [day, 2, 2 * durationDay],
+      [week, 1, durationWeek],
+      [month, 1, durationMonth],
+      [month, 3, 3 * durationMonth],
+      [year, 1, durationYear]
+    ];
+
+    function ticks(start, stop, count) {
+      const reverse = stop < start;
+      if (reverse) [start, stop] = [stop, start];
+      const interval = count && typeof count.range === "function" ? count : tickInterval(start, stop, count);
+      const ticks = interval ? interval.range(start, +stop + 1) : []; // inclusive stop
+      return reverse ? ticks.reverse() : ticks;
+    }
+
+    function tickInterval(start, stop, count) {
+      const target = Math.abs(stop - start) / count;
+      const i = bisector(([, , step]) => step).right(tickIntervals, target);
+      if (i === tickIntervals.length) return year.every(tickStep(start / durationYear, stop / durationYear, count));
+      if (i === 0) return millisecond.every(Math.max(tickStep(start, stop, count), 1));
+      const [t, step] = tickIntervals[target / tickIntervals[i - 1][2] < tickIntervals[i][2] / target ? i - 1 : i];
+      return t.every(step);
+    }
+
+    return [ticks, tickInterval];
+  }
+
+  const [utcTicks, utcTickInterval] = ticker(utcYear, utcMonth, utcSunday, unixDay, utcHour, utcMinute);
+  const [timeTicks, timeTickInterval] = ticker(timeYear, timeMonth, timeSunday, timeDay, timeHour, timeMinute);
+
+  function localDate(d) {
+    if (0 <= d.y && d.y < 100) {
+      var date = new Date(-1, d.m, d.d, d.H, d.M, d.S, d.L);
+      date.setFullYear(d.y);
+      return date;
+    }
+    return new Date(d.y, d.m, d.d, d.H, d.M, d.S, d.L);
+  }
+
+  function utcDate(d) {
+    if (0 <= d.y && d.y < 100) {
+      var date = new Date(Date.UTC(-1, d.m, d.d, d.H, d.M, d.S, d.L));
+      date.setUTCFullYear(d.y);
+      return date;
+    }
+    return new Date(Date.UTC(d.y, d.m, d.d, d.H, d.M, d.S, d.L));
+  }
+
+  function newDate(y, m, d) {
+    return { y: y, m: m, d: d, H: 0, M: 0, S: 0, L: 0 };
+  }
+
+  function formatLocale(locale) {
+    var locale_dateTime = locale.dateTime,
+      locale_date = locale.date,
+      locale_time = locale.time,
+      locale_periods = locale.periods,
+      locale_weekdays = locale.days,
+      locale_shortWeekdays = locale.shortDays,
+      locale_months = locale.months,
+      locale_shortMonths = locale.shortMonths;
+
+    var periodRe = formatRe(locale_periods),
+      periodLookup = formatLookup(locale_periods),
+      weekdayRe = formatRe(locale_weekdays),
+      weekdayLookup = formatLookup(locale_weekdays),
+      shortWeekdayRe = formatRe(locale_shortWeekdays),
+      shortWeekdayLookup = formatLookup(locale_shortWeekdays),
+      monthRe = formatRe(locale_months),
+      monthLookup = formatLookup(locale_months),
+      shortMonthRe = formatRe(locale_shortMonths),
+      shortMonthLookup = formatLookup(locale_shortMonths);
+
+    var formats = {
+      "a": formatShortWeekday,
+      "A": formatWeekday,
+      "b": formatShortMonth,
+      "B": formatMonth,
+      "c": null,
+      "d": formatDayOfMonth,
+      "e": formatDayOfMonth,
+      "f": formatMicroseconds,
+      "g": formatYearISO,
+      "G": formatFullYearISO,
+      "H": formatHour24,
+      "I": formatHour12,
+      "j": formatDayOfYear,
+      "L": formatMilliseconds,
+      "m": formatMonthNumber,
+      "M": formatMinutes,
+      "p": formatPeriod,
+      "q": formatQuarter,
+      "Q": formatUnixTimestamp,
+      "s": formatUnixTimestampSeconds,
+      "S": formatSeconds,
+      "u": formatWeekdayNumberMonday,
+      "U": formatWeekNumberSunday,
+      "V": formatWeekNumberISO,
+      "w": formatWeekdayNumberSunday,
+      "W": formatWeekNumberMonday,
+      "x": null,
+      "X": null,
+      "y": formatYear,
+      "Y": formatFullYear,
+      "Z": formatZone,
+      "%": formatLiteralPercent
+    };
+
+    var utcFormats = {
+      "a": formatUTCShortWeekday,
+      "A": formatUTCWeekday,
+      "b": formatUTCShortMonth,
+      "B": formatUTCMonth,
+      "c": null,
+      "d": formatUTCDayOfMonth,
+      "e": formatUTCDayOfMonth,
+      "f": formatUTCMicroseconds,
+      "g": formatUTCYearISO,
+      "G": formatUTCFullYearISO,
+      "H": formatUTCHour24,
+      "I": formatUTCHour12,
+      "j": formatUTCDayOfYear,
+      "L": formatUTCMilliseconds,
+      "m": formatUTCMonthNumber,
+      "M": formatUTCMinutes,
+      "p": formatUTCPeriod,
+      "q": formatUTCQuarter,
+      "Q": formatUnixTimestamp,
+      "s": formatUnixTimestampSeconds,
+      "S": formatUTCSeconds,
+      "u": formatUTCWeekdayNumberMonday,
+      "U": formatUTCWeekNumberSunday,
+      "V": formatUTCWeekNumberISO,
+      "w": formatUTCWeekdayNumberSunday,
+      "W": formatUTCWeekNumberMonday,
+      "x": null,
+      "X": null,
+      "y": formatUTCYear,
+      "Y": formatUTCFullYear,
+      "Z": formatUTCZone,
+      "%": formatLiteralPercent
+    };
+
+    var parses = {
+      "a": parseShortWeekday,
+      "A": parseWeekday,
+      "b": parseShortMonth,
+      "B": parseMonth,
+      "c": parseLocaleDateTime,
+      "d": parseDayOfMonth,
+      "e": parseDayOfMonth,
+      "f": parseMicroseconds,
+      "g": parseYear,
+      "G": parseFullYear,
+      "H": parseHour24,
+      "I": parseHour24,
+      "j": parseDayOfYear,
+      "L": parseMilliseconds,
+      "m": parseMonthNumber,
+      "M": parseMinutes,
+      "p": parsePeriod,
+      "q": parseQuarter,
+      "Q": parseUnixTimestamp,
+      "s": parseUnixTimestampSeconds,
+      "S": parseSeconds,
+      "u": parseWeekdayNumberMonday,
+      "U": parseWeekNumberSunday,
+      "V": parseWeekNumberISO,
+      "w": parseWeekdayNumberSunday,
+      "W": parseWeekNumberMonday,
+      "x": parseLocaleDate,
+      "X": parseLocaleTime,
+      "y": parseYear,
+      "Y": parseFullYear,
+      "Z": parseZone,
+      "%": parseLiteralPercent
+    };
+
+    // These recursive directive definitions must be deferred.
+    formats.x = newFormat(locale_date, formats);
+    formats.X = newFormat(locale_time, formats);
+    formats.c = newFormat(locale_dateTime, formats);
+    utcFormats.x = newFormat(locale_date, utcFormats);
+    utcFormats.X = newFormat(locale_time, utcFormats);
+    utcFormats.c = newFormat(locale_dateTime, utcFormats);
+
+    function newFormat(specifier, formats) {
+      return function (date) {
+        var string = [],
+          i = -1,
+          j = 0,
+          n = specifier.length,
+          c,
+          pad,
+          format;
+
+        if (!(date instanceof Date)) date = new Date(+date);
+
+        while (++i < n) {
+          if (specifier.charCodeAt(i) === 37) {
+            string.push(specifier.slice(j, i));
+            if ((pad = pads[c = specifier.charAt(++i)]) != null) c = specifier.charAt(++i);
+            else pad = c === "e" ? " " : "0";
+            if (format = formats[c]) c = format(date, pad);
+            string.push(c);
+            j = i + 1;
+          }
+        }
+
+        string.push(specifier.slice(j, i));
+        return string.join("");
+      };
+    }
+
+    function newParse(specifier, Z) {
+      return function (string) {
+        var d = newDate(1900, undefined, 1),
+          i = parseSpecifier(d, specifier, string += "", 0),
+          week, day;
+        if (i != string.length) return null;
+
+        // If a UNIX timestamp is specified, return it.
+        if ("Q" in d) return new Date(d.Q);
+        if ("s" in d) return new Date(d.s * 1000 + ("L" in d ? d.L : 0));
+
+        // If this is utcParse, never use the local timezone.
+        if (Z && !("Z" in d)) d.Z = 0;
+
+        // The am-pm flag is 0 for AM, and 1 for PM.
+        if ("p" in d) d.H = d.H % 12 + d.p * 12;
+
+        // If the month was not specified, inherit from the quarter.
+        if (d.m === undefined) d.m = "q" in d ? d.q : 0;
+
+        // Convert day-of-week and week-of-year to day-of-year.
+        if ("V" in d) {
+          if (d.V < 1 || d.V > 53) return null;
+          if (!("w" in d)) d.w = 1;
+          if ("Z" in d) {
+            week = utcDate(newDate(d.y, 0, 1)), day = week.getUTCDay();
+            week = day > 4 || day === 0 ? utcMonday.ceil(week) : utcMonday(week);
+            week = utcDay.offset(week, (d.V - 1) * 7);
+            d.y = week.getUTCFullYear();
+            d.m = week.getUTCMonth();
+            d.d = week.getUTCDate() + (d.w + 6) % 7;
+          } else {
+            week = localDate(newDate(d.y, 0, 1)), day = week.getDay();
+            week = day > 4 || day === 0 ? timeMonday.ceil(week) : timeMonday(week);
+            week = timeDay.offset(week, (d.V - 1) * 7);
+            d.y = week.getFullYear();
+            d.m = week.getMonth();
+            d.d = week.getDate() + (d.w + 6) % 7;
+          }
+        } else if ("W" in d || "U" in d) {
+          if (!("w" in d)) d.w = "u" in d ? d.u % 7 : "W" in d ? 1 : 0;
+          day = "Z" in d ? utcDate(newDate(d.y, 0, 1)).getUTCDay() : localDate(newDate(d.y, 0, 1)).getDay();
+          d.m = 0;
+          d.d = "W" in d ? (d.w + 6) % 7 + d.W * 7 - (day + 5) % 7 : d.w + d.U * 7 - (day + 6) % 7;
+        }
+
+        // If a time zone is specified, all fields are interpreted as UTC and then
+        // offset according to the specified time zone.
+        if ("Z" in d) {
+          d.H += d.Z / 100 | 0;
+          d.M += d.Z % 100;
+          return utcDate(d);
+        }
+
+        // Otherwise, all fields are in local time.
+        return localDate(d);
+      };
+    }
+
+    function parseSpecifier(d, specifier, string, j) {
+      var i = 0,
+        n = specifier.length,
+        m = string.length,
+        c,
+        parse;
+
+      while (i < n) {
+        if (j >= m) return -1;
+        c = specifier.charCodeAt(i++);
+        if (c === 37) {
+          c = specifier.charAt(i++);
+          parse = parses[c in pads ? specifier.charAt(i++) : c];
+          if (!parse || ((j = parse(d, string, j)) < 0)) return -1;
+        } else if (c != string.charCodeAt(j++)) {
+          return -1;
+        }
+      }
+
+      return j;
+    }
+
+    function parsePeriod(d, string, i) {
+      var n = periodRe.exec(string.slice(i));
+      return n ? (d.p = periodLookup.get(n[0].toLowerCase()), i + n[0].length) : -1;
+    }
+
+    function parseShortWeekday(d, string, i) {
+      var n = shortWeekdayRe.exec(string.slice(i));
+      return n ? (d.w = shortWeekdayLookup.get(n[0].toLowerCase()), i + n[0].length) : -1;
+    }
+
+    function parseWeekday(d, string, i) {
+      var n = weekdayRe.exec(string.slice(i));
+      return n ? (d.w = weekdayLookup.get(n[0].toLowerCase()), i + n[0].length) : -1;
+    }
+
+    function parseShortMonth(d, string, i) {
+      var n = shortMonthRe.exec(string.slice(i));
+      return n ? (d.m = shortMonthLookup.get(n[0].toLowerCase()), i + n[0].length) : -1;
+    }
+
+    function parseMonth(d, string, i) {
+      var n = monthRe.exec(string.slice(i));
+      return n ? (d.m = monthLookup.get(n[0].toLowerCase()), i + n[0].length) : -1;
+    }
+
+    function parseLocaleDateTime(d, string, i) {
+      return parseSpecifier(d, locale_dateTime, string, i);
+    }
+
+    function parseLocaleDate(d, string, i) {
+      return parseSpecifier(d, locale_date, string, i);
+    }
+
+    function parseLocaleTime(d, string, i) {
+      return parseSpecifier(d, locale_time, string, i);
+    }
+
+    function formatShortWeekday(d) {
+      return locale_shortWeekdays[d.getDay()];
+    }
+
+    function formatWeekday(d) {
+      return locale_weekdays[d.getDay()];
+    }
+
+    function formatShortMonth(d) {
+      return locale_shortMonths[d.getMonth()];
+    }
+
+    function formatMonth(d) {
+      return locale_months[d.getMonth()];
+    }
+
+    function formatPeriod(d) {
+      return locale_periods[+(d.getHours() >= 12)];
+    }
+
+    function formatQuarter(d) {
+      return 1 + ~~(d.getMonth() / 3);
+    }
+
+    function formatUTCShortWeekday(d) {
+      return locale_shortWeekdays[d.getUTCDay()];
+    }
+
+    function formatUTCWeekday(d) {
+      return locale_weekdays[d.getUTCDay()];
+    }
+
+    function formatUTCShortMonth(d) {
+      return locale_shortMonths[d.getUTCMonth()];
+    }
+
+    function formatUTCMonth(d) {
+      return locale_months[d.getUTCMonth()];
+    }
+
+    function formatUTCPeriod(d) {
+      return locale_periods[+(d.getUTCHours() >= 12)];
+    }
+
+    function formatUTCQuarter(d) {
+      return 1 + ~~(d.getUTCMonth() / 3);
+    }
+
+    return {
+      format: function (specifier) {
+        var f = newFormat(specifier += "", formats);
+        f.toString = function () { return specifier; };
+        return f;
+      },
+      parse: function (specifier) {
+        var p = newParse(specifier += "", false);
+        p.toString = function () { return specifier; };
+        return p;
+      },
+      utcFormat: function (specifier) {
+        var f = newFormat(specifier += "", utcFormats);
+        f.toString = function () { return specifier; };
+        return f;
+      },
+      utcParse: function (specifier) {
+        var p = newParse(specifier += "", true);
+        p.toString = function () { return specifier; };
+        return p;
+      }
+    };
+  }
+
+  var pads = { "-": "", "_": " ", "0": "0" },
+    numberRe = /^\s*\d+/, // note: ignores next directive
+    percentRe = /^%/,
+    requoteRe = /[\\^$*+?|[\]().{}]/g;
+
+  function pad(value, fill, width) {
+    var sign = value < 0 ? "-" : "",
+      string = (sign ? -value : value) + "",
+      length = string.length;
+    return sign + (length < width ? new Array(width - length + 1).join(fill) + string : string);
+  }
+
+  function requote(s) {
+    return s.replace(requoteRe, "\\$&");
+  }
+
+  function formatRe(names) {
+    return new RegExp("^(?:" + names.map(requote).join("|") + ")", "i");
+  }
+
+  function formatLookup(names) {
+    return new Map(names.map((name, i) => [name.toLowerCase(), i]));
+  }
+
+  function parseWeekdayNumberSunday(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 1));
+    return n ? (d.w = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseWeekdayNumberMonday(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 1));
+    return n ? (d.u = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseWeekNumberSunday(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.U = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseWeekNumberISO(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.V = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseWeekNumberMonday(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.W = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseFullYear(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 4));
+    return n ? (d.y = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseYear(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.y = +n[0] + (+n[0] > 68 ? 1900 : 2000), i + n[0].length) : -1;
+  }
+
+  function parseZone(d, string, i) {
+    var n = /^(Z)|([+-]\d\d)(?::?(\d\d))?/.exec(string.slice(i, i + 6));
+    return n ? (d.Z = n[1] ? 0 : -(n[2] + (n[3] || "00")), i + n[0].length) : -1;
+  }
+
+  function parseQuarter(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 1));
+    return n ? (d.q = n[0] * 3 - 3, i + n[0].length) : -1;
+  }
+
+  function parseMonthNumber(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.m = n[0] - 1, i + n[0].length) : -1;
+  }
+
+  function parseDayOfMonth(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.d = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseDayOfYear(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 3));
+    return n ? (d.m = 0, d.d = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseHour24(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.H = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseMinutes(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.M = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseSeconds(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 2));
+    return n ? (d.S = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseMilliseconds(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 3));
+    return n ? (d.L = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseMicroseconds(d, string, i) {
+    var n = numberRe.exec(string.slice(i, i + 6));
+    return n ? (d.L = Math.floor(n[0] / 1000), i + n[0].length) : -1;
+  }
+
+  function parseLiteralPercent(d, string, i) {
+    var n = percentRe.exec(string.slice(i, i + 1));
+    return n ? i + n[0].length : -1;
+  }
+
+  function parseUnixTimestamp(d, string, i) {
+    var n = numberRe.exec(string.slice(i));
+    return n ? (d.Q = +n[0], i + n[0].length) : -1;
+  }
+
+  function parseUnixTimestampSeconds(d, string, i) {
+    var n = numberRe.exec(string.slice(i));
+    return n ? (d.s = +n[0], i + n[0].length) : -1;
+  }
+
+  function formatDayOfMonth(d, p) {
+    return pad(d.getDate(), p, 2);
+  }
+
+  function formatHour24(d, p) {
+    return pad(d.getHours(), p, 2);
+  }
+
+  function formatHour12(d, p) {
+    return pad(d.getHours() % 12 || 12, p, 2);
+  }
+
+  function formatDayOfYear(d, p) {
+    return pad(1 + timeDay.count(timeYear(d), d), p, 3);
+  }
+
+  function formatMilliseconds(d, p) {
+    return pad(d.getMilliseconds(), p, 3);
+  }
+
+  function formatMicroseconds(d, p) {
+    return formatMilliseconds(d, p) + "000";
+  }
+
+  function formatMonthNumber(d, p) {
+    return pad(d.getMonth() + 1, p, 2);
+  }
+
+  function formatMinutes(d, p) {
+    return pad(d.getMinutes(), p, 2);
+  }
+
+  function formatSeconds(d, p) {
+    return pad(d.getSeconds(), p, 2);
+  }
+
+  function formatWeekdayNumberMonday(d) {
+    var day = d.getDay();
+    return day === 0 ? 7 : day;
+  }
+
+  function formatWeekNumberSunday(d, p) {
+    return pad(timeSunday.count(timeYear(d) - 1, d), p, 2);
+  }
+
+  function dISO(d) {
+    var day = d.getDay();
+    return (day >= 4 || day === 0) ? timeThursday(d) : timeThursday.ceil(d);
+  }
+
+  function formatWeekNumberISO(d, p) {
+    d = dISO(d);
+    return pad(timeThursday.count(timeYear(d), d) + (timeYear(d).getDay() === 4), p, 2);
+  }
+
+  function formatWeekdayNumberSunday(d) {
+    return d.getDay();
+  }
+
+  function formatWeekNumberMonday(d, p) {
+    return pad(timeMonday.count(timeYear(d) - 1, d), p, 2);
+  }
+
+  function formatYear(d, p) {
+    return pad(d.getFullYear() % 100, p, 2);
+  }
+
+  function formatYearISO(d, p) {
+    d = dISO(d);
+    return pad(d.getFullYear() % 100, p, 2);
+  }
+
+  function formatFullYear(d, p) {
+    return pad(d.getFullYear() % 10000, p, 4);
+  }
+
+  function formatFullYearISO(d, p) {
+    var day = d.getDay();
+    d = (day >= 4 || day === 0) ? timeThursday(d) : timeThursday.ceil(d);
+    return pad(d.getFullYear() % 10000, p, 4);
+  }
+
+  function formatZone(d) {
+    var z = d.getTimezoneOffset();
+    return (z > 0 ? "-" : (z *= -1, "+"))
+      + pad(z / 60 | 0, "0", 2)
+      + pad(z % 60, "0", 2);
+  }
+
+  function formatUTCDayOfMonth(d, p) {
+    return pad(d.getUTCDate(), p, 2);
+  }
+
+  function formatUTCHour24(d, p) {
+    return pad(d.getUTCHours(), p, 2);
+  }
+
+  function formatUTCHour12(d, p) {
+    return pad(d.getUTCHours() % 12 || 12, p, 2);
+  }
+
+  function formatUTCDayOfYear(d, p) {
+    return pad(1 + utcDay.count(utcYear(d), d), p, 3);
+  }
+
+  function formatUTCMilliseconds(d, p) {
+    return pad(d.getUTCMilliseconds(), p, 3);
+  }
+
+  function formatUTCMicroseconds(d, p) {
+    return formatUTCMilliseconds(d, p) + "000";
+  }
+
+  function formatUTCMonthNumber(d, p) {
+    return pad(d.getUTCMonth() + 1, p, 2);
+  }
+
+  function formatUTCMinutes(d, p) {
+    return pad(d.getUTCMinutes(), p, 2);
+  }
+
+  function formatUTCSeconds(d, p) {
+    return pad(d.getUTCSeconds(), p, 2);
+  }
+
+  function formatUTCWeekdayNumberMonday(d) {
+    var dow = d.getUTCDay();
+    return dow === 0 ? 7 : dow;
+  }
+
+  function formatUTCWeekNumberSunday(d, p) {
+    return pad(utcSunday.count(utcYear(d) - 1, d), p, 2);
+  }
+
+  function UTCdISO(d) {
+    var day = d.getUTCDay();
+    return (day >= 4 || day === 0) ? utcThursday(d) : utcThursday.ceil(d);
+  }
+
+  function formatUTCWeekNumberISO(d, p) {
+    d = UTCdISO(d);
+    return pad(utcThursday.count(utcYear(d), d) + (utcYear(d).getUTCDay() === 4), p, 2);
+  }
+
+  function formatUTCWeekdayNumberSunday(d) {
+    return d.getUTCDay();
+  }
+
+  function formatUTCWeekNumberMonday(d, p) {
+    return pad(utcMonday.count(utcYear(d) - 1, d), p, 2);
+  }
+
+  function formatUTCYear(d, p) {
+    return pad(d.getUTCFullYear() % 100, p, 2);
+  }
+
+  function formatUTCYearISO(d, p) {
+    d = UTCdISO(d);
+    return pad(d.getUTCFullYear() % 100, p, 2);
+  }
+
+  function formatUTCFullYear(d, p) {
+    return pad(d.getUTCFullYear() % 10000, p, 4);
+  }
+
+  function formatUTCFullYearISO(d, p) {
+    var day = d.getUTCDay();
+    d = (day >= 4 || day === 0) ? utcThursday(d) : utcThursday.ceil(d);
+    return pad(d.getUTCFullYear() % 10000, p, 4);
+  }
+
+  function formatUTCZone() {
+    return "+0000";
+  }
+
+  function formatLiteralPercent() {
+    return "%";
+  }
+
+  function formatUnixTimestamp(d) {
+    return +d;
+  }
+
+  function formatUnixTimestampSeconds(d) {
+    return Math.floor(+d / 1000);
+  }
+
+  var locale;
+  exports.timeFormat = void 0;
+  exports.timeParse = void 0;
+  exports.utcFormat = void 0;
+  exports.utcParse = void 0;
+
+  defaultLocale({
+    dateTime: "%x, %X",
+    date: "%-m/%-d/%Y",
+    time: "%-I:%M:%S %p",
+    periods: ["AM", "PM"],
+    days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    shortDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    shortMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  });
+
+  function defaultLocale(definition) {
+    locale = formatLocale(definition);
+    exports.timeFormat = locale.format;
+    exports.timeParse = locale.parse;
+    exports.utcFormat = locale.utcFormat;
+    exports.utcParse = locale.utcParse;
+    return locale;
+  }
+
+  var isoSpecifier = "%Y-%m-%dT%H:%M:%S.%LZ";
+
+  function formatIsoNative(date) {
+    return date.toISOString();
+  }
+
+  var formatIso = Date.prototype.toISOString
+    ? formatIsoNative
+    : exports.utcFormat(isoSpecifier);
+
+  var formatIso$1 = formatIso;
+
+  function parseIsoNative(string) {
+    var date = new Date(string);
+    return isNaN(date) ? null : date;
+  }
+
+  var parseIso = +new Date("2000-01-01T00:00:00.000Z")
+    ? parseIsoNative
+    : exports.utcParse(isoSpecifier);
+
+  var parseIso$1 = parseIso;
+
+  function date(t) {
+    return new Date(t);
+  }
+
+  function number(t) {
+    return t instanceof Date ? +t : +new Date(+t);
+  }
+
+  function calendar(ticks, tickInterval, year, month, week, day, hour, minute, second, format) {
+    var scale = continuous(),
+      invert = scale.invert,
+      domain = scale.domain;
+
+    var formatMillisecond = format(".%L"),
+      formatSecond = format(":%S"),
+      formatMinute = format("%I:%M"),
+      formatHour = format("%I %p"),
+      formatDay = format("%a %d"),
+      formatWeek = format("%b %d"),
+      formatMonth = format("%B"),
+      formatYear = format("%Y");
+
+    function tickFormat(date) {
+      return (second(date) < date ? formatMillisecond
+        : minute(date) < date ? formatSecond
+          : hour(date) < date ? formatMinute
+            : day(date) < date ? formatHour
+              : month(date) < date ? (week(date) < date ? formatDay : formatWeek)
+                : year(date) < date ? formatMonth
+                  : formatYear)(date);
+    }
+
+    scale.invert = function (y) {
+      return new Date(invert(y));
+    };
+
+    scale.domain = function (_) {
+      return arguments.length ? domain(Array.from(_, number)) : domain().map(date);
+    };
+
+    scale.ticks = function (interval) {
+      var d = domain();
+      return ticks(d[0], d[d.length - 1], interval == null ? 10 : interval);
+    };
+
+    scale.tickFormat = function (count, specifier) {
+      return specifier == null ? tickFormat : format(specifier);
+    };
+
+    scale.nice = function (interval) {
+      var d = domain();
+      if (!interval || typeof interval.range !== "function") interval = tickInterval(d[0], d[d.length - 1], interval == null ? 10 : interval);
+      return interval ? domain(nice(d, interval)) : scale;
+    };
+
+    scale.copy = function () {
+      return copy$1(scale, calendar(ticks, tickInterval, year, month, week, day, hour, minute, second, format));
+    };
+
+    return scale;
+  }
+
+  function time() {
+    return initRange.apply(calendar(timeTicks, timeTickInterval, timeYear, timeMonth, timeSunday, timeDay, timeHour, timeMinute, second, exports.timeFormat).domain([new Date(2000, 0, 1), new Date(2000, 0, 2)]), arguments);
+  }
+
+  function utcTime() {
+    return initRange.apply(calendar(utcTicks, utcTickInterval, utcYear, utcMonth, utcSunday, utcDay, utcHour, utcMinute, second, exports.utcFormat).domain([Date.UTC(2000, 0, 1), Date.UTC(2000, 0, 2)]), arguments);
+  }
+
+  function transformer$1() {
+    var x0 = 0,
+      x1 = 1,
+      t0,
+      t1,
+      k10,
+      transform,
+      interpolator = identity$3,
+      clamp = false,
+      unknown;
+
+    function scale(x) {
+      return x == null || isNaN(x = +x) ? unknown : interpolator(k10 === 0 ? 0.5 : (x = (transform(x) - t0) * k10, clamp ? Math.max(0, Math.min(1, x)) : x));
+    }
+
+    scale.domain = function (_) {
+      return arguments.length ? ([x0, x1] = _, t0 = transform(x0 = +x0), t1 = transform(x1 = +x1), k10 = t0 === t1 ? 0 : 1 / (t1 - t0), scale) : [x0, x1];
+    };
+
+    scale.clamp = function (_) {
+      return arguments.length ? (clamp = !!_, scale) : clamp;
+    };
+
+    scale.interpolator = function (_) {
+      return arguments.length ? (interpolator = _, scale) : interpolator;
+    };
+
+    function range(interpolate) {
+      return function (_) {
+        var r0, r1;
+        return arguments.length ? ([r0, r1] = _, interpolator = interpolate(r0, r1), scale) : [interpolator(0), interpolator(1)];
+      };
+    }
+
+    scale.range = range(interpolate$2);
+
+    scale.rangeRound = range(interpolateRound);
+
+    scale.unknown = function (_) {
+      return arguments.length ? (unknown = _, scale) : unknown;
+    };
+
+    return function (t) {
+      transform = t, t0 = t(x0), t1 = t(x1), k10 = t0 === t1 ? 0 : 1 / (t1 - t0);
+      return scale;
+    };
+  }
+
+  function copy(source, target) {
+    return target
+      .domain(source.domain())
+      .interpolator(source.interpolator())
+      .clamp(source.clamp())
+      .unknown(source.unknown());
+  }
+
+  function sequential() {
+    var scale = linearish(transformer$1()(identity$3));
+
+    scale.copy = function () {
+      return copy(scale, sequential());
+    };
+
+    return initInterpolator.apply(scale, arguments);
+  }
+
+  function sequentialLog() {
+    var scale = loggish(transformer$1()).domain([1, 10]);
+
+    scale.copy = function () {
+      return copy(scale, sequentialLog()).base(scale.base());
+    };
+
+    return initInterpolator.apply(scale, arguments);
+  }
+
+  function sequentialSymlog() {
+    var scale = symlogish(transformer$1());
+
+    scale.copy = function () {
+      return copy(scale, sequentialSymlog()).constant(scale.constant());
+    };
+
+    return initInterpolator.apply(scale, arguments);
+  }
+
+  function sequentialPow() {
+    var scale = powish(transformer$1());
+
+    scale.copy = function () {
+      return copy(scale, sequentialPow()).exponent(scale.exponent());
+    };
+
+    return initInterpolator.apply(scale, arguments);
+  }
+
+  function sequentialSqrt() {
+    return sequentialPow.apply(null, arguments).exponent(0.5);
+  }
+
+  function sequentialQuantile() {
+    var domain = [],
+      interpolator = identity$3;
+
+    function scale(x) {
+      if (x != null && !isNaN(x = +x)) return interpolator((bisect(domain, x, 1) - 1) / (domain.length - 1));
+    }
+
+    scale.domain = function (_) {
+      if (!arguments.length) return domain.slice();
+      domain = [];
+      for (let d of _) if (d != null && !isNaN(d = +d)) domain.push(d);
+      domain.sort(ascending$3);
+      return scale;
+    };
+
+    scale.interpolator = function (_) {
+      return arguments.length ? (interpolator = _, scale) : interpolator;
+    };
+
+    scale.range = function () {
+      return domain.map((d, i) => interpolator(i / (domain.length - 1)));
+    };
+
+    scale.quantiles = function (n) {
+      return Array.from({ length: n + 1 }, (_, i) => quantile$1(domain, i / n));
+    };
+
+    scale.copy = function () {
+      return sequentialQuantile(interpolator).domain(domain);
+    };
+
+    return initInterpolator.apply(scale, arguments);
+  }
 
   function transformer() {
     var x0 = 0,

@@ -67,13 +67,17 @@ const pricingService = {
     return response.data;
   },
 
-  async getByProduct(productId) {
+  async getByProduct(productId, warehouseId) {
     if (USE_MOCK) {
       await delay(200);
-      const entries = mockEntries.filter(e => e.product_id === productId);
+      const entries = mockEntries.filter(e =>
+        e.product_id === productId && (!warehouseId || e.warehouse_id === warehouseId)
+      );
       return { product_id: productId, product_sku: entries[0]?.product_sku ?? '', entries };
     }
-    const response = await apiClient.get(`/products/${productId}/price-history`);
+    const response = await apiClient.get(`/products/${productId}/price-history`, {
+      params: warehouseId ? { warehouseId } : undefined
+    });
     return response.data;
   },
 
@@ -189,13 +193,14 @@ const pricingService = {
     return response.data;
   },
 
-  async importExcel(file) {
+  async importExcel(file, targetWarehouseId) {
     if (USE_MOCK) {
       await delay(800);
       return { total_rows: 3, created_count: 2, failed_count: 1, created: [], failed: [] };
     }
     const form = new FormData();
     form.append('file', file);
+    if (targetWarehouseId) form.append('targetWarehouseId', targetWarehouseId);
     const response = await apiClient.post(`${BASE}/import`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
