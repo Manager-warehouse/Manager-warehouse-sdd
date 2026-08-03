@@ -46,8 +46,15 @@ const PutawayPlan = () => {
         masterDataService.getBinLocations(receiptData.warehouse_id),
       ]);
       setProducts(productsData);
-      // Filter active non-quarantine bins
-      setBins(binsData.filter(b => b.is_active && !b.is_quarantine));
+      // Filter active storage bins only (exclude quarantine and staging locations)
+      setBins(
+        binsData.filter(
+          (b) =>
+            (b.is_active ?? b.isActive) &&
+            !(b.is_quarantine ?? b.isQuarantine) &&
+            !(b.is_staging ?? b.isStaging),
+        ),
+      );
 
       const putawayComplete =
         receiptData.status === 'PUTAWAY_COMPLETED' ||
