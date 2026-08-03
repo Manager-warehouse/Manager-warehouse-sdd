@@ -30,6 +30,7 @@ import com.wms.enums.order_fulfillment.TripStatus;
 import com.wms.enums.stock_control.AdjustmentType;
 import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
 import com.wms.exception.BusinessRuleViolationException;
+import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DiscrepancyHoldEntryRepository;
 import com.wms.repository.DiscrepancyIncidentRepository;

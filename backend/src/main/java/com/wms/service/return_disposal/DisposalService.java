@@ -18,6 +18,7 @@ import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.stock_control.AdjustmentType;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.exception.BusinessRuleViolationException;
+import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DamageReportRepository;
 import com.wms.repository.InventoryRepository;
