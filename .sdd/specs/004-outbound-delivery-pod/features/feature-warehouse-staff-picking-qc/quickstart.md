@@ -75,7 +75,7 @@ Expected result:
 - Do not create new QC records.
 - Do not apply inventory movement again.
 
-### 3. Return a QC result for Warehouse Staff recount
+### 3. Approve quality after all required replacement cycles are done
 
 ```http
 PUT /api/v1/delivery-orders/101/quality-approval
@@ -83,27 +83,6 @@ PUT /api/v1/delivery-orders/101/quality-approval
 
 ```json
 {
-  "decision": "REJECT",
-  "rejectionReason": "Count does not match the handover sheet"
-}
-```
-
-Expected result:
-
-- Require a non-blank recount reason.
-- Leave all inventory unchanged in the original reserved source rows.
-- Mark the rejected QC rows inactive while retaining their audit history.
-- Move the order to `WAITING_PICKING` so Warehouse Staff can submit a new active pick/QC cycle.
-
-### 4. Approve quality after all required replacement or recount cycles are done
-
-```http
-PUT /api/v1/delivery-orders/101/quality-approval
-```
-
-```json
-{
-  "decision": "ACCEPT",
   "notes": "All replacement goods passed outbound QC"
 }
 ```
@@ -118,7 +97,7 @@ Expected result:
 - Move the order to `QC_COMPLETED`.
 - Write `DELIVERY_ORDER_QC_APPROVE` audit.
 
-### 5. Reject outbound after QC completion
+### 4. Reject outbound after QC completion
 
 ```http
 PUT /api/v1/delivery-orders/101/warehouse-reject
@@ -164,7 +143,6 @@ Expected result:
 - Service test: reject same `idempotencyKey` with different payload.
 - Service test: replacement cycle accepts only new active allocations and does not require already-passed staging allocations again.
 - Service test: block quality approval when unresolved fail quantity remains.
-- Service/integration test: reject QC with a reason, keep inventory at source, preserve inactive QC history, and allow Staff recount submission.
 - Service test: warehouse reject returns staged pass quantity to original rows and keeps failed goods in quarantine.
 - Controller integration test: happy-path `pick-qc-result` request returns `QC_PENDING_APPROVAL`.
 - Controller integration test: quality approval and warehouse approval/reject endpoints return the expected Delivery Order status or business error.

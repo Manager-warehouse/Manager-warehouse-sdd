@@ -333,26 +333,7 @@ public class DeliveryOrderServiceIT {
         doResp = deliveryOrderService.saveDeliveryOrderPickQcResult(doResp.getId(), qcResultReq, staff);
         assertThat(doResp.getStatus()).isEqualTo(DeliveryOrderStatus.QC_PENDING_APPROVAL);
 
-        // 4. Storekeeper returns the first result for a full recount.
-        DeliveryOrderQualityApprovalRequest qualityRejectReq = new DeliveryOrderQualityApprovalRequest();
-        qualityRejectReq.setDecision(OutboundQualityDecision.REJECT);
-        qualityRejectReq.setRejectionReason("Count does not match the handover sheet");
-        doResp = deliveryOrderService.approveDeliveryOrderQuality(doResp.getId(), qualityRejectReq, storekeeper);
-        assertThat(doResp.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
-        assertThat(doResp.getRejectionReason()).isEqualTo("Count does not match the handover sheet");
-        assertThat(inventoryRepository.findById(inventory.getId()).orElseThrow().getTotalQty())
-                .isEqualByComparingTo("50.00");
-        assertThat(inventoryRepository.findById(inventory.getId()).orElseThrow().getReservedQty())
-                .isEqualByComparingTo("10.00");
-        assertThat(inventoryRepository.findAll().stream()
-                .noneMatch(row -> row.getLocation().getId().equals(stagingLoc.getId())))
-                .isTrue();
-
-        // 5. Staff recounts and resubmits the same allocation as a new active QC cycle.
-        doResp = deliveryOrderService.saveDeliveryOrderPickQcResult(doResp.getId(), qcResultReq, staff);
-        assertThat(doResp.getStatus()).isEqualTo(DeliveryOrderStatus.QC_PENDING_APPROVAL);
-
-        // 6. Quality Approval (status becomes QC_COMPLETED)
+        // 4. Quality Approval (status becomes QC_COMPLETED)
         DeliveryOrderQualityApprovalRequest qualityApproveReq = new DeliveryOrderQualityApprovalRequest();
         doResp = deliveryOrderService.approveDeliveryOrderQuality(doResp.getId(), qualityApproveReq, storekeeper);
         assertThat(doResp.getStatus()).isEqualTo(DeliveryOrderStatus.QC_COMPLETED);

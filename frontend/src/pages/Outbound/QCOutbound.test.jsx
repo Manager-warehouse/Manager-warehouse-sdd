@@ -8,7 +8,6 @@ vi.mock('../../services/outbound.service', () => ({
   outboundService: {
     getDeliveryOrderById: vi.fn(),
     confirmQCOutbound: vi.fn(),
-    requestPickingPlanAdjustment: vi.fn(),
   },
 }));
 
@@ -66,7 +65,6 @@ describe('QCOutbound', () => {
     vi.clearAllMocks();
     outboundService.getDeliveryOrderById.mockResolvedValue(order);
     outboundService.confirmQCOutbound.mockResolvedValue({});
-    outboundService.requestPickingPlanAdjustment.mockResolvedValue({});
     masterDataService.getBinLocations.mockResolvedValue(locations);
   });
 
@@ -95,63 +93,4 @@ describe('QCOutbound', () => {
     }));
   });
 
-  it('shows the Storekeeper reason when the order is returned for recount', async () => {
-    outboundService.getDeliveryOrderById.mockResolvedValue({
-      ...order,
-      cancel_reason: 'So luong thuc te khong khop',
-    });
-
-    renderPage();
-
-    expect(await screen.findByText('Storekeeper yêu cầu đếm/QC lại')).toBeInTheDocument();
-    expect(screen.getByText('So luong thuc te khong khop')).toBeInTheDocument();
-  });
-
-  it('prefills the rejected QC quantities for recount without marking the allocation completed', async () => {
-    outboundService.getDeliveryOrderById.mockResolvedValue({
-      ...order,
-      items: [{
-        ...order.items[0],
-        allocations: [{
-          ...order.items[0].allocations[0],
-          qc_pass_qty: 8,
-          qc_fail_qty: 2,
-          qc_fail_reason: 'Mop meo',
-          staging_location_id: 880,
-          quarantine_location_id: 990,
-          qc_completed: false,
-        }],
-      }],
-    });
-
-    renderPage();
-
-    expect(await screen.findByLabelText('SL không đạt')).toHaveValue(2);
-    expect(screen.getByLabelText('SL đạt kiểm định')).toHaveValue(8);
-    expect(screen.getByLabelText('Lý do không đạt kiểm định *')).toHaveValue('Mop meo');
-  });
-
-  it('lets Staff request replanning when replacement allocations exceed the requested quantity', async () => {
-    outboundService.getDeliveryOrderById.mockResolvedValue({
-      ...order,
-      items: [{
-        ...order.items[0],
-        allocations: [
-          order.items[0].allocations[0],
-          { ...order.items[0].allocations[0], allocation_id: 901, planned_qty: 2, replacement: true },
-        ],
-      }],
-    });
-
-    renderPage();
-
-    const requestButton = await screen.findByRole('button', { name: /Yêu cầu Storekeeper phân bổ lại/ });
-    expect(screen.getByRole('button', { name: /Gửi kết quả/ })).toBeDisabled();
-    fireEvent.click(requestButton);
-
-    await waitFor(() => expect(outboundService.requestPickingPlanAdjustment).toHaveBeenCalledWith(
-      '100',
-      expect.stringContaining('12'),
-    ));
-  });
 });

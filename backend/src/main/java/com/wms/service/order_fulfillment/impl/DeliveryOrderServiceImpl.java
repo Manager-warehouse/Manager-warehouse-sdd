@@ -8,7 +8,6 @@ import com.wms.dto.request.DeliveryOrderItemCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickQcRowRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
-import com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest;
 import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementAllocationRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
@@ -57,11 +56,9 @@ import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.order_fulfillment.ApprovalResult;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
-import com.wms.enums.order_fulfillment.OutboundQualityDecision;
 import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
 import com.wms.enums.order_fulfillment.ReturnedGoodsQcDecision;
 import com.wms.enums.stock_control.AdjustmentType;
-import com.wms.enums.stock_control.AdjustmentStatus;
 import com.wms.enums.stock_control.AllocationStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.warehouse_location.WarehouseType;
@@ -750,44 +747,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     @Override
     @Transactional
-    public DeliveryOrderResponse requestPickingPlanAdjustment(Long id,
-            DeliveryOrderPickingPlanAdjustmentRequest request,
-            User actor) {
-        requireRole(actor, UserRole.WAREHOUSE_STAFF,
-                "Only Warehouse Staff can request a picking plan adjustment");
-        DeliveryOrder order = findOrder(id);
-        requireWarehouseScope(actor, order.getWarehouse().getId());
-        if (order.getStatus() != DeliveryOrderStatus.WAITING_PICKING) {
-            throw new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Picking plan adjustment can only be requested from WAITING_PICKING status");
-        }
-
-        List<DeliveryOrderItem> orderItems = items(order.getId());
-        List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
-        boolean planImbalanced = orderItems.stream().anyMatch(item -> orderAllocations.stream()
-                .filter(allocation -> allocation.getDeliveryOrderItem().getId().equals(item.getId()))
-                .map(DeliveryOrderItemAllocation::getPlannedQty)
-                .reduce(ZERO, this::valueAdd)
-                .compareTo(value(item.getRequestedQty())) != 0);
-        if (!planImbalanced) {
-            throw new OutboundDeliveryException("PICKING_PLAN_ADJUSTMENT_NOT_REQUIRED",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Picking plan already matches the requested quantities");
-        }
-
-        Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
-        order.setRejectionReason(request.getReason().trim());
-        order.setUpdatedAt(OffsetDateTime.now());
-        DeliveryOrder saved = deliveryOrderRepository.save(order);
-        auditUtil.logChange(actor, AuditAction.PICKING_PLAN_ADJUSTMENT_REQUEST, "DELIVERY_ORDER",
-                saved.getId(), saved.getDoNumber(), before,
-                snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return toResponse(saved);
-    }
-
-    @Override
-    @Transactional
     public DeliveryOrderResponse saveDeliveryOrderReplacementPlan(Long id,
             DeliveryOrderReplacementPlanRequest request,
             User actor) {
@@ -921,16 +880,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Quality approval is only allowed from QC_PENDING_APPROVAL status");
-        }
-
-        if (request.getDecision() == OutboundQualityDecision.REJECT) {
-            String rejectionReason = blankToNull(request.getRejectionReason());
-            if (rejectionReason == null) {
-                throw new OutboundDeliveryException("OUTBOUND_QC_REJECTION_REASON_REQUIRED",
-                        HttpStatus.UNPROCESSABLE_ENTITY,
-                        "rejectionReason is required when Storekeeper rejects outbound QC");
-            }
-            return rejectOutboundQualityForRecount(order, rejectionReason, actor);
         }
 
         List<DeliveryOrderItem> orderItems = items(order.getId());
@@ -1098,114 +1047,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
                     "Recorded " + label + " location no longer matches its required purpose");
         }
-    }
-
-    private DeliveryOrderResponse rejectOutboundQualityForRecount(DeliveryOrder order,
-            String rejectionReason,
-            User actor) {
-        List<DeliveryOrderItem> orderItems = items(order.getId());
-        List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
-        List<OutboundQcRecord> qcRows = outboundQcRecordRepository
-                .findByDeliveryOrderIdAndIsActiveTrue(order.getId());
-        if (qcRows.isEmpty()) {
-            throw new OutboundDeliveryException("OUTBOUND_QC_RESULT_NOT_FOUND",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "No active outbound QC result is available for recount");
-        }
-
-        Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
-        Map<Long, DeliveryOrderItem> itemsById = orderItems.stream()
-                .collect(Collectors.toMap(DeliveryOrderItem::getId, Function.identity()));
-        OffsetDateTime now = OffsetDateTime.now();
-        for (OutboundQcRecord qcRow : qcRows) {
-            if (qcRow.getInventoryMovedAt() != null) {
-                rollbackRejectedQcInventory(order, qcRow, now);
-            }
-            DeliveryOrderItemAllocation allocation = qcRow.getAllocation();
-            DeliveryOrderItem item = itemsById.get(qcRow.getDeliveryOrderItem().getId());
-            allocation.setPickedQty(subtractOrThrow(value(allocation.getPickedQty()), qcRow.getPickedQty(),
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Allocation picked quantity cannot be rolled back"));
-            allocation.setUpdatedAt(now);
-            allocationRepository.save(allocation);
-            item.setPickedQty(subtractOrThrow(value(item.getPickedQty()), qcRow.getPickedQty(),
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Item picked quantity cannot be rolled back"));
-            item.setQcPassQty(subtractOrThrow(value(item.getQcPassQty()), qcRow.getQcPassQty(),
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Item passed quantity cannot be rolled back"));
-            item.setQcFailQty(subtractOrThrow(value(item.getQcFailQty()), qcRow.getQcFailQty(),
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Item failed quantity cannot be rolled back"));
-            item.setPickedBy(null);
-            qcRow.setIsActive(false);
-            qcRow.setRejectedBy(actor);
-            qcRow.setRejectedAt(now);
-            qcRow.setRejectionReason(rejectionReason);
-            outboundQcRecordRepository.save(qcRow);
-        }
-        deliveryOrderItemRepository.saveAll(orderItems);
-        order.setStatus(DeliveryOrderStatus.WAITING_PICKING);
-        order.setQcBy(null);
-        order.setRejectionReason(rejectionReason);
-        order.setUpdatedAt(now);
-        DeliveryOrder saved = deliveryOrderRepository.save(order);
-        auditUtil.logChange(actor, AuditAction.REJECT, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
-                before, snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return toResponse(saved);
-    }
-
-    private void rollbackRejectedQcInventory(DeliveryOrder order, OutboundQcRecord qcRow, OffsetDateTime now) {
-        DeliveryOrderItemAllocation allocation = qcRow.getAllocation();
-        Inventory sourceInventory = allocation.getInventory();
-        BigDecimal passQty = value(qcRow.getQcPassQty());
-        BigDecimal failQty = value(qcRow.getQcFailQty());
-
-        if (passQty.compareTo(ZERO) > 0) {
-            Inventory stagingInventory = requireQcInventory(order, qcRow, qcRow.getStagingLocation(), false);
-            stagingInventory.setTotalQty(subtractOrThrow(value(stagingInventory.getTotalQty()), passQty,
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Staging inventory cannot be rolled back"));
-            stagingInventory.setReservedQty(subtractOrThrow(value(stagingInventory.getReservedQty()), passQty,
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Staging reservation cannot be rolled back"));
-            stagingInventory.setUpdatedAt(now);
-            removeLocationOccupancy(qcRow.getStagingLocation(), qcRow.getDeliveryOrderItem().getProduct(), passQty, now);
-            saveInventoryWithConflictHandling(stagingInventory);
-        }
-        if (failQty.compareTo(ZERO) > 0) {
-            Inventory quarantineInventory = requireQcInventory(order, qcRow, qcRow.getQuarantineLocation(), true);
-            quarantineInventory.setTotalQty(subtractOrThrow(value(quarantineInventory.getTotalQty()), failQty,
-                    "OUTBOUND_QC_RECOUNT_INVALID", "Quarantine inventory cannot be rolled back"));
-            quarantineInventory.setUpdatedAt(now);
-            removeLocationOccupancy(qcRow.getQuarantineLocation(), qcRow.getDeliveryOrderItem().getProduct(), failQty,
-                    now);
-            saveInventoryWithConflictHandling(quarantineInventory);
-            if (qcRow.getQuarantineRecord() != null) {
-                qcRow.getQuarantineRecord().setRemainingQuantity(ZERO);
-                quarantineRecordRepository.save(qcRow.getQuarantineRecord());
-            }
-            adjustmentRepository.findByOutboundQcRecordId(qcRow.getId()).ifPresent(adjustment -> {
-                adjustment.setStatus(AdjustmentStatus.CANCELLED);
-                adjustmentRepository.save(adjustment);
-            });
-        }
-
-        sourceInventory.setTotalQty(value(sourceInventory.getTotalQty()).add(qcRow.getPickedQty()));
-        sourceInventory.setReservedQty(value(sourceInventory.getReservedQty()).add(qcRow.getPickedQty()));
-        sourceInventory.setUpdatedAt(now);
-        addLocationOccupancy(sourceInventory.getLocation(), qcRow.getDeliveryOrderItem().getProduct(),
-                qcRow.getPickedQty(), now);
-        saveInventoryWithConflictHandling(sourceInventory);
-    }
-
-    private Inventory requireQcInventory(DeliveryOrder order,
-            OutboundQcRecord qcRow,
-            WarehouseLocation location,
-            boolean quarantine) {
-        if (location == null) {
-            throw new OutboundDeliveryException("OUTBOUND_QC_RECOUNT_INVALID", HttpStatus.CONFLICT,
-                    "Recorded QC destination location is missing");
-        }
-        return inventoryRepository.findConcreteReservationRowForUpdate(order.getWarehouse().getId(),
-                        qcRow.getDeliveryOrderItem().getProduct().getId(), qcRow.getBatch().getId(), location.getId())
-                .orElseThrow(() -> new OutboundDeliveryException("OUTBOUND_QC_RECOUNT_INVALID", HttpStatus.CONFLICT,
-                        quarantine ? "Recorded quarantine inventory is missing"
-                                : "Recorded staging inventory is missing"));
     }
 
     @Override
@@ -1695,22 +1536,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (allocationIds.isEmpty()) {
             return Map.of();
         }
-        Map<Long, AllocationQcSummary> summaries = outboundQcRecordRepository.findByAllocationIdIn(allocationIds)
-                .stream()
+        return outboundQcRecordRepository.findByAllocationIdIn(allocationIds).stream()
                 .collect(Collectors.groupingBy(row -> row.getAllocation().getId(),
                         Collectors.collectingAndThen(Collectors.toList(), rows -> summarizeQcRows(rows, true))));
-        List<Long> missingAllocationIds = allocationIds.stream()
-                .filter(allocationId -> !summaries.containsKey(allocationId))
-                .toList();
-        if (!missingAllocationIds.isEmpty()) {
-            outboundQcRecordRepository.findHistoryByAllocationIdIn(missingAllocationIds).stream()
-                    .filter(row -> !Boolean.TRUE.equals(row.getIsActive()))
-                    .collect(Collectors.toMap(row -> row.getAllocation().getId(), Function.identity(),
-                            (latest, ignored) -> latest))
-                    .forEach((allocationId, row) -> summaries.put(allocationId,
-                            summarizeQcRows(List.of(row), false)));
-        }
-        return summaries;
     }
 
     private AllocationQcSummary summarizeQcRows(List<OutboundQcRecord> rows, boolean completed) {
