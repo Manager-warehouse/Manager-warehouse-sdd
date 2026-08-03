@@ -82,4 +82,83 @@ describe('outboundService pick/QC payload', () => {
       qcFailQty: 0.1,
     }));
   });
+
+  it('sends shortage reason and normalizes server-derived shortage quantity', async () => {
+    const { outboundService } = await import('./outbound.service');
+    mocks.put.mockResolvedValue({
+      data: {
+        doId: 100,
+        flowStatus: 'COUNT_QC_SUBMITTED',
+        items: [{
+          doItemId: 200,
+          productId: 30,
+          batchId: 71,
+          expectedQty: 10,
+          actualQty: 8,
+          qualityPassQty: 8,
+          qualityFailQty: 0,
+          shortageQty: 2,
+          shortageReason: 'Thiếu một thùng khi xe về kho',
+        }],
+      },
+    });
+
+    const result = await outboundService.submitReturnedGoodsCountQc(100, {
+      notes: '',
+      items: [{
+        do_item_id: 200,
+        product_id: 30,
+        batch_id: 71,
+        actual_qty: 8,
+        quality_pass_qty: 8,
+        quality_fail_qty: 0,
+        shortage_reason: 'Thiếu một thùng khi xe về kho',
+      }],
+    });
+
+    expect(mocks.put).toHaveBeenCalledWith('/delivery-orders/100/returned-goods/count-qc', {
+      notes: '',
+      items: [{
+        doItemId: 200,
+        productId: 30,
+        batchId: 71,
+        actualQty: 8,
+        qualityPassQty: 8,
+        qualityFailQty: 0,
+        qualityFailureReason: null,
+        shortageReason: 'Thiếu một thùng khi xe về kho',
+      }],
+    });
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      actual_qty: 8,
+      shortage_qty: 2,
+      shortage_reason: 'Thiếu một thùng khi xe về kho',
+    }));
+  });
+
+  it('sends zero and null for an absent failed putaway branch', async () => {
+    const { outboundService } = await import('./outbound.service');
+    mocks.put.mockResolvedValue({ data: { doId: 100, items: [] } });
+
+    await outboundService.planReturnedGoodsPutaway(100, {
+      notes: '',
+      items: [{
+        do_item_id: 200,
+        batch_id: 71,
+        destination_location_id: 801,
+        planned_qty: 8,
+        failed_destination_location_id: '',
+        failed_planned_qty: 0,
+      }],
+    });
+
+    expect(mocks.put.mock.calls[0][1].items[0]).toEqual({
+      doItemId: 200,
+      batchId: 71,
+      destinationLocationId: 801,
+      plannedQty: 8,
+      failedDestinationLocationId: null,
+      failedPlannedQty: 0,
+    });
+  });
 });

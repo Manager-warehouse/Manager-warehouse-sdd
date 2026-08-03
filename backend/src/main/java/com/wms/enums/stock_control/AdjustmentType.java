@@ -7,5 +7,6 @@ public enum AdjustmentType {
     DISPOSAL,
     RETURN_TO_VENDOR,
     CORRECTION_VOUCHER,
-    QC_FAIL_OUTBOUND
+    QC_FAIL_OUTBOUND,
+    RETURN_SHORTAGE
 }

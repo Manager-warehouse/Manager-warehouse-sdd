@@ -221,15 +221,21 @@ Driver POD fields and rules:
 - `quality_pass_qty`
 - `quality_fail_qty`
 - `quality_failure_reason`
+- `shortage_qty`
+- `shortage_reason`
 - `destination_location_id`
 
 **Validation rules**
 
 - `actual_qty`, `quality_pass_qty`, and `quality_fail_qty` must be non-negative.
 - `quality_pass_qty + quality_fail_qty` must equal `actual_qty`.
+- `actual_qty` must not exceed `expected_qty`.
+- `shortage_qty` is server-derived as `expected_qty - actual_qty`.
+- `shortage_reason` is required when `shortage_qty > 0`.
 - `quality_failure_reason` is required when `quality_fail_qty > 0`.
 - Storekeeper cannot accept the return flow until every expected item/product/batch has actual/pass/fail quantities and required failure reasons.
 - Putaway confirmation must match the Storekeeper-approved destination location and approved quantity.
+- Putaway moves only `actual_qty`; approved shortage is closed through a negative `RETURN_SHORTAGE` adjustment against virtual `IN_TRANSIT`.
 
 ## DeliveryOrderItem
 

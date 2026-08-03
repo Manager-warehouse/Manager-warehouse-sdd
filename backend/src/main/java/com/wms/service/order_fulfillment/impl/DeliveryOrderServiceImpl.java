@@ -1214,6 +1214,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             BigDecimal actualQty = value(row.getActualQty());
             BigDecimal passQty = value(row.getQualityPassQty());
             BigDecimal failQty = value(row.getQualityFailQty());
+            if (actualQty.compareTo(item.getExpectedQty()) > 0) {
+                throw new OutboundDeliveryException("RETURN_QTY_EXCEEDS_EXPECTED", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Actual returned quantity cannot exceed expected returned quantity");
+            }
             if (passQty.add(failQty).compareTo(actualQty) != 0) {
                 throw new OutboundDeliveryException("RETURN_QTY_SPLIT_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
                         "Quality passed quantity plus failed quantity must equal actual returned quantity");
@@ -1222,10 +1226,18 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 throw new OutboundDeliveryException("RETURN_QUALITY_REASON_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
                         "qualityFailureReason is required when returned goods fail quality check");
             }
+            BigDecimal shortageQty = item.getExpectedQty().subtract(actualQty);
+            if (shortageQty.compareTo(ZERO) > 0 && blankToNull(row.getShortageReason()) == null) {
+                throw new OutboundDeliveryException("RETURN_SHORTAGE_REASON_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "shortageReason is required when actual returned quantity is less than expected quantity");
+            }
             item.setActualQty(actualQty);
             item.setQualityPassQty(passQty);
             item.setQualityFailQty(failQty);
             item.setQualityFailureReason(blankToNull(row.getQualityFailureReason()));
+            item.setShortageQty(shortageQty);
+            item.setShortageReason(shortageQty.compareTo(ZERO) > 0 ? blankToNull(row.getShortageReason()) : null);
             item.setDestinationLocation(null);
             item.setFailedDestinationLocation(null);
             item.setPlannedQty(null);
@@ -1381,6 +1393,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (ReturnedDeliveryFlowItem item : flow.getItems()) {
             BigDecimal passPlannedQty = value(item.getPlannedQty());
             BigDecimal failPlannedQty = value(item.getFailedPlannedQty());
+            BigDecimal shortageQty = value(item.getShortageQty());
             if (value(item.getQualityPassQty()).compareTo(ZERO) > 0
                     && (item.getDestinationLocation() == null || passPlannedQty.compareTo(ZERO) <= 0)) {
                 throw new OutboundDeliveryException("RETURN_PUTAWAY_PLAN_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
@@ -1396,8 +1409,13 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     .orElseThrow(() -> new OutboundDeliveryException("INVENTORY_ROW_INVALID", HttpStatus.CONFLICT,
                             "Returned goods are not available in in-transit inventory"));
             BigDecimal totalPlannedQty = passPlannedQty.add(failPlannedQty);
+            if (totalPlannedQty.add(shortageQty).compareTo(item.getExpectedQty()) != 0) {
+                throw new OutboundDeliveryException("RETURN_QTY_RECONCILIATION_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Returned putaway quantity plus approved shortage must equal expected returned quantity");
+            }
             transitInventory.setTotalQty(subtractOrThrow(value(transitInventory.getTotalQty()),
-                    totalPlannedQty, "INVENTORY_ROW_INVALID",
+                    item.getExpectedQty(), "INVENTORY_ROW_INVALID",
                     "In-transit inventory does not have enough returned quantity"));
             transitInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(transitInventory);
@@ -1415,6 +1433,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 failedInventory.setTotalQty(value(failedInventory.getTotalQty()).add(failPlannedQty));
                 failedInventory.setUpdatedAt(now);
                 saveInventoryWithConflictHandling(failedInventory);
+            }
+            if (shortageQty.compareTo(ZERO) > 0) {
+                createReturnedGoodsShortageAdjustment(flow, item, transitInventory, shortageQty, actor, now);
             }
             item.setPutawayCompletedQty(passPlannedQty);
             item.setFailedPutawayCompletedQty(failPlannedQty);
@@ -1551,6 +1572,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                 .qualityPassQty(item.getQualityPassQty())
                                 .qualityFailQty(item.getQualityFailQty())
                                 .qualityFailureReason(item.getQualityFailureReason())
+                                .shortageQty(item.getShortageQty())
+                                .shortageReason(item.getShortageReason())
                                 .destinationLocationId(item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId())
                                 .failedDestinationLocationId(item.getFailedDestinationLocation() == null ? null
@@ -1579,6 +1602,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                 "qualityPassQty", item.getQualityPassQty(),
                                 "qualityFailQty", item.getQualityFailQty(),
                                 "qualityFailureReason", item.getQualityFailureReason(),
+                                "shortageQty", item.getShortageQty(),
+                                "shortageReason", item.getShortageReason(),
                                 "destinationLocationId", item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId(),
                                 "failedDestinationLocationId", item.getFailedDestinationLocation() == null ? null
@@ -1588,6 +1613,34 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                 "putawayCompletedQty", item.getPutawayCompletedQty(),
                                 "failedPutawayCompletedQty", item.getFailedPutawayCompletedQty()))
                         .toList());
+    }
+
+    private void createReturnedGoodsShortageAdjustment(ReturnedDeliveryFlow flow,
+            ReturnedDeliveryFlowItem item,
+            Inventory transitInventory,
+            BigDecimal shortageQty,
+            User actor,
+            OffsetDateTime now) {
+        Adjustment adjustment = new Adjustment();
+        adjustment.setAdjustmentNumber("ADJ-RETURN-SHORT-" + UUID.randomUUID());
+        adjustment.setWarehouse(transitInventory.getWarehouse());
+        adjustment.setProduct(item.getProduct());
+        adjustment.setBatch(item.getBatch());
+        adjustment.setLocation(transitInventory.getLocation());
+        adjustment.setDeliveryOrder(flow.getDeliveryOrder());
+        adjustment.setDeliveryOrderItem(item.getDeliveryOrderItem());
+        adjustment.setQuantityAdjustment(shortageQty.negate());
+        adjustment.setType(AdjustmentType.RETURN_SHORTAGE);
+        adjustment.setReferenceId(item.getId());
+        adjustment.setReferenceType("RETURNED_DELIVERY_FLOW_ITEM");
+        adjustment.setReason(item.getShortageReason());
+        adjustment.setApprovedBy(flow.getApprovedByStorekeeper());
+        adjustment.setApprovedAt(now);
+        adjustment.setDocumentDate(LocalDate.now());
+        adjustment.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(LocalDate.now()));
+        adjustment.setCreatedBy(actor);
+        adjustment.setCreatedAt(now);
+        adjustmentRepository.save(adjustment);
     }
 
     private DeliveryOrder findOrder(Long id) {

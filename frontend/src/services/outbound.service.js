@@ -440,6 +440,8 @@ const normalizeReturnedGoodsFlow = (flow = {}) => ({
     quality_pass_qty: Number(value(item, 'qualityPassQty', 'quality_pass_qty', 0)),
     quality_fail_qty: Number(value(item, 'qualityFailQty', 'quality_fail_qty', 0)),
     quality_failure_reason: value(item, 'qualityFailureReason', 'quality_failure_reason', value(item, 'qualityReason', 'quality_reason', '')),
+    shortage_qty: Number(value(item, 'shortageQty', 'shortage_qty', 0)),
+    shortage_reason: value(item, 'shortageReason', 'shortage_reason', ''),
     destination_location_id: value(item, 'destinationLocationId', 'destination_location_id'),
     failed_destination_location_id: value(item, 'failedDestinationLocationId', 'failed_destination_location_id'),
     planned_qty: Number(value(item, 'plannedQty', 'planned_qty', 0)),
@@ -1274,6 +1276,8 @@ export const outboundService = {
           quality_pass_qty: Number(item.quality_pass_qty || 0),
           quality_fail_qty: Number(item.quality_fail_qty || 0),
           quality_failure_reason: item.quality_failure_reason || '',
+          shortage_qty: Number(item.shortage_qty || 0),
+          shortage_reason: item.shortage_reason || '',
         })),
       };
     }
@@ -1287,6 +1291,7 @@ export const outboundService = {
         qualityPassQty: Number(item.quality_pass_qty || 0),
         qualityFailQty: Number(item.quality_fail_qty || 0),
         qualityFailureReason: item.quality_failure_reason || null,
+        shortageReason: item.shortage_reason || null,
       })),
     });
     return normalizeReturnedGoodsFlow(response.data);
@@ -1339,9 +1344,13 @@ export const outboundService = {
       items: data.items.map((item) => ({
         doItemId: item.do_item_id,
         batchId: item.batch_id,
-        destinationLocationId: item.destination_location_id,
+        destinationLocationId: Number(item.planned_qty || 0) > 0
+          ? Number(item.destination_location_id)
+          : null,
         plannedQty: Number(item.planned_qty || 0),
-        failedDestinationLocationId: item.failed_destination_location_id,
+        failedDestinationLocationId: Number(item.failed_planned_qty || 0) > 0
+          ? Number(item.failed_destination_location_id)
+          : null,
         failedPlannedQty: Number(item.failed_planned_qty || 0),
       })),
     });

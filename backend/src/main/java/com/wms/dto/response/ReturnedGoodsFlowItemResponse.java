@@ -15,6 +15,8 @@ public class ReturnedGoodsFlowItemResponse {
     private BigDecimal qualityPassQty;
     private BigDecimal qualityFailQty;
     private String qualityFailureReason;
+    private BigDecimal shortageQty;
+    private String shortageReason;
     private Long destinationLocationId;
     private Long failedDestinationLocationId;
     private BigDecimal plannedQty;

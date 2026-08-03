@@ -18,11 +18,11 @@ public class ReturnedGoodsPutawayPlanItemRequest {
 
     private Long destinationLocationId;
 
-    @DecimalMin(value = "0.01")
+    @DecimalMin(value = "0.00")
     private BigDecimal plannedQty;
 
     private Long failedDestinationLocationId;
 
-    @DecimalMin(value = "0.01")
+    @DecimalMin(value = "0.00")
     private BigDecimal failedPlannedQty;
 }

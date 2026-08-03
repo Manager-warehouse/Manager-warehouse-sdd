@@ -20,6 +20,7 @@ import { useUiStore } from '../../stores/ui.store';
 import PickingListTable from '../../components/warehouse/PickingListTable';
 import DeliveryOrderPickingPlanEditor from '../../components/warehouse/DeliveryOrderPickingPlanEditor';
 import PodEvidenceSection from '../../components/outbound/PodEvidenceSection';
+import { updateReturnedGoodsRow } from './returnedGoods.utils';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
@@ -85,6 +86,8 @@ const buildReturnedRows = (items = []) => {
           quality_pass_qty: qty,
         quality_fail_qty: 0,
         quality_failure_reason: '',
+        shortage_qty: 0,
+        shortage_reason: '',
         destination_location_id: '',
         failed_destination_location_id: '',
         planned_qty: qty,
@@ -107,10 +110,12 @@ const mergeReturnedFlowRows = (rows, flow) => {
       ? {
           ...row,
           expected_qty: matched.expected_qty || row.expected_qty,
-          actual_qty: matched.actual_qty || row.actual_qty,
+          actual_qty: matched.actual_qty ?? row.actual_qty,
           quality_pass_qty: matched.quality_pass_qty ?? row.quality_pass_qty,
           quality_fail_qty: matched.quality_fail_qty ?? row.quality_fail_qty,
           quality_failure_reason: matched.quality_failure_reason || row.quality_failure_reason,
+          shortage_qty: matched.shortage_qty ?? row.shortage_qty,
+          shortage_reason: matched.shortage_reason || row.shortage_reason,
           destination_location_id: matched.destination_location_id || row.destination_location_id,
           failed_destination_location_id: matched.failed_destination_location_id || row.failed_destination_location_id,
           planned_qty: Number(matched.planned_qty || 0) > 0
@@ -135,6 +140,7 @@ const mergeDuplicateReturnedRows = (rows = []) => Array.from(rows.reduce((acc, r
   const actualQty = Number(existing.actual_qty || 0) + Number(row.actual_qty || 0);
   const passQty = Number(existing.quality_pass_qty || 0) + Number(row.quality_pass_qty || 0);
   const failQty = Number(existing.quality_fail_qty || 0) + Number(row.quality_fail_qty || 0);
+  const shortageQty = Number(existing.shortage_qty || 0) + Number(row.shortage_qty || 0);
   acc.set(key, {
     ...existing,
     expected_qty: Number(existing.expected_qty || 0) + Number(row.expected_qty || 0),
@@ -142,6 +148,8 @@ const mergeDuplicateReturnedRows = (rows = []) => Array.from(rows.reduce((acc, r
     quality_pass_qty: passQty,
     quality_fail_qty: failQty,
     quality_failure_reason: existing.quality_failure_reason || row.quality_failure_reason || '',
+    shortage_qty: shortageQty,
+    shortage_reason: existing.shortage_reason || row.shortage_reason || '',
     planned_qty: Number(existing.planned_qty || 0) + Number(row.planned_qty || 0),
     failed_planned_qty: Number(existing.failed_planned_qty || 0) + Number(row.failed_planned_qty || 0),
     destination_location_id: existing.destination_location_id || row.destination_location_id || '',
@@ -367,13 +375,7 @@ export default function DeliveryOrderDetail() {
   const handleReturnRowChange = (rowKey, field, value) => {
     setReturnRows((previous) => previous.map((row) => {
       if (row.key !== rowKey) return row;
-      if (field === 'quality_pass_qty') {
-        return { ...row, quality_pass_qty: value, planned_qty: value };
-      }
-      if (field === 'quality_fail_qty') {
-        return { ...row, quality_fail_qty: value, failed_planned_qty: value };
-      }
-      return { ...row, [field]: value };
+      return updateReturnedGoodsRow(row, field, value);
     }));
   };
 
@@ -398,11 +400,13 @@ export default function DeliveryOrderDetail() {
       Number(row.actual_qty) < 0
       || Number(row.quality_pass_qty) < 0
       || Number(row.quality_fail_qty) < 0
+      || Number(row.actual_qty || 0) > Number(row.expected_qty || 0)
       || Number(row.quality_pass_qty || 0) + Number(row.quality_fail_qty || 0) !== Number(row.actual_qty || 0)
       || (Number(row.quality_fail_qty || 0) > 0 && !String(row.quality_failure_reason || '').trim())
+      || (Number(row.shortage_qty || 0) > 0 && !String(row.shortage_reason || '').trim())
     ));
     if (invalid) {
-      addToast('Vui lòng nhập đủ số lượng, chất lượng và lý do khi hàng không đạt.', 'error');
+      addToast('Vui lòng kiểm tra số thực nhận, số đạt và nhập lý do cho hàng lỗi hoặc hàng thiếu.', 'error');
       return;
     }
     setSubmitting(true);
@@ -418,6 +422,7 @@ export default function DeliveryOrderDetail() {
           quality_pass_qty: Number(row.quality_pass_qty || 0),
           quality_fail_qty: Number(row.quality_fail_qty || 0),
           quality_failure_reason: row.quality_failure_reason,
+          shortage_reason: row.shortage_reason,
         })),
       });
       setReturnedFlow(flow);
@@ -859,7 +864,7 @@ export default function DeliveryOrderDetail() {
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-orange-100 bg-canvas-light">
-            <table className="w-full min-w-[1100px] text-left text-xs">
+            <table className="w-full min-w-[1380px] text-left text-xs">
               <thead className="bg-canvas-cream text-[10px] uppercase tracking-wider text-shade-60">
                 <tr>
                   <th className="px-3 py-2">Sản phẩm</th>
@@ -869,6 +874,8 @@ export default function DeliveryOrderDetail() {
                   <th className="px-3 py-2">SL đạt</th>
                   <th className="px-3 py-2">SL lỗi</th>
                   <th className="px-3 py-2">Lý do lỗi</th>
+                  <th className="px-3 py-2">SL thiếu</th>
+                  <th className="px-3 py-2">Lý do thiếu</th>
                   <th className="px-3 py-2">Vị trí hàng đạt</th>
                   <th className="px-3 py-2">SL cất hàng đạt</th>
                   <th className="px-3 py-2">Vị trí cách ly</th>
@@ -918,9 +925,8 @@ export default function DeliveryOrderDetail() {
                           type="number"
                           min="0"
                           step="0.01"
-                          disabled={countDisabled}
+                          disabled
                           value={row.quality_fail_qty}
-                          onChange={(event) => handleReturnRowChange(row.key, 'quality_fail_qty', event.target.value)}
                           className="w-24 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
@@ -931,6 +937,18 @@ export default function DeliveryOrderDetail() {
                           onChange={(event) => handleReturnRowChange(row.key, 'quality_failure_reason', event.target.value)}
                           placeholder="Khi có hàng lỗi"
                           className="w-40 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
+                        />
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-orange-700">
+                        {Number(row.shortage_qty || 0)}
+                      </td>
+                      <td className="px-3 py-3">
+                        <input
+                          disabled={countDisabled || Number(row.shortage_qty || 0) <= 0}
+                          value={row.shortage_reason}
+                          onChange={(event) => handleReturnRowChange(row.key, 'shortage_reason', event.target.value)}
+                          placeholder="Khi thực nhận bị thiếu"
+                          className="w-44 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
                       <td className="px-3 py-3">
