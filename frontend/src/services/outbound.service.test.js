@@ -83,6 +83,19 @@ describe('outboundService pick/QC payload', () => {
     }));
   });
 
+  it('sends the Storekeeper rejection decision and recount reason', async () => {
+    const { outboundService } = await import('./outbound.service');
+    mocks.put.mockResolvedValue({ data: { id: 100, status: 'WAITING_PICKING', items: [] } });
+
+    await outboundService.rejectQualityOutbound(100, 'So luong thuc te khong khop', 'Kiem tra lai');
+
+    expect(mocks.put).toHaveBeenCalledWith('/delivery-orders/100/quality-approval', {
+      decision: 'REJECT',
+      rejectionReason: 'So luong thuc te khong khop',
+      notes: 'Kiem tra lai',
+    });
+  });
+
   it('sends shortage reason and normalizes server-derived shortage quantity', async () => {
     const { outboundService } = await import('./outbound.service');
     mocks.put.mockResolvedValue({

@@ -64,8 +64,8 @@
 - [X] T025 [US1] Add `PUT /api/v1/delivery-orders/{id}/pick-qc-result` endpoint with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/DeliveryOrderController.java`
 - [X] T026 [US1] Implement one-shot pick/QC submission validation for active allocations, item totals, staging/quarantine location rules, and warehouse assignment in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [X] T027 [US1] Persist allocation-level `OutboundQcRecord` rows and update item QC summary quantities in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
-- [X] T028 [US1] Move QC-passed quantity from source inventory to outbound staging with version-safe inventory updates in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
-- [X] T029 [US1] Move QC-failed quantity from source inventory to quarantine and create `QuarantineRecord` plus `QC_FAIL_OUTBOUND` adjustment records in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
+- [X] T028 [US1] Persist pending QC-passed destinations without inventory movement in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
+- [X] T029 [US1] Persist pending QC-failed destinations without creating quarantine or adjustment records in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [X] T030 [US1] Write `DELIVERY_ORDER_PICK_COMPLETE` and `OUTBOUND_QC_FAIL_QUARANTINE` audit logs and move the Delivery Order to `QC_PENDING_APPROVAL` in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 
 **Checkpoint**: US1 is fully functional and testable as the MVP.
@@ -138,6 +138,10 @@
 - [X] T058 Run targeted delivery-order controller and service tests in `backend/pom.xml`
 - [X] T059 Run backend compile to verify DTO, entity, repository, and service wiring in `backend/pom.xml`
 - [X] T060 Verify quickstart scenarios against the implemented API using `.sdd/specs/004-outbound-delivery-pod/features/feature-warehouse-staff-picking-qc/quickstart.md`
+- [X] T061 Add Storekeeper QC rejection decision, mandatory recount reason, active QC history fields, and Flyway migration.
+- [X] T062 Keep pending inventory at source, reset active QC summaries, and return the Delivery Order to `WAITING_PICKING`.
+- [X] T063 Add Storekeeper rejection UI, Warehouse Staff recount reason display, OpenAPI/spec updates, and focused backend/frontend tests.
+- [X] T064 Defer staging/quarantine inventory movement and QC-fail evidence creation until Storekeeper quality approval.
 
 ---
 
@@ -211,7 +215,7 @@ Task: "T046 [P] [US3] Add service unit test for incomplete return-row rejection"
 
 ### Incremental Delivery
 
-1. Deliver US1 one-shot pick/QC submission and inventory movement.
+1. Deliver US1 one-shot pick/QC submission while inventory remains reserved at source.
 2. Deliver US2 duplicate blocking, idempotency replay, and replacement-cycle submission rules.
 3. Deliver US3 quality approval plus warehouse approval/reject flow.
 4. Finish polish verification and OpenAPI alignment.
@@ -224,6 +228,6 @@ Task: "T046 [P] [US3] Add service unit test for incomplete return-row rejection"
 - QC-passed quantity stays reserved in outbound staging until later outbound release flow.
 - QC-failed quantity moves to quarantine, creates supporting records, and never becomes regular available stock.
 - Duplicate QC submission is blocked unless the same request is safely replayed with matching idempotency data.
-- Quality approval is blocked until requested quantity is fully covered by QC-passed staging stock.
+- Quality approval is blocked until requested quantity is fully covered by submitted QC-passed results.
 - Warehouse reject returns all staged pass quantity to original bins and keeps failed quantity quarantined.
 - Service and controller tests cover happy paths and business-error paths for each user story.

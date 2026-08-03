@@ -169,6 +169,7 @@ export default function DeliveryOrderDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [rejectModal, setRejectModal] = useState({ show: false, reason: '' });
+  const [qualityRejectModal, setQualityRejectModal] = useState({ show: false, reason: '' });
   const [draftItems, setDraftItems] = useState([]);
   const [replacementDraftItems, setReplacementDraftItems] = useState([]);
   const [pickingCandidates, setPickingCandidates] = useState({});
@@ -300,6 +301,25 @@ export default function DeliveryOrderDetail() {
       fetchOrder();
     } catch (error) {
       addToast(error.message || 'Lỗi khi xác nhận chất lượng', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRejectQuality = async () => {
+    const reason = qualityRejectModal.reason.trim();
+    if (!reason) {
+      addToast('Vui lòng nhập lý do yêu cầu đếm lại.', 'error');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await outboundService.rejectQualityOutbound(id, reason);
+      setQualityRejectModal({ show: false, reason: '' });
+      addToast('Đã trả kết quả QC cho Warehouse Staff đếm lại.', 'success');
+      fetchOrder();
+    } catch (error) {
+      addToast(error.message || 'Không thể từ chối kết quả QC', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -769,9 +789,18 @@ export default function DeliveryOrderDetail() {
           )}
 
           {canApproveQuality && (
-            <button disabled={submitting} onClick={handleApproveQuality} className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50">
-              <CheckCircle2 className="w-4 h-4" /> Duyệt kết quả QC
-            </button>
+            <>
+              <button
+                disabled={submitting}
+                onClick={() => setQualityRejectModal({ show: true, reason: '' })}
+                className="btn-pill border border-danger-300 text-danger-600 hover:bg-danger-50 flex items-center gap-2 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" /> Yêu cầu đếm lại
+              </button>
+              <button disabled={submitting} onClick={handleApproveQuality} className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50">
+                <CheckCircle2 className="w-4 h-4" /> Duyệt kết quả QC
+              </button>
+            </>
           )}
 
           {canApproveWarehouse && (
@@ -1192,6 +1221,43 @@ export default function DeliveryOrderDetail() {
               className="rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 px-6 py-2.5 bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500 disabled:opacity-50 disabled:pointer-events-none"
             >
               Xác nhận từ chối
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={qualityRejectModal.show}
+        onClose={() => setQualityRejectModal({ show: false, reason: '' })}
+        title="Yêu cầu đếm lại kết quả QC"
+        maxWidth="max-w-md"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-shade-60">
+              Lý do yêu cầu đếm lại *
+            </label>
+            <textarea
+              rows={4}
+              maxLength={1000}
+              value={qualityRejectModal.reason}
+              onChange={(event) => setQualityRejectModal((previous) => ({
+                ...previous,
+                reason: event.target.value,
+              }))}
+              className="w-full resize-none rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm"
+            />
+          </div>
+          <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+            <Button variant="outline-light" onClick={() => setQualityRejectModal({ show: false, reason: '' })}>
+              Hủy
+            </Button>
+            <button
+              disabled={submitting || !qualityRejectModal.reason.trim()}
+              onClick={handleRejectQuality}
+              className="rounded-pill bg-danger-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-danger-700 disabled:pointer-events-none disabled:opacity-50"
+            >
+              Xác nhận trả đếm lại
             </button>
           </div>
         </div>

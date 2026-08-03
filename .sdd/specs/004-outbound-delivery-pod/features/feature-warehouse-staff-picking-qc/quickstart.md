@@ -61,10 +61,8 @@ Expected result:
 - Validate assigned warehouse scope and `WAITING_PICKING` status.
 - Validate the request includes every currently active allocation without a QC row.
 - Validate `pickedQty = qcPassQty + qcFailQty`.
-- Decrease source regular inventory `total_qty` and `reserved_qty`.
-- Increase outbound staging inventory `total_qty` and `reserved_qty` for pass quantity.
-- Increase quarantine inventory `total_qty` with `reserved_qty = 0` for fail quantity.
-- Create `outbound_qc_records`, quarantine records, inventory adjustments, and audit logs.
+- Keep source regular inventory `total_qty` and `reserved_qty` unchanged.
+- Create pending `outbound_qc_records` with `inventory_moved_at = null`; do not create quarantine or adjustment records yet.
 - Move the Delivery Order to `QC_PENDING_APPROVAL`.
 
 ### 2. Retry the same request safely
@@ -77,7 +75,7 @@ Expected result:
 - Do not create new QC records.
 - Do not apply inventory movement again.
 
-### 3. Approve quality after all required replacement cycles are done
+### 3. Return a QC result for Warehouse Staff recount
 
 ```http
 PUT /api/v1/delivery-orders/101/quality-approval
@@ -85,6 +83,27 @@ PUT /api/v1/delivery-orders/101/quality-approval
 
 ```json
 {
+  "decision": "REJECT",
+  "rejectionReason": "Count does not match the handover sheet"
+}
+```
+
+Expected result:
+
+- Require a non-blank recount reason.
+- Leave all inventory unchanged in the original reserved source rows.
+- Mark the rejected QC rows inactive while retaining their audit history.
+- Move the order to `WAITING_PICKING` so Warehouse Staff can submit a new active pick/QC cycle.
+
+### 4. Approve quality after all required replacement or recount cycles are done
+
+```http
+PUT /api/v1/delivery-orders/101/quality-approval
+```
+
+```json
+{
+  "decision": "ACCEPT",
   "notes": "All replacement goods passed outbound QC"
 }
 ```
@@ -92,11 +111,14 @@ PUT /api/v1/delivery-orders/101/quality-approval
 Expected result:
 
 - Validate Delivery Order is `QC_PENDING_APPROVAL`.
-- Validate all requested quantity is covered by QC-passed goods in outbound staging.
+- Validate all requested quantity is covered by submitted QC-passed results.
+- Move passed quantity from reserved source inventory to reserved outbound staging.
+- Move failed quantity from reserved source inventory to quarantine and create linked quarantine/adjustment evidence.
+- Set `inventory_moved_at` on every approved active QC row.
 - Move the order to `QC_COMPLETED`.
 - Write `DELIVERY_ORDER_QC_APPROVE` audit.
 
-### 4. Reject outbound after QC completion
+### 5. Reject outbound after QC completion
 
 ```http
 PUT /api/v1/delivery-orders/101/warehouse-reject
@@ -134,13 +156,15 @@ Expected result:
 
 - Service test: reject pick/QC submission when `pickedQty != qcPassQty + qcFailQty`.
 - Service test: reject partial submission when not every active allocation is included.
-- Service test: move pass quantity to outbound staging and fail quantity to quarantine in one transaction.
-- Service test: create quarantine and `QC_FAIL_OUTBOUND` adjustment records for fail quantity.
+- Service test: Staff submission records QC without mutating inventory.
+- Service test: Storekeeper approval moves pass quantity to staging and fail quantity to quarantine in one transaction.
+- Service test: Storekeeper approval creates quarantine and `QC_FAIL_OUTBOUND` adjustment records for fail quantity.
 - Service test: block duplicate allocation submission without matching idempotency replay.
 - Service test: return previous result for same `idempotencyKey` and identical payload.
 - Service test: reject same `idempotencyKey` with different payload.
 - Service test: replacement cycle accepts only new active allocations and does not require already-passed staging allocations again.
 - Service test: block quality approval when unresolved fail quantity remains.
+- Service/integration test: reject QC with a reason, keep inventory at source, preserve inactive QC history, and allow Staff recount submission.
 - Service test: warehouse reject returns staged pass quantity to original rows and keeps failed goods in quarantine.
 - Controller integration test: happy-path `pick-qc-result` request returns `QC_PENDING_APPROVAL`.
 - Controller integration test: quality approval and warehouse approval/reject endpoints return the expected Delivery Order status or business error.
