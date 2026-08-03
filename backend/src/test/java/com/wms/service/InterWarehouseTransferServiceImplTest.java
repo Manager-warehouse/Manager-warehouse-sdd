@@ -86,6 +86,7 @@ import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.driver_management.Driver;
@@ -595,6 +596,20 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void sourceFlow_pickCandidatesShowBinStockAvailableForTransferNotReservedSplit() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        SourceLoadPickCandidatesResponse candidates = service.getSourceLoadPickCandidates(1L, sourceManager);
+
+        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
+        assertThat(candidates.items()).hasSize(1);
+        assertThat(candidates.items().get(0).candidates()).hasSize(1);
+        assertThat(candidates.items().get(0).candidates().get(0).availableQty()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
     void assignTrip_requiresDriverFromSourceWarehouse() {
         service.approveTransfer(1L, sourceManager);
         assignments.put(driverUser.getId(), List.of(destinationWarehouse.getId()));
@@ -639,18 +654,30 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void assignTrip_cancelsApprovedTransferWhenRequiredArrivalDateExpired() {
+    void approveTransfer_cancelsNewTransferWhenRequiredArrivalDateExpired() {
         transfer.setPlannedDate(LocalDate.now().minusDays(1));
-        service.approveTransfer(1L, sourceManager);
-        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
 
-        InterWarehouseTransferResponse response = service.assignTrip(1L,
-                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
-                        VALID_TRIP_START, VALID_TRIP_END),
-                dispatcher);
+        InterWarehouseTransferResponse response = service.approveTransfer(1L, sourceManager);
 
         assertThat(response.status()).isEqualTo(InterWarehouseTransferStatus.CANCELLED);
         assertThat(sourceInventory.getReservedQty()).isZero();
+        assertThat(transfer.getRejectionReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_CANCEL);
+    }
+
+    @Test
+    void getTransferById_cancelsApprovedTransferWhenTripPlannedEndExpiredBeforeDepart() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        transfer.getTrip().setPlannedEndAt(LocalDateTime.now().minusHours(1));
+        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
+
+        InterWarehouseTransferResponse response = service.getTransferById(1L, sourceManager);
+
+        assertThat(response.status()).isEqualTo(InterWarehouseTransferStatus.CANCELLED);
+        assertThat(sourceInventory.getReservedQty()).isZero();
+        assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.CANCELLED);
         assertThat(transfer.getRejectionReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
         assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_CANCEL);
     }
@@ -1327,7 +1354,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void getTransferById_reportsOverdueWithoutMutatingTransferOrTrip() {
+    void getTransferById_forcesReturnWhenInTransitTripPlannedEndExpired() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1341,12 +1368,14 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(response.tripOverdue()).isTrue();
         assertThat(transfer.getStatus()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
         assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.IN_TRANSIT);
-        assertThat(transfer.getRejectionReason()).isNull();
+        assertThat(transfer.isReturned()).isTrue();
+        assertThat(transfer.getReturnReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_RETURN_TO_SOURCE);
         assertThat(transferItem.getSentQty()).isEqualByComparingTo(new BigDecimal("5.00"));
     }
 
     @Test
-    void receiving_blocksWhenTripIsOverdueBeforeReturnDecision() {
+    void receiving_routesToReturnScopeWhenTripIsOverdue() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1359,7 +1388,9 @@ class InterWarehouseTransferServiceImplTest {
                 new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
                 destinationWorker))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("TRANSFER_TRIP_OVERDUE");
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+        assertThat(transfer.isReturned()).isTrue();
+        assertThat(transfer.getReturnReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
     }
 
     @Test
@@ -1561,7 +1592,7 @@ class InterWarehouseTransferServiceImplTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
-                case "findReservableForUpdate" -> List.of(sourceInventory);
+                case "findReservableForUpdate", "findPickCandidates" -> List.of(sourceInventory);
                 case "findByIdForUpdate" -> Optional.of(findInventoryById((Long) args[0]));
                 case "findByStockKeyForUpdate" -> Optional
                         .ofNullable(findInventoryByKey((Long) args[0], (Long) args[1], (Long) args[2], (Long) args[3]));
@@ -1767,7 +1798,14 @@ class InterWarehouseTransferServiceImplTest {
                     saved.add((InterWarehouseTransferAllocation) args[0]);
                     yield args[0];
                 }
-                case "findByTransferItemTransferId", "findByTransferItemId" -> saved;
+                case "findByTransferItemTransferId" -> saved;
+                case "findByTransferItemId" -> saved.stream()
+                        .filter(allocation -> allocation.getTransferItem().getId().equals((Long) args[0]))
+                        .toList();
+                case "deleteByTransferItemId" -> {
+                    saved.removeIf(allocation -> allocation.getTransferItem().getId().equals((Long) args[0]));
+                    yield null;
+                }
                 case "deleteByTransferItemTransferId" -> {
                     saved.clear();
                     yield null;

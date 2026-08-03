@@ -67,6 +67,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
         List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
                 .filter(transfer -> helper.canViewTransfer(actor, actorWarehouseIds, transfer))
+                .peek(transfer -> helper.normalizeExpiredTransfer(transfer, actor))
                 .map(transfer -> helper.toResponseEager(transfer))
                 .toList();
     }
@@ -80,6 +81,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
         if (!helper.canViewTransfer(actor, transfer)) {
             throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
         }
+        helper.normalizeExpiredTransfer(transfer, actor);
         return helper.toResponse(transfer);
     }
 
@@ -133,7 +135,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
 
     @Override
     public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
-        // Công nhân xem các kệ/bin đã giữ hàng để chọn đúng vị trí khi bốc hàng.
+        // Công nhân xem các kệ/bin còn tồn của SKU để chọn đúng vị trí khi bốc hàng.
         return shippingService.getSourceLoadPickCandidates(id, actor);
     }
 
