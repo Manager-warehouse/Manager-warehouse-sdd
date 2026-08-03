@@ -968,6 +968,10 @@ components:
           type: string
           maxLength: 1000
           description: Required when qualityFailQty is greater than zero
+        shortageReason:
+          type: string
+          maxLength: 1000
+          description: Required when actualQty is less than the server-known expected quantity
     ReturnedGoodsApprovalRequest:
       type: object
       required:
@@ -1003,8 +1007,6 @@ components:
       required:
         - doItemId
         - batchId
-        - destinationLocationId
-        - plannedQty
       properties:
         doItemId:
           type: integer
@@ -1015,7 +1017,17 @@ components:
         destinationLocationId:
           type: integer
           format: int64
+          nullable: true
+          description: Required only when plannedQty is greater than zero
         plannedQty:
+          type: number
+          minimum: 0
+        failedDestinationLocationId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Required only when failedPlannedQty is greater than zero
+        failedPlannedQty:
           type: number
           minimum: 0
     ReturnedGoodsPutawayCompleteRequest:
@@ -1074,6 +1086,13 @@ components:
           type: number
         qualityFailureReason:
           type: string
+        shortageQty:
+          type: number
+          minimum: 0
+          description: Server-derived expectedQty minus actualQty
+        shortageReason:
+          type: string
+          nullable: true
         destinationLocationId:
           type: integer
           format: int64
@@ -1240,6 +1259,9 @@ components:
             - RETURN_QC_REWORK_REQUIRED
             - RETURN_QTY_SPLIT_MISMATCH
             - RETURN_QTY_MISMATCH
+            - RETURN_QTY_EXCEEDS_EXPECTED
+            - RETURN_SHORTAGE_REASON_REQUIRED
+            - RETURN_QTY_RECONCILIATION_INVALID
             - RETURN_QC_ACCEPTANCE_REQUIRED
             - RETURN_PUTAWAY_PLAN_REQUIRED
             - RETURN_PUTAWAY_MISMATCH

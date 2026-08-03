@@ -58,6 +58,12 @@ public class ReturnedDeliveryFlowItem {
     @Column(name = "quality_failure_reason", columnDefinition = "TEXT")
     private String qualityFailureReason;
 
+    @Column(name = "shortage_qty", precision = 10, scale = 2)
+    private BigDecimal shortageQty;
+
+    @Column(name = "shortage_reason", columnDefinition = "TEXT")
+    private String shortageReason;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "destination_location_id")
     private WarehouseLocation destinationLocation;

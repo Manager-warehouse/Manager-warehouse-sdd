@@ -263,6 +263,20 @@
 - [X] T116 Update runtime configuration/deployment documentation for the persistent POD volume, filesystem permissions, backup, restore, and redeployment retention.
 - [X] T117 Run backend tests, frontend tests, OpenAPI validation, and `git diff --check`; verify no Supabase POD configuration or public `/uploads/pod` route remains in the implemented flow.
 
+## Phase 11: Returned-goods shortage reconciliation
+
+**Goal**: Let warehouse staff record the physically received quantity and shortage reason, while reconciling approved shortages without leaving stock stranded in virtual `IN_TRANSIT`.
+
+**Independent Test**: Submit expected quantity 10, actual quantity 8, passed quantity 8, and a shortage reason; approve and complete putaway. Verify 8 units enter the destination, an approved `RETURN_SHORTAGE` adjustment of -2 is created, and virtual `IN_TRANSIT` is reduced by 10.
+
+- [X] T118 [P] Add backend tests for over-receipt rejection, required shortage reason, derived shortage response, and shortage adjustment reconciliation.
+- [X] T119 [P] Update returned-goods OpenAPI and data model with actual quantity, derived shortage, and shortage-reason rules.
+- [X] T120 Persist shortage quantity/reason and add the `RETURN_SHORTAGE` adjustment type through a forward-only migration.
+- [X] T121 Implement returned count/QC validation and putaway-completion shortage adjustment in `DeliveryOrderServiceImpl`.
+- [X] T122 Implement Delivery Order detail inputs for actual received quantity and shortage reason, with quality-failed quantity derived from actual minus passed.
+- [X] T123 Add frontend service/component coverage for the shortage payload and response mapping.
+- [X] T124 Run targeted backend/frontend tests, compile/build, OpenAPI validation, and `git diff --check`.
+
 ---
 
 ## Dependencies & Execution Order

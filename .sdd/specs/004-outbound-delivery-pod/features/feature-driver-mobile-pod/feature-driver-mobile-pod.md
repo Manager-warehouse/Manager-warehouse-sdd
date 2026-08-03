@@ -167,6 +167,8 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Allow Storekeeper to confirm the returned goods have physically arrived back at the warehouse before warehouse staff can enter inspection results.
     - Keep the Delivery Order in `RETURNED` and move the returned-goods flow to `COUNT_QC_PENDING` after Storekeeper confirms goods arrival.
     - Allow warehouse staff to submit returned-goods inspection by Delivery Order item/product/batch with actual received quantity, quality-passed quantity, quality-failed quantity, and failure reason for failed quantity.
+    - Require actual received quantity to be less than or equal to expected returned quantity.
+    - Derive shortage quantity as `expected quantity - actual received quantity`; require a shortage reason whenever the derived shortage is greater than zero.
     - Validate that passed quantity plus failed quantity equals actual received quantity for each returned item/product/batch.
     - Keep the Delivery Order in `RETURNED` while staff count/QC, Storekeeper QC decision, putaway planning, or putaway confirmation is pending.
     - Allow Storekeeper to accept or reject the staff count/QC result; rejection SHALL require a rejection reason and SHALL return the flow to staff rework.
@@ -174,7 +176,8 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Require Storekeeper acceptance before any returned-goods putaway plan can be created.
     - Allow Storekeeper to create a putaway plan that selects destination warehouse locations for passed goods and failed/quarantine goods according to quality result.
     - Allow warehouse staff to confirm putaway completion only against the Storekeeper-approved plan.
-    - Move returned goods out of virtual `IN_TRANSIT` inventory into the planned destination locations only when staff confirms putaway success.
+    - Move only actual received goods out of virtual `IN_TRANSIT` inventory into the planned destination locations when staff confirms putaway success.
+    - Reconcile each Storekeeper-approved shortage through an approved negative `RETURN_SHORTAGE` adjustment against virtual `IN_TRANSIT`, linked to the Delivery Order item/batch and carrying the recorded shortage reason.
     - Move the Delivery Order from `RETURNED` to `DELIVERY_FAILED` only after Storekeeper goods-arrival confirmation, staff count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation are all complete.
     - Create audit logs for returned-goods arrival confirmation, count/QC submission, QC acceptance/rejection, putaway planning, and putaway completion.
   - WHEN Admin resets a locked delivery OTP, the system SHALL:
@@ -521,6 +524,15 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
   - Then the system SHALL move the returned goods from virtual In-Transit inventory to the planned destination location.
   - And the system SHALL move the Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
   - And the system SHALL create audit logs for arrival confirmation, count/QC submission, Storekeeper acceptance, putaway planning, and putaway completion.
+
+- **Scenario: Returned goods physically arrive short**
+  - Given an item/batch is expected to return with quantity 10 and remains tracked in virtual In-Transit inventory
+  - When warehouse staff enter actual received quantity 8 and a shortage reason
+  - Then the system SHALL derive shortage quantity 2 and SHALL validate quality-passed plus quality-failed quantity against 8, not 10.
+  - And Storekeeper SHALL see and approve the shortage as part of returned-goods QC acceptance.
+  - And putaway SHALL move only the 8 physically received units to destination locations.
+  - And putaway completion SHALL create an approved `RETURN_SHORTAGE` adjustment of -2 against virtual In-Transit with the recorded reason so no quantity remains stranded.
+  - But the system SHALL reject actual received quantity above 10 or a shortage without a reason using HTTP 422.
 
 - **Scenario: Storekeeper rejects returned-goods QC and staff reworks**
   - Given a Delivery Order is `RETURNED`
