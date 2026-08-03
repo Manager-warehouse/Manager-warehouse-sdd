@@ -1,16 +1,10 @@
 -- V64: Align transfer request approvals with the source warehouse manager flow.
 -- V62 is already used by delivery OTP hardening on main, so this migration
 -- carries both the source approval audit action sync and the legacy CEO cleanup.
+-- audit_logs are immutable by trigger, so legacy CEO audit rows remain unchanged
+-- and are kept in the constraint as read-only history.
 
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
-
-UPDATE audit_logs
-SET action = 'TRANSFER_REQUEST_SOURCE_APPROVE'
-WHERE action = 'TRANSFER_REQUEST_CEO_APPROVE';
-
-UPDATE audit_logs
-SET action = 'TRANSFER_REQUEST_SOURCE_REJECT'
-WHERE action = 'TRANSFER_REQUEST_CEO_REJECT';
 
 ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (action IN (
     'LOGIN', 'LOGOUT',
@@ -54,6 +48,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (action IN (
     'INVENTORY_UPDATE',
     'TRANSFER_REQUEST_CREATE', 'TRANSFER_REQUEST_UPDATE',
     'TRANSFER_REQUEST_SUBMIT',
+    'TRANSFER_REQUEST_CEO_APPROVE', 'TRANSFER_REQUEST_CEO_REJECT',
     'TRANSFER_REQUEST_SOURCE_APPROVE', 'TRANSFER_REQUEST_SOURCE_REJECT',
     'TRANSFER_REQUEST_CONVERT',
     'TRANSFER_APPROVE', 'TRANSFER_REJECT', 'TRANSFER_CANCEL',
