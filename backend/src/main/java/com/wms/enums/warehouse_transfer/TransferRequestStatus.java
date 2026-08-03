@@ -7,7 +7,5 @@ public enum TransferRequestStatus {
     APPROVED,
     REJECTED,
     CONVERTED,
-    CEO_APPROVED,
-    CEO_REJECTED,
     CANCELLED
 }

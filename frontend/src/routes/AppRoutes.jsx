@@ -133,7 +133,7 @@ const AppRoutes = () => {
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
       </Route>
 
-      {/* Điều chuyển nội bộ - TRQ: route yêu cầu đề xuất, CEO duyệt xong Planner mới convert sang TRF. */}
+      {/* Điều chuyển nội bộ - TRQ: route yêu cầu đề xuất, trưởng kho nguồn duyệt xong Planner mới convert sang TRF. */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
       </Route>

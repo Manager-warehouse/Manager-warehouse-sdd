@@ -75,6 +75,7 @@ import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.TripRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -100,6 +101,7 @@ class ReportServiceImplTest {
     @Mock OutboundQcRecordRepository outboundQcRecordRepository;
     @Mock ReceiptItemRepository receiptItemRepository;
     @Mock DeliveryRepository deliveryRepository;
+    @Mock UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     ReportServiceImpl service;
 
@@ -113,7 +115,8 @@ class ReportServiceImplTest {
                 userRepository, inventoryRepository, invoiceRepository,
                 deliveryOrderItemRepository, tripRepository,
                 outboundQcRecordRepository,
-                receiptItemRepository, deliveryRepository
+                receiptItemRepository, deliveryRepository,
+                userWarehouseAssignmentRepository
         );
 
         ceo = new User();
