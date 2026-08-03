@@ -276,7 +276,9 @@ Chức năng chính:
 
 - Phải có ảnh QC nhận.
 - Phải gửi đủ dòng QC.
-- `qcPassedQty + qcFailedQty` phải bằng `confirmedQty`.
+- Thủ kho không nhập/sửa số lượng chốt; hệ thống dùng count công nhân làm `confirmedQty`.
+- Nếu count lệch số gửi: `qcPassedQty = confirmedQty`, `qcFailedQty = 0`, không mở quarantine ở bước này.
+- Nếu count khớp số gửi: `qcPassedQty + qcFailedQty` phải bằng `confirmedQty`.
 - Nếu có QC lỗi thì phải nhập lý do.
 - Nếu có hàng lỗi thì phải có khu quarantine.
 
@@ -289,7 +291,7 @@ Chức năng chính:
 - Thủ kho chỉ lập kế hoạch sau khi tất cả dòng đã QC.
 - Tổng số lượng cất kệ phải bằng đúng `QC đạt`.
 - Không cho đưa hàng QC đạt vào kệ quarantine.
-- Nếu có hàng thừa, phần thừa sẽ đi hồ sơ chênh lệch, không phải cất kệ thiếu/thừa tùy ý.
+- Nếu có hàng thừa, vẫn cất đủ số công nhân count vào kệ thường; phần thừa đồng thời đi hồ sơ chênh lệch.
 
 ### 6.5. Quản lý kho duyệt nhập cuối
 
@@ -300,7 +302,7 @@ Chức năng chính:
 - Chỉ quản lý kho đích được duyệt.
 - Kiểm tra kế hoạch cất kệ.
 - Trừ hàng khỏi `IN_TRANSIT`.
-- Nhập phần đạt QC vào kệ.
+- Nhập phần đạt QC vào kệ; với count lệch, phần đạt QC là toàn bộ số công nhân count.
 - Nhập phần lỗi QC vào quarantine.
 - Nếu thiếu/thừa thì tạo hồ sơ chênh lệch.
 
@@ -315,9 +317,9 @@ Tóm tắt:
 | Tình huống | Xử lý |
 |---|---|
 | Nhận thiếu | Tạo hồ sơ `SHORTAGE`, CEO chốt trách nhiệm |
-| Nhận thừa | Tạo hồ sơ `OVER_RECEIPT`, giữ phần thừa trong `discrepancy_hold_entries` |
-| CEO kết luận lỗi kho nguồn | Trừ thêm kho nguồn, nhập phần giữ tạm vào kho đích |
-| CEO kết luận đếm sai kho đích | Đóng hồ sơ, không nhập phần thừa |
+| Nhận thừa | Cất đủ số công nhân count, tạo hồ sơ `OVER_RECEIPT` và trace phần thừa trong `discrepancy_hold_entries` |
+| CEO kết luận lỗi kho nguồn | Trừ thêm kho nguồn, không cộng kho đích lần hai |
+| CEO kết luận đếm sai kho đích | Trừ ngược phần hold đã cất khỏi kho đích |
 
 File chính:
 
@@ -443,7 +445,9 @@ Chức năng chính:
 | Receive QC | Không có ảnh QC | `RECEIVE_QC_PHOTO_REQUIRED` | [InterWarehouseTransferReceivingService.java:154](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:154) |
 | Receive QC | Gửi thiếu dòng QC | `RECEIVE_CHECK_ITEMS_REQUIRED` | [InterWarehouseTransferReceivingService.java:164](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:164) |
 | Receive QC | Trùng dòng QC | `DUPLICATE_RECEIVE_CHECK_ITEM` | [InterWarehouseTransferReceivingService.java:164](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:164) |
-| Receive QC | `QC đạt + QC lỗi != SL chốt` | `QC_TOTAL_MUST_MATCH_CONFIRMED_QTY` | [InterWarehouseTransferReceivingService.java:470](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:470) |
+| Receive QC | `confirmedQty` khác count công nhân | `RECEIVE_CHECK_QTY_MUST_MATCH_WORKER_COUNT` | [InterWarehouseTransferReceivingService.java:470](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:470) |
+| Receive QC | Count lệch nhưng có QC lỗi hoặc QC đạt khác count công nhân | `COUNT_DISCREPANCY_QC_MUST_MATCH_VALID_RECEIVED_QTY` | [InterWarehouseTransferReceivingService.java:470](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:470) |
+| Receive QC | Count khớp nhưng `QC đạt + QC lỗi != confirmedQty` | `QC_TOTAL_MUST_MATCH_CONFIRMED_QTY` | [InterWarehouseTransferReceivingService.java:470](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:470) |
 | Receive QC | Có QC lỗi nhưng thiếu lý do | `QC_FAILURE_REASON_REQUIRED` | [InterWarehouseTransferReceivingService.java:470](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:470) |
 | Receive QC | Có QC lỗi nhưng chưa cấu hình quarantine | `QUARANTINE_LOCATION_NOT_CONFIGURED` | [InterWarehouseTransferReceivingService.java:492](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:492) |
 | Submit putaway | Chưa QC đủ dòng | `RECEIVE_CHECK_REQUIRED` | [InterWarehouseTransferReceivingService.java:547](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:547) |

@@ -447,7 +447,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra count/QC' }));
-    expect(screen.getByText('SL chốt (20) > số gửi (10). Phần thừa sẽ vào hồ sơ chênh lệch khi quản lý duyệt cuối.')).toBeInTheDocument();
+    expect(screen.getByText('CN nhập (20) > số gửi (10). Hệ thống sẽ cất đủ 20 cái và ghi phần thừa vào hồ sơ chênh lệch.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Ảnh xác nhận QC nhập điều chuyển'));
     fireEvent.click(screen.getByRole('button', { name: 'Duyệt QC' }));
@@ -456,7 +456,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       items: [{
         transferItemId: 101,
         confirmedQty: 20,
-        qcPassedQty: 10,
+        qcPassedQty: 20,
         qcFailedQty: 0,
         checkerNote: null,
         qcFailureReason: null,

@@ -114,7 +114,7 @@ class DiscrepancyIncidentServiceTest {
     @Test
     void resolveIncident_updatesOpenIncidentAndWritesAudit() {
         User ceo = user(20L, UserRole.CEO, "CEO");
-        incident.setIncidentType("OVER_RECEIPT");
+        incident.setIncidentType("MANUAL_REVIEW");
         when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
         when(incidentRepository.save(any(DiscrepancyIncident.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -142,7 +142,7 @@ class DiscrepancyIncidentServiceTest {
                 eq(AuditAction.STATUS_CHANGE),
                 eq("DISCREPANCY_INCIDENT"),
                 eq(99L),
-                eq("OVER_RECEIPT-99"),
+                eq("MANUAL_REVIEW-99"),
                 eq(2L),
                 any(),
                 any()
@@ -167,7 +167,7 @@ class DiscrepancyIncidentServiceTest {
     }
 
     @Test
-    void resolveOverReceiptAsSourceFault_deductsSourceAndReleasesHoldToDestination() {
+    void resolveOverReceiptAsSourceFault_deductsSourceWithoutAddingDestinationAgainWhenAlreadyPutaway() {
         User ceo = user(20L, UserRole.CEO, "CEO");
         incident.setIncidentType("OVER_RECEIPT");
         incident.setQuantity(BigDecimal.valueOf(100));
@@ -178,7 +178,15 @@ class DiscrepancyIncidentServiceTest {
         Inventory sourceInventory = inventory(501L, incident.getTransfer().getSourceWarehouse(),
                 incident.getProduct(), batch, sourceLocation, BigDecimal.valueOf(4900));
         Inventory destinationInventory = inventory(502L, incident.getTransfer().getDestinationWarehouse(),
-                incident.getProduct(), batch, destinationLocation, BigDecimal.ZERO);
+                incident.getProduct(), batch, destinationLocation, BigDecimal.valueOf(200));
+        InterWarehouseTransferItem item = InterWarehouseTransferItem.builder()
+                .id(5L)
+                .transfer(incident.getTransfer())
+                .product(incident.getProduct())
+                .sentQty(BigDecimal.valueOf(100))
+                .receivedQty(BigDecimal.valueOf(200))
+                .qcPassedQty(BigDecimal.valueOf(200))
+                .build();
         DiscrepancyHoldEntry hold = DiscrepancyHoldEntry.builder()
                 .id(1L)
                 .incident(incident)
@@ -190,6 +198,7 @@ class DiscrepancyIncidentServiceTest {
                 .build();
 
         when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
+        when(transferHelper.items(incident.getTransfer())).thenReturn(List.of(item));
         when(holdEntryRepository.findByIncidentId(99L)).thenReturn(List.of(hold));
         when(inventoryRepository.findReservableForUpdate(1L, 7L)).thenReturn(List.of(sourceInventory));
         when(inventoryRepository.findByStockKeyForUpdate(2L, 7L, 77L, 22L))
@@ -204,15 +213,47 @@ class DiscrepancyIncidentServiceTest {
         );
 
         assertThat(sourceInventory.getTotalQty()).isEqualByComparingTo("4800");
-        verify(transferHelper).upsertInventory(
-                incident.getTransfer().getDestinationWarehouse(),
-                incident.getProduct(),
-                batch,
-                destinationLocation,
-                BigDecimal.valueOf(100),
-                BigDecimal.ZERO
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("200");
+        verify(transferHelper, never()).upsertInventory(any(), any(), any(), any(), any(), any());
+        verify(adjustmentRepository).save(any(Adjustment.class));
+    }
+
+    @Test
+    void resolveOverReceiptAsDestinationCountError_deductsAlreadyPutawayExcessFromDestination() {
+        User ceo = user(20L, UserRole.CEO, "CEO");
+        incident.setIncidentType("OVER_RECEIPT");
+        incident.setQuantity(BigDecimal.valueOf(4));
+        Batch batch = new Batch();
+        batch.setId(77L);
+        WarehouseLocation destinationLocation = location(22L);
+        Inventory destinationInventory = inventory(502L, incident.getTransfer().getDestinationWarehouse(),
+                incident.getProduct(), batch, destinationLocation, BigDecimal.valueOf(10));
+        DiscrepancyHoldEntry hold = DiscrepancyHoldEntry.builder()
+                .id(1L)
+                .incident(incident)
+                .warehouse(incident.getTransfer().getDestinationWarehouse())
+                .product(incident.getProduct())
+                .batch(batch)
+                .holdLocation(destinationLocation)
+                .holdQty(BigDecimal.valueOf(4))
+                .build();
+
+        when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
+        when(holdEntryRepository.findByIncidentId(99L)).thenReturn(List.of(hold));
+        when(inventoryRepository.findByStockKeyForUpdate(2L, 7L, 77L, 22L))
+                .thenReturn(Optional.of(destinationInventory));
+        when(incidentRepository.save(any(DiscrepancyIncident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.resolveIncident(
+                99L,
+                new DiscrepancyIncidentResolveRequest("RESOLVED_DESTINATION_COUNT_ERROR", "Kho đích đếm thừa 4."),
+                ceo
         );
-        verify(adjustmentRepository, times(2)).save(any(Adjustment.class));
+
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("6");
+        verify(inventoryRepository).save(destinationInventory);
+        verify(adjustmentRepository).save(any(Adjustment.class));
     }
 
     @Test

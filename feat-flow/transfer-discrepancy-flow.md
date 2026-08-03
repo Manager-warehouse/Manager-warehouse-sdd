@@ -12,7 +12,7 @@ Nguyên tắc chính:
 
 - Phần hàng đúng số gửi được nhập kho bình thường.
 - Phần thiếu/thừa phải tạo hồ sơ để CEO chốt trách nhiệm.
-- Hàng thừa chưa được cộng tồn chính thức ngay, mà giữ tạm trong hồ sơ chênh lệch.
+- Hàng thừa được cất theo count vật lý của công nhân, đồng thời ghi hồ sơ chênh lệch để chốt trách nhiệm.
 - Chỉ CEO được xem và xử lý hồ sơ chênh lệch.
 
 ---
@@ -27,13 +27,13 @@ flowchart TD
     D --> E{Số nhận so với số gửi}
     E -->|Bằng nhau| F[Nhập kho bình thường]
     E -->|Thiếu| G[Tạo hồ sơ SHORTAGE]
-    E -->|Thừa| H[Tạo hồ sơ OVER_RECEIPT]
-    H --> I[Giữ phần thừa ở discrepancy_hold_entries]
+    E -->|Thừa| H[Cất đủ số nhận và tạo hồ sơ OVER_RECEIPT]
+    H --> I[Trace phần thừa ở discrepancy_hold_entries]
     G --> J[CEO chốt hồ sơ]
     I --> J
     J --> K{Kết luận CEO}
-    K -->|Lỗi kho nguồn| L[Trừ thêm kho nguồn và nhập phần thừa vào kho đích]
-    K -->|Lỗi kho đích đếm sai| M[Đóng hồ sơ, không cộng phần thừa]
+    K -->|Lỗi kho nguồn| L[Trừ thêm kho nguồn, không cộng kho đích lần hai]
+    K -->|Lỗi kho đích đếm sai| M[Trừ ngược phần thừa đã cất khỏi kho đích]
     K -->|Hao hụt/lỗi vận chuyển| N[Đóng hồ sơ theo trách nhiệm]
 ```
 
@@ -255,12 +255,12 @@ if (overReceiptPassed.signum() > 0) {
 }
 ```
 
-`distributeOverReceipt(...)` không cộng ngay phần thừa vào tồn chính thức. Hàm này đưa phần thừa vào bảng giữ tạm `discrepancy_hold_entries`, kèm kệ mà thủ kho đã chọn.
+`distributeOverReceipt(...)` cất phần thừa vào đúng kệ thường mà thủ kho đã chọn và đồng thời lưu `discrepancy_hold_entries` để giữ truy vết phần vượt số gửi.
 
-Lý do: nếu nhận thừa 100 mà cộng thẳng vào kho đích, tổng tồn hệ thống tăng ảo. CEO phải kết luận trước:
+Lý do: kho đích đang giữ hàng vật lý nên phải cất đủ số công nhân count; hồ sơ chênh lệch dùng để quản lý/CEO kết luận trách nhiệm sau:
 
-- Nếu lỗi kho nguồn: trừ thêm kho nguồn và nhập phần thừa vào kho đích.
-- Nếu kho đích đếm sai: không nhập phần thừa.
+- Nếu lỗi kho nguồn: trừ thêm kho nguồn, không cộng kho đích lần hai vì hàng đã được cất.
+- Nếu kho đích đếm sai: xử lý theo kết luận hồ sơ, không tự sinh thêm tồn.
 
 ### Code giữ phần thừa lỗi QC
 
@@ -278,7 +278,7 @@ if (overReceiptFailed.signum() > 0) {
             .build());
 ```
 
-Phần thừa lỗi QC cũng chưa được cộng tồn chính thức. Nó được giữ trong hồ sơ chênh lệch, vị trí giữ là khu quarantine.
+Luồng hiện tại không cho nhập QC lỗi khi count lệch số gửi, nên nhánh này chỉ còn để bảo vệ dữ liệu cũ hoặc payload bất thường.
 
 ---
 
@@ -340,13 +340,13 @@ Ví dụ tổng hàng ban đầu 5000:
 - Kho nguồn có 5000.
 - Xuất theo phiếu 100, kho nguồn còn 4900.
 - Kho đích đếm nhận 200.
-- Phần đúng luồng 100 được nhập kho đích.
-- Phần thừa 100 đang giữ tạm trong hồ sơ.
+- Kho đích cất đủ 200 theo count vật lý.
+- Phần thừa 100 được trace trong hồ sơ chênh lệch.
 
 Nếu CEO kết luận **lỗi kho nguồn gửi thừa**, hệ thống phải:
 
 - Trừ thêm kho nguồn 100: nguồn còn 4800.
-- Nhập phần giữ tạm 100 vào kho đích.
+- Không cộng kho đích lần hai vì 100 thừa đã được cất khi final receive.
 - Tổng vẫn đúng: 4800 + 200 = 5000.
 
 ---
@@ -428,7 +428,7 @@ for (Inventory source : sourceRows) {
 
 `deducted.negate()` tạo adjustment âm cho kho nguồn.
 
-### Nhập phần giữ tạm vào kho đích
+### Không cộng lại phần đã cất ở kho đích
 
 File: [DiscrepancyIncidentServiceImpl.java:190](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/DiscrepancyIncidentServiceImpl.java:190)
 
@@ -438,17 +438,15 @@ for (DiscrepancyHoldEntry hold : holds) {
     if (location == null || hold.getBatch() == null) {
         throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_INCOMPLETE");
     }
-    applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty());
-    transferHelper.upsertInventory(hold.getWarehouse(), hold.getProduct(), hold.getBatch(),
-            location, hold.getHoldQty(), BigDecimal.ZERO);
-    createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
-            hold.getHoldQty(), reason, actor);
+    if (!overReceiptAlreadyPutaway) {
+        applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty());
+        transferHelper.upsertInventory(hold.getWarehouse(), hold.getProduct(), hold.getBatch(),
+                location, hold.getHoldQty(), BigDecimal.ZERO);
+    }
 }
 ```
 
-Đoạn này biến phần hàng thừa từ trạng thái **giữ tạm** thành tồn chính thức ở kho đích.
-
-`hold.getHoldQty()` tạo adjustment dương cho kho đích.
+Đoạn này chỉ cộng kho đích với hồ sơ cũ chưa từng cất phần thừa. Với luồng hiện tại, phần thừa đã được cất ở final receive nên resolver không cộng lại để tránh tăng tồn hai lần.
 
 ---
 
@@ -463,7 +461,7 @@ incident.setResolvedBy(actor);
 incident.setResolvedAt(OffsetDateTime.now());
 ```
 
-Nếu hồ sơ `OVER_RECEIPT` được chốt là `RESOLVED_DESTINATION_COUNT_ERROR`, hệ thống chỉ đóng hồ sơ. Phần giữ tạm không được nhập tồn chính thức.
+Nếu hồ sơ `OVER_RECEIPT` được chốt là `RESOLVED_DESTINATION_COUNT_ERROR`, hệ thống trừ ngược phần hold khỏi kho đích vì phần thừa đã được cất ở final receive.
 
 Ví dụ:
 
@@ -481,9 +479,9 @@ Ví dụ:
 |---|---|---|
 | Nhận đúng 100/100 | Nhập 100 vào kho đích hoặc quarantine theo QC | Không tạo hồ sơ |
 | Nhận thiếu 80/100 | Tạo hồ sơ `SHORTAGE` 20 | CEO chốt trách nhiệm hao hụt/lỗi vận chuyển/lỗi kho nguồn |
-| Nhận thừa 200/100 | Nhập 100 đúng luồng, giữ tạm 100 thừa | CEO quyết định nhập phần thừa hay đóng vì đếm sai |
-| Nhận thừa, CEO chọn lỗi kho nguồn | Chưa cộng phần thừa ngay | Trừ thêm kho nguồn, cộng phần giữ tạm vào kho đích |
-| Nhận thừa, CEO chọn đếm sai kho đích | Chưa cộng phần thừa ngay | Đóng hồ sơ, không cộng phần thừa |
+| Nhận thừa 200/100 | Cất đủ 200 vào kho đích, tạo hồ sơ `OVER_RECEIPT` 100 | CEO quyết định trách nhiệm phần thừa |
+| Nhận thừa, CEO chọn lỗi kho nguồn | Phần thừa đã ở kho đích | Trừ thêm kho nguồn, không cộng kho đích lần hai |
+| Nhận thừa, CEO chọn đếm sai kho đích | Phần thừa đã ở kho đích | Trừ ngược phần hold khỏi kho đích |
 
 ---
 

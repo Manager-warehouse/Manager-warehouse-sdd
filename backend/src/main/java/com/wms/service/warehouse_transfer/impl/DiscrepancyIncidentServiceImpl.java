@@ -127,6 +127,10 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
                 && "RESOLVED_DESTINATION_COUNT_ERROR".equals(resolutionStatus)) {
             applyDestinationCountErrorShortage(incident, request.resolutionNote().trim(), actor);
         }
+        if ("OVER_RECEIPT".equals(incident.getIncidentType())
+                && "RESOLVED_DESTINATION_COUNT_ERROR".equals(resolutionStatus)) {
+            applyDestinationCountErrorOverReceipt(incident, request.resolutionNote().trim(), actor);
+        }
         incident.setStatus(resolutionStatus);
         incident.setResolutionNote(request.resolutionNote().trim());
         incident.setResolvedBy(actor);
@@ -155,8 +159,8 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     }
 
     private void applySourceFaultOverReceipt(DiscrepancyIncident incident, String reason, User actor) {
-        // CEO kết luận kho nguồn gửi thừa: phần đang tạm giữ được nhập thật vào kho đích,
-        // đồng thời trừ thêm đúng số lượng đó khỏi kho nguồn để tổng tồn hệ thống không tăng ảo.
+        // CEO kết luận kho nguồn gửi thừa: phần thừa đã cất ở kho đích thì không cộng lại lần nữa;
+        // chỉ trừ thêm đúng số lượng đó khỏi kho nguồn để tổng tồn hệ thống không tăng ảo.
         List<DiscrepancyHoldEntry> holds = holdEntryRepository.findByIncidentId(incident.getId());
         if (holds.isEmpty()) {
             throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_NOT_FOUND");
@@ -198,6 +202,12 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
             remainingToDeduct = remainingToDeduct.subtract(deducted);
         }
 
+        InterWarehouseTransferItem transferItem = findIncidentTransferItem(incident);
+        boolean overReceiptAlreadyPutaway = transferItem.getReceivedQty() != null
+                && transferItem.getSentQty() != null
+                && transferItem.getQcPassedQty() != null
+                && transferItem.getReceivedQty().compareTo(transferItem.getSentQty()) > 0
+                && transferItem.getQcPassedQty().compareTo(transferItem.getReceivedQty()) == 0;
         for (DiscrepancyHoldEntry hold : holds) {
             WarehouseLocation location = hold.getHoldLocation();
             if (location == null || hold.getBatch() == null) {
@@ -208,16 +218,21 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
                             hold.getBatch().getId(), location.getId())
                     .map(Inventory::getTotalQty)
                     .orElse(BigDecimal.ZERO);
-            applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty());
-            transferHelper.upsertInventory(hold.getWarehouse(), hold.getProduct(), hold.getBatch(),
-                    location, hold.getHoldQty(), BigDecimal.ZERO);
+            if (!overReceiptAlreadyPutaway) {
+                applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty());
+                transferHelper.upsertInventory(hold.getWarehouse(), hold.getProduct(), hold.getBatch(),
+                        location, hold.getHoldQty(), BigDecimal.ZERO);
+            }
             Inventory destination = inventoryRepository.findByStockKeyForUpdate(
                             hold.getWarehouse().getId(), hold.getProduct().getId(),
                             hold.getBatch().getId(), location.getId())
                     .orElseThrow(() -> new BusinessRuleViolationException("INVENTORY_ROW_NOT_FOUND"));
-            auditInventory(actor, destination, beforeDestinationQty, destination.getTotalQty(), hold.getHoldQty(), reason);
-            createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
-                    hold.getHoldQty(), reason, actor);
+            BigDecimal destinationDelta = destination.getTotalQty().subtract(beforeDestinationQty);
+            if (destinationDelta.signum() != 0) {
+                auditInventory(actor, destination, beforeDestinationQty, destination.getTotalQty(), destinationDelta, reason);
+                createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
+                        destinationDelta, reason, actor);
+            }
         }
     }
 
@@ -298,6 +313,44 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
         auditInventory(actor, destination, beforeDestinationQty, destination.getTotalQty(), incident.getQuantity(), reason);
         createApprovedAdjustment(incident, incident.getTransfer().getDestinationWarehouse(), destinationLocation, batch,
                 incident.getQuantity(), reason, actor);
+    }
+
+    private void applyDestinationCountErrorOverReceipt(DiscrepancyIncident incident, String reason, User actor) {
+        // CEO kết luận kho đích đếm thừa: final receive đã cất phần over-receipt,
+        // nên phải trừ phần hold khỏi kho đích để tổng tồn quay về đúng số nguồn đã gửi.
+        List<DiscrepancyHoldEntry> holds = holdEntryRepository.findByIncidentId(incident.getId());
+        if (holds.isEmpty()) {
+            throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_NOT_FOUND");
+        }
+        BigDecimal heldQty = holds.stream()
+                .map(DiscrepancyHoldEntry::getHoldQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (heldQty.compareTo(incident.getQuantity()) != 0) {
+            throw new BusinessRuleViolationException("DISCREPANCY_HOLD_QUANTITY_MISMATCH");
+        }
+
+        for (DiscrepancyHoldEntry hold : holds) {
+            WarehouseLocation location = hold.getHoldLocation();
+            if (location == null || hold.getBatch() == null) {
+                throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_INCOMPLETE");
+            }
+            Inventory destination = inventoryRepository.findByStockKeyForUpdate(
+                            hold.getWarehouse().getId(), hold.getProduct().getId(),
+                            hold.getBatch().getId(), location.getId())
+                    .orElseThrow(() -> new BusinessRuleViolationException("INVENTORY_ROW_NOT_FOUND"));
+            BigDecimal available = destination.getTotalQty().subtract(destination.getReservedQty());
+            if (available.compareTo(hold.getHoldQty()) < 0) {
+                throw new BusinessRuleViolationException("DESTINATION_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION");
+            }
+            BigDecimal beforeQty = destination.getTotalQty();
+            destination.setTotalQty(beforeQty.subtract(hold.getHoldQty()));
+            destination.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(destination);
+            applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty().negate());
+            auditInventory(actor, destination, beforeQty, destination.getTotalQty(), hold.getHoldQty().negate(), reason);
+            createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
+                    hold.getHoldQty().negate(), reason, actor);
+        }
     }
 
     private InterWarehouseTransferItem findIncidentTransferItem(DiscrepancyIncident incident) {
