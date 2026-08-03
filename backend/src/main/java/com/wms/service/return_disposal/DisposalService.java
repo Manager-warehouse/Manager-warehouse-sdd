@@ -471,6 +471,46 @@ public class DisposalService {
                 .build();
     }
 
+    @Transactional
+    public DisposalResponse rejectDisposal(Long adjustmentId, User actor) {
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "DISPOSAL_REJECT");
+
+        Adjustment adjustment = adjustmentRepository.findById(adjustmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Adjustment not found: " + adjustmentId));
+
+        if (adjustment.getType() != AdjustmentType.DISPOSAL) {
+            throw new BusinessRuleViolationException("INVALID_TYPE: Adjustment is not of type DISPOSAL");
+        }
+
+        if (adjustment.getApprovedAt() != null) {
+            throw new BusinessRuleViolationException("ALREADY_APPROVED: Cannot reject an already approved disposal");
+        }
+
+        receiptValidationService.assertWarehouseAccess(actor, adjustment.getWarehouse().getId());
+
+        if ("RECEIPT_ITEM".equals(adjustment.getReferenceType()) && adjustment.getReferenceId() != null) {
+            damageReportRepository.findByReceiptItemId(adjustment.getReferenceId())
+                    .ifPresent(damageReportRepository::delete);
+        }
+
+        adjustmentRepository.delete(adjustment);
+
+        auditLogService.log(
+                actor, AuditAction.QUARANTINE_DISPOSAL_APPROVE, ADJUSTMENT_ENTITY,
+                adjustment.getId(), adjustment.getAdjustmentNumber(),
+                adjustment.getWarehouse().getId(),
+                Map.of("approved", "false"),
+                Map.of("rejected", "true", "rejectedBy", actor.getId())
+        );
+
+        return DisposalResponse.builder()
+                .adjustmentId(adjustmentId)
+                .adjustmentNumber(adjustment.getAdjustmentNumber())
+                .autoApproved(false)
+                .message("Đã từ chối yêu cầu tiêu hủy. Sản phẩm đã quay lại Khu vực xử lý quarantine.")
+                .build();
+    }
+
     private void deductQuarantineInventory(Adjustment adjustment, User actor) {
         BigDecimal failedQty = adjustment.getQuantityAdjustment().abs();
         Long warehouseId = adjustment.getWarehouse().getId();

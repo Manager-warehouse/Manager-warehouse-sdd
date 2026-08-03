@@ -1670,5 +1670,25 @@ export const inboundService = {
     }
     const response = await apiClient.put(`/disposal/${adjustmentId}/approve`);
     return response.data;
+  },
+
+  rejectDisposal: async (adjustmentId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const adjustments = getDb(KEYS.ADJUSTMENTS, []);
+      const damageReports = getDb('wms_db_damage_reports', []);
+      const adjIdx = adjustments.findIndex(adj => adj.id === Number(adjustmentId));
+      if (adjIdx !== -1) {
+        const adj = adjustments[adjIdx];
+        const drIdx = damageReports.findIndex(d => d.id === adj.reference_id);
+        if (drIdx !== -1) damageReports.splice(drIdx, 1);
+        adjustments.splice(adjIdx, 1);
+        saveDb(KEYS.ADJUSTMENTS, adjustments);
+        saveDb('wms_db_damage_reports', damageReports);
+      }
+      return { message: 'Đã từ chối yêu cầu tiêu hủy' };
+    }
+    const response = await apiClient.put(`/disposal/${adjustmentId}/reject`);
+    return response.data;
   }
 };

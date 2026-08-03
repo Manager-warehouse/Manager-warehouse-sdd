@@ -147,6 +147,19 @@ const QuarantineWorkspace = () => {
     }
   };
 
+  const handleRejectDisposal = async (adjId) => {
+    setLoading(true);
+    try {
+      await inboundService.rejectDisposal(adjId);
+      addToast('Đã từ chối yêu cầu tiêu hủy. Sản phẩm đã quay lại Khu vực xử lý.', 'success');
+      fetchData();
+    } catch (e) {
+      addToast('Lỗi từ chối yêu cầu tiêu hủy', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getDisposalApprovalAuthority = () => {
     return hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
   };
@@ -341,12 +354,20 @@ const QuarantineWorkspace = () => {
                         <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
-                            <button
-                              onClick={() => handleApproveDisposal(adj.id)}
-                              className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-                            >
-                              Phê duyệt
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleRejectDisposal(adj.id)}
+                                className="inline-flex items-center justify-center rounded-full bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                              >
+                                Từ chối
+                              </button>
+                              <button
+                                onClick={() => handleApproveDisposal(adj.id)}
+                                className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                              >
+                                Phê duyệt
+                              </button>
+                            </div>
                           ) : (
                             <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                           )}
@@ -380,14 +401,22 @@ const QuarantineWorkspace = () => {
                       <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{totalVal.toLocaleString('vi-VN')} VND</span></p>
                       <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
                     </div>
-                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <div className="p-4 border-t border-hairline-light flex justify-end gap-2">
                       {isAuthorized ? (
-                        <button
-                          onClick={() => handleApproveDisposal(adj.id)}
-                          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-                        >
-                          Phê duyệt
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleRejectDisposal(adj.id)}
+                            className="inline-flex items-center justify-center rounded-full bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                          >
+                            Từ chối
+                          </button>
+                          <button
+                            onClick={() => handleApproveDisposal(adj.id)}
+                            className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                          >
+                            Phê duyệt
+                          </button>
+                        </>
                       ) : (
                         <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                       )}

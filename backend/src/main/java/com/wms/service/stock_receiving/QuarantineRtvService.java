@@ -115,7 +115,7 @@ public class QuarantineRtvService {
     public RtvActionResponse createRtv(Long receiptId,
                                         ReceiptRtvCreateRequest request,
                                         User actor) {
-        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CREATE");
         receiptValidationService.assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
@@ -378,7 +378,11 @@ public class QuarantineRtvService {
 
         List<ReceiptItem> failedItems = receiptItemRepository.findQuarantineItemsByWarehouseId(warehouseId);
         List<QuarantineRecord> quarantineRecords = quarantineRecordRepository
-                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO);
+                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO)
+                .stream()
+                .filter(qr -> !adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                        "QUARANTINE_RECORD", qr.getId(), com.wms.enums.stock_control.AdjustmentType.DISPOSAL))
+                .collect(java.util.stream.Collectors.toList());
 
         List<QuarantineItemResponse> responses = new java.util.ArrayList<>();
 

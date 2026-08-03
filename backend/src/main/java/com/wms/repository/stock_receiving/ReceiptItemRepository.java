@@ -48,6 +48,11 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
            "        WHERE a.referenceType = 'RECEIPT' " +
            "          AND a.referenceId = r.id " +
            "          AND a.type = 'RETURN_TO_VENDOR'" +
+           "    ) AND NOT EXISTS (" +
+           "        SELECT 1 FROM Adjustment a " +
+           "        WHERE a.referenceType = 'RECEIPT_ITEM' " +
+           "          AND a.referenceId = ri.id " +
+           "          AND a.type = 'DISPOSAL'" +
            "    )) OR " +
            "    (r.type = 'RETURN' AND r.status = 'APPROVED' AND ri.sampleFailedQty > 0 AND NOT EXISTS (" +
            "        SELECT 1 FROM Adjustment a " +
