@@ -79,8 +79,12 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
     @Transactional(readOnly = true)
     public List<SupplierBillingNotificationResponse> getPendingNotifications(User actor) {
         requireAccountant(actor);
+        // Use the putaway-guarded query so that stale notifications (whose receipt
+        // status was reset to a pre-putaway state) never surface in the accountant
+        // worklist.  The migration V65 corrects existing data; this guard covers
+        // any future edge case.
         List<SupplierBillingNotification> list = supplierBillingNotificationRepository
-                .findByStatusAndInvoiceStatus("ACTIVE", "NOT_INVOICED");
+                .findActiveNotInvoicedWithPutawayCompleted("ACTIVE", "NOT_INVOICED");
         return list.stream().map(this::toResponse).toList();
     }
 

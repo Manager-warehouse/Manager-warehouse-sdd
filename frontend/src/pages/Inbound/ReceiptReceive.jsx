@@ -97,17 +97,21 @@ const ReceiptReceive = () => {
   const handleQtyChange = (itemId, field, value) => {
     if (value !== '' && !/^\d+$/.test(value)) return;
     updateItem(itemId, (item) => {
-      if (field === 'quality_failed_qty') {
-        const failed = value === '' ? '' : Number(value);
-        const updated = { ...item, quality_failed_qty: failed };
+      if (field === 'quality_passed_qty') {
+        const passed = value === '' ? '' : Number(value);
+        const actual = hasQty(item.actual_qty) ? emptyToZero(item.actual_qty) : null;
+        const failed = actual !== null && passed !== '' ? Math.max(0, actual - passed) : '';
+        const updated = { ...item, quality_passed_qty: passed, quality_failed_qty: failed };
         return {
           ...updated,
           qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
         };
       }
-      if (field === 'quality_passed_qty') {
-        const passed = value === '' ? '' : Number(value);
-        const updated = { ...item, quality_passed_qty: passed };
+      if (field === 'actual_qty') {
+        const actual = value === '' ? '' : Number(value);
+        const passed = hasQty(item.quality_passed_qty) ? emptyToZero(item.quality_passed_qty) : null;
+        const failed = actual !== '' && passed !== null ? Math.max(0, actual - passed) : '';
+        const updated = { ...item, actual_qty: actual, quality_failed_qty: failed };
         return {
           ...updated,
           qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
@@ -284,7 +288,17 @@ const ReceiptReceive = () => {
                       <td className="px-4 py-4 text-right font-bold text-shade-60">{expectedQtyOf(item)}</td>
                       <td className="px-4 py-3"><QtyInput value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} /></td>
                       <td className="px-4 py-3"><QtyInput value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} /></td>
-                      <td className="px-4 py-3"><QtyInput value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} /></td>
+                      <td className="px-4 py-4 text-right">
+                        <span className={`inline-block w-28 text-right font-bold text-sm px-2 py-1.5 rounded ${
+                          emptyToZero(item.quality_failed_qty) > 0
+                            ? 'text-danger-700 bg-danger-50'
+                            : 'text-shade-60'
+                        }`}>
+                          {item.quality_failed_qty !== '' && item.quality_failed_qty !== null && item.quality_failed_qty !== undefined
+                            ? item.quality_failed_qty
+                            : '—'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 min-w-[180px]">
                         <input
                           type="text"
@@ -325,7 +339,11 @@ const ReceiptReceive = () => {
                     <ReadonlyQty label="SL dự kiến" value={expectedQtyOf(item)} />
                     <FieldQty label="Đếm số lượng" value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} />
                     <FieldQty label="Hàng đạt yêu cầu" value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} />
-                    <FieldQty label="Không đạt yêu cầu" value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} />
+                    <ReadonlyQty
+                      label="Không đạt yêu cầu"
+                      value={item.quality_failed_qty !== '' && item.quality_failed_qty !== null && item.quality_failed_qty !== undefined ? item.quality_failed_qty : '—'}
+                      valueClassName={emptyToZero(item.quality_failed_qty) > 0 ? 'text-danger-700' : 'text-shade-60'}
+                    />
                   </div>
                   <label className="mt-3 flex flex-col gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi/thiếu</span>

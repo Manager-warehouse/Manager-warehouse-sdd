@@ -456,7 +456,6 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong className="text-ink">{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Nhà cung cấp:</span> <strong>{getSupplierName(selectedItem.supplier_id)}</strong></div>
                 <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
-                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn:</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold">Lý do xuất trả <span className="text-danger-600">*</span></label>
@@ -477,7 +476,7 @@ const QuarantineWorkspace = () => {
                 disabled={submitting || !actionNotes.trim()}
                 className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50"
               >
-                {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả & Đòi tiền'}
+                {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả'}
               </button>
             </div>
           </div>
