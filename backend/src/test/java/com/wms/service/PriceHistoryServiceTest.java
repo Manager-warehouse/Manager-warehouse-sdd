@@ -74,10 +74,14 @@ import com.wms.repository.NotificationRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import org.springframework.security.access.AccessDeniedException;
 import com.wms.service.price_management.impl.PriceHistoryServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -105,6 +109,7 @@ class PriceHistoryServiceTest {
     @Mock NotificationRepository notificationRepository;
     @Mock PartnerAuditUtil auditUtil;
     @Mock AccountingPeriodService accountingPeriodService;
+    @Mock UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     PriceHistoryServiceImpl service;
 
@@ -117,12 +122,13 @@ class PriceHistoryServiceTest {
         service = new PriceHistoryServiceImpl(
                 priceHistoryRepository, productRepository,
                 warehouseRepository, userRepository, notificationRepository, auditUtil,
-                accountingPeriodService);
+                accountingPeriodService, userWarehouseAssignmentRepository);
 
         actor = new User();
         actor.setId(1L);
         actor.setFullName("Kế toán viên A");
         actor.setRole(UserRole.ACCOUNTANT);
+        lenient().when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L));
 
         product = new Product();
         product.setId(10L);
@@ -219,6 +225,23 @@ class PriceHistoryServiceTest {
         assertThatThrownBy(() -> service.create(req, actor))
                 .isInstanceOf(PriceHistoryException.class)
                 .hasMessageContaining("PENDING");
+    }
+
+    @Test
+    void create_accountantOutsideAssignedWarehouse_throws() {
+        // Accountant is only assigned to warehouse 1L; a request for warehouse 2L
+        // (e.g. a different accountant's kho) must be rejected, not silently allowed.
+        PriceHistoryCreateRequest req = buildCreateRequest(LocalDate.of(2026, 7, 1));
+        req.setWarehouseId(2L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(otherWarehouse));
+
+        assertThatThrownBy(() -> service.create(req, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(priceHistoryRepository, never()).saveAndFlush(any());
     }
 
     // ── cancel ────────────────────────────────────────────────────────────────
@@ -318,6 +341,52 @@ class PriceHistoryServiceTest {
         Optional<PriceHistory> result = service.lookupApproved(10L, 1L, LocalDate.of(2026, 7, 1));
 
         assertThat(result).isEmpty();
+    }
+
+    // ── warehouse scope (getById / getAll) ──────────────────────────────────────
+
+    @Test
+    void getById_accountantOutsideAssignedWarehouse_throws() {
+        PriceHistory ph = pendingPriceHistory(1L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        ph.setWarehouse(otherWarehouse);
+        when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
+
+        assertThatThrownBy(() -> service.getById(1L, actor))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void getById_nullActor_bypassesScopeCheck() {
+        // Internal callers (e.g. the /lookup preview endpoint) pass a null actor and
+        // must not be blocked by warehouse scoping.
+        PriceHistory ph = pendingPriceHistory(1L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        ph.setWarehouse(otherWarehouse);
+        when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
+
+        PriceHistoryResponse resp = service.getById(1L, null);
+
+        assertThat(resp.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void getAll_accountantRequestsWarehouseOutsideScope_throws() {
+        assertThatThrownBy(() -> service.getAll(null, 2L, null, null, null, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(priceHistoryRepository, never()).findAll(any(Specification.class), any(Sort.class));
+    }
+
+    @Test
+    void getAll_accountantNoWarehouseFilter_stillQueriesRestrictedToAssignedWarehouses() {
+        when(priceHistoryRepository.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of());
+
+        List<PriceHistoryResponse> result = service.getAll(null, null, null, null, null, actor);
+
+        assertThat(result).isEmpty();
+        verify(priceHistoryRepository).findAll(any(Specification.class), any(Sort.class));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

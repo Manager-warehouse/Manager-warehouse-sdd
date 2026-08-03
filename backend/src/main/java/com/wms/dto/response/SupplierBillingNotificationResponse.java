@@ -26,6 +26,7 @@ public class SupplierBillingNotificationResponse {
     private Long supplierId;
     private String supplierName;
     private Long warehouseId;
+    private String warehouseName;
     private OffsetDateTime completedAt;
     private BigDecimal totalAmountEstimate;
     private String invoiceStatus;

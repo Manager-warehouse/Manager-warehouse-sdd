@@ -115,6 +115,7 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
                 .supplierId(entity.getSupplier().getId())
                 .supplierName(entity.getSupplierName())
                 .warehouseId(entity.getWarehouse().getId())
+                .warehouseName(entity.getWarehouse().getName())
                 .completedAt(entity.getCompletedAt())
                 .totalAmountEstimate(entity.getTotalAmountEstimate())
                 .invoiceStatus(entity.getInvoiceStatus())

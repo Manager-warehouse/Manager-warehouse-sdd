@@ -39,6 +39,7 @@ const Payments = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrFileName, setOcrFileName] = useState('');
   const [ocrConfidence, setOcrConfidence] = useState(null);
+  const [ocrDealerMatched, setOcrDealerMatched] = useState(true);
   const [ocrResetKey, setOcrResetKey] = useState(0);
   const ocrLowConfidence = ocrConfidence !== null && ocrConfidence < OCR_LOW_CONFIDENCE_THRESHOLD;
 
@@ -59,6 +60,7 @@ const Payments = () => {
     setOcrConfidence(null);
     try {
       const result = await financeService.scanPaymentReceiptOcr(file);
+      const dealerMatched = Boolean(result.dealer_id);
       setFormData(prev => ({
         ...prev,
         dealerId: result.dealer_id ? String(result.dealer_id) : '',
@@ -67,10 +69,20 @@ const Payments = () => {
         notes: result.notes || ''
       }));
       setOcrConfidence(result.confidence_score ?? null);
+      setOcrDealerMatched(dealerMatched);
 
       const confidencePercent = Math.round((result.confidence_score || 0) * 100);
       if ((result.confidence_score ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
-        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ trước khi lưu.`, 'warning');
+        // OCR reads amount/date reliably but only ever lands below the confidence
+        // threshold for one reason today: it couldn't match the sender to a dealer
+        // by name/code in the receipt text (see TesseractOcrServiceImpl.matchDealer,
+        // fixed 0.60 fallback score). Say that plainly instead of a bare percentage.
+        addToast(
+          dealerMatched
+            ? `Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ trước khi lưu.`
+            : `Không nhận diện được Đại lý từ nội dung hóa đơn (độ tin cậy ${confidencePercent}%). Vui lòng chọn đại lý thủ công.`,
+          'warning'
+        );
       } else {
         addToast(`Quét hóa đơn thành công! Độ chính xác nhận diện: ${confidencePercent}%`, 'success');
       }
@@ -86,6 +98,7 @@ const Payments = () => {
   const handleOcrReset = () => {
     setOcrFileName('');
     setOcrConfidence(null);
+    setOcrDealerMatched(true);
     setOcrResetKey(prev => prev + 1);
     setFormData({
       dealerId: '',
@@ -305,7 +318,9 @@ const Payments = () => {
                     <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
                       <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <span className="text-[10px] text-amber-800 font-medium leading-snug">
-                        Độ tin cậy nhận diện thấp ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra kỹ số tiền, ngày và đại lý trước khi lưu phiếu thu.
+                        {ocrDealerMatched
+                          ? `Độ tin cậy nhận diện thấp (${Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra kỹ số tiền, ngày và đại lý trước khi lưu phiếu thu.`
+                          : `Không nhận diện được Đại lý từ nội dung hóa đơn (${Math.round(ocrConfidence * 100)}%) — OCR chỉ đọc được số tiền/ngày. Vui lòng chọn đại lý thủ công trước khi lưu.`}
                       </span>
                     </div>
                   )}

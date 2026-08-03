@@ -95,7 +95,8 @@ public class PriceHistoryController {
             @RequestParam(required = false) PriceHistoryStatus status,
             @RequestParam(required = false) LocalDate effectiveDateFrom,
             @RequestParam(required = false) LocalDate effectiveDateTo) {
-        return priceHistoryService.getAll(productId, warehouseId, status, effectiveDateFrom, effectiveDateTo);
+        return priceHistoryService.getAll(productId, warehouseId, status, effectiveDateFrom, effectiveDateTo,
+                currentUserService.getRequiredCurrentUser());
     }
 
     @GetMapping("/lookup")
@@ -145,7 +146,8 @@ public class PriceHistoryController {
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) PriceHistoryStatus status) {
-        List<PriceHistoryResponse> entries = priceHistoryService.getAll(productId, warehouseId, status, null, null);
+        List<PriceHistoryResponse> entries = priceHistoryService.getAll(productId, warehouseId, status, null, null,
+                currentUserService.getRequiredCurrentUser());
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("bang-gia");
             Row header = sheet.createRow(0);
