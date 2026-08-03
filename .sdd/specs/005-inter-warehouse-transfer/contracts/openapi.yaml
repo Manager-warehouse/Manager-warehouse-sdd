@@ -76,7 +76,7 @@ paths:
           description: Không được cập nhật yêu cầu
   /transfer-requests/{id}/submit:
     post:
-      summary: Gửi yêu cầu điều chuyển cho CEO
+      summary: Gửi yêu cầu điều chuyển cho Quản lý kho nguồn
       tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
@@ -104,7 +104,7 @@ paths:
           description: Yêu cầu không còn DRAFT hoặc actor không được hủy
   /transfer-requests/{id}/approve:
     post:
-      summary: CEO duyệt yêu cầu điều chuyển và gửi mẫu cho Planner nguồn
+      summary: Quản lý kho nguồn duyệt yêu cầu điều chuyển và giữ hàng
       tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
@@ -119,7 +119,7 @@ paths:
           description: Không được duyệt
   /transfer-requests/{id}/reject:
     post:
-      summary: CEO từ chối yêu cầu điều chuyển
+      summary: Quản lý kho nguồn từ chối yêu cầu điều chuyển
       tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'

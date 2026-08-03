@@ -196,12 +196,12 @@ class TransferRequestControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "ceo@wms.com", roles = "CEO")
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void approveRequest_success() throws Exception {
         TransferRequestResponse response = createMockResponse(500L, "TRQ-0001", TransferRequestStatus.APPROVED);
 
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(ceo);
-        when(requestService.approveRequest(eq(500L), eq(ceo)))
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(requestService.approveRequest(eq(500L), eq(manager)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/transfer-requests/500/approve")
@@ -211,14 +211,14 @@ class TransferRequestControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "ceo@wms.com", roles = "CEO")
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void rejectRequest_success() throws Exception {
         TransferRequestRejectRequest rejectReq = new TransferRequestRejectRequest("Out of budget");
 
         TransferRequestResponse response = createMockResponse(500L, "TRQ-0001", TransferRequestStatus.REJECTED);
 
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(ceo);
-        when(requestService.rejectRequest(eq(500L), any(TransferRequestRejectRequest.class), eq(ceo)))
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(requestService.rejectRequest(eq(500L), any(TransferRequestRejectRequest.class), eq(manager)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/transfer-requests/500/reject")

@@ -118,7 +118,6 @@ class InvoiceControllerTest {
         InvoiceCreateRequest request = new InvoiceCreateRequest();
         request.setDoId(10L);
         request.setDocumentDate(LocalDate.of(2026, 6, 15));
-        request.setNotes("Notes");
 
         InvoiceResponse response = InvoiceResponse.builder()
                 .id(100L)

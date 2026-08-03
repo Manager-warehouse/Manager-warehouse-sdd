@@ -10,7 +10,6 @@ import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
 import com.wms.entity.warehouse_transfer.DiscrepancyHoldEntry;
 import com.wms.entity.warehouse_transfer.DiscrepancyIncident;
-import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransferAllocation;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
 import com.wms.enums.access_control.UserRole;

@@ -39,12 +39,11 @@ import jakarta.persistence.*;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import java.time.OffsetDateTime;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import com.wms.enums.order_fulfillment.DeliveryOtpStatus;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "delivery_otp_attempts")
