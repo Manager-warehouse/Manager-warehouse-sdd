@@ -14,10 +14,6 @@ import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIco
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
-// Real-time entry only - no backdating invoices/payments (unlike correction vouchers,
-// which exist specifically to touch a past period).
-const todayDateStr = () => new Date().toISOString().slice(0, 10);
-
 const DealerDebtInvoice = () => {
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
@@ -124,10 +120,6 @@ const DealerDebtInvoice = () => {
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     if (submittingInvoice) return;
-    if (invoiceFormData.documentDate < todayDateStr()) {
-      addToast('Ngày hạch toán không được là ngày trong quá khứ', 'error');
-      return;
-    }
     setSubmittingInvoice(true);
     try {
       await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
@@ -294,10 +286,6 @@ const DealerDebtInvoice = () => {
     }
     if (Number(paymentFormData.amount) <= 0) {
       addToast('Số tiền thu phải lớn hơn 0', 'error');
-      return;
-    }
-    if (paymentFormData.paymentDate < todayDateStr()) {
-      addToast('Ngày thu tiền không được là ngày trong quá khứ', 'error');
       return;
     }
     if (submittingPayment) return;
@@ -690,7 +678,6 @@ const DealerDebtInvoice = () => {
                 id="documentDate"
                 label="Ngày hạch toán"
                 type="date"
-                min={todayDateStr()}
                 value={invoiceFormData.documentDate}
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
                 required
@@ -820,7 +807,6 @@ const DealerDebtInvoice = () => {
                   id="paymentDate"
                   label="Ngày thu tiền"
                   type="date"
-                  min={todayDateStr()}
                   value={paymentFormData.paymentDate}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                   required
