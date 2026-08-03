@@ -22,6 +22,7 @@ import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.TripRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.reporting_alerting.ReportService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
