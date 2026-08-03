@@ -376,6 +376,8 @@ const normalizeDoItem = (item = {}) => ({
   id: value(item, 'id', 'id'),
   do_id: value(item, 'deliveryOrderId', 'do_id'),
   product_id: value(item, 'productId', 'product_id'),
+  batch_id: value(item, 'batchId', 'batch_id'),
+  batch_code: value(item, 'batchCode', 'batch_code'),
   product_name: value(item, 'productName', 'product_name', `Sản phẩm #${value(item, 'productId', 'product_id', '')}`),
   sku: value(item, 'sku', 'sku', ''),
   requested_qty: Number(value(item, 'requestedQty', 'requested_qty', 0)),
@@ -711,7 +713,11 @@ const buildMockPickingCandidates = (order) => order.items.reduce((accumulator, i
 const buildPickQcPayload = (qcRows = []) => {
   const results = qcRows.map((row) => {
     const pickedQty = Number(row.picked_qty ?? row.planned_qty ?? 0);
-    const isFailed = row.result === 'FAILED';
+    const hasExplicitFailQty = row.qc_fail_qty !== undefined || row.qcFailQty !== undefined;
+    const qcFailQty = hasExplicitFailQty
+      ? Number(row.qc_fail_qty ?? row.qcFailQty)
+      : row.result === 'FAILED' ? pickedQty : 0;
+    const qcPassQty = Math.round((pickedQty - qcFailQty + Number.EPSILON) * 100) / 100;
     return {
       doItemId: Number(row.do_item_id),
       allocationId: Number(row.allocation_id),
@@ -719,11 +725,13 @@ const buildPickQcPayload = (qcRows = []) => {
       locationId: Number(row.location_id),
       zoneId: Number(row.zone_id),
       pickedQty,
-      qcPassQty: isFailed ? 0 : pickedQty,
-      qcFailQty: isFailed ? pickedQty : 0,
-      qcFailReason: isFailed ? row.reason || null : null,
+      qcPassQty,
+      qcFailQty,
+      qcFailReason: qcFailQty > 0 ? row.reason || null : null,
       stagingLocationId: row.staging_location_id ? Number(row.staging_location_id) : null,
-      quarantineLocationId: row.quarantine_location_id ? Number(row.quarantine_location_id) : null,
+      quarantineLocationId: qcFailQty > 0 && row.quarantine_location_id
+        ? Number(row.quarantine_location_id)
+        : null,
       notes: row.notes || '',
     };
   });
@@ -1145,17 +1153,18 @@ export const outboundService = {
         const idx = items.findIndex((item) => item.id === itemId);
         if (idx !== -1) {
           const pickedQty = rows.reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
-          const qcFailQty = rows
-            .filter((row) => row.result === 'FAILED')
-            .reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
+          const qcFailQty = rows.reduce((sum, row) => {
+            const failedQty = row.qc_fail_qty ?? row.qcFailQty;
+            return sum + Number(failedQty ?? (row.result === 'FAILED' ? row.picked_qty : 0));
+          }, 0);
           const qcPassQty = pickedQty - qcFailQty;
 
           items[idx].picked_qty = pickedQty;
           items[idx].issued_qty = pickedQty;
           items[idx].qc_pass_qty = qcPassQty;
           items[idx].qc_fail_qty = qcFailQty;
-          items[idx].qc_result = rows.some((row) => row.result === 'FAILED') ? 'FAILED' : 'PASSED';
-          items[idx].qc_failure_reason = rows.find((row) => row.result === 'FAILED')?.reason || null;
+          items[idx].qc_result = qcFailQty > 0 ? 'FAILED' : 'PASSED';
+          items[idx].qc_failure_reason = rows.find((row) => Number(row.qc_fail_qty ?? row.qcFailQty ?? 0) > 0)?.reason || null;
           items[idx].allocations = (items[idx].allocations || []).map((allocation) => {
             const matchedRow = rows.find((row) => Number(row.allocation_id) === Number(allocation.allocation_id));
             return matchedRow

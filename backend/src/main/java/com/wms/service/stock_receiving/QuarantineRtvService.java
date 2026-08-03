@@ -1,10 +1,12 @@
 package com.wms.service.stock_receiving;
+
 import com.wms.dto.request.ReceiptRtvConfirmRequest;
 import com.wms.dto.request.ReceiptRtvCreateRequest;
 import com.wms.dto.response.QuarantineItemResponse;
 import com.wms.dto.response.RtvActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.DebitNote;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_control.Inventory;
@@ -24,10 +26,10 @@ import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DebitNoteRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.PriceHistoryRepository;
-import com.wms.repository.QuarantineRecordRepository;
-import com.wms.repository.ReceiptItemRepository;
-import com.wms.repository.ReceiptRepository;
 import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import java.math.BigDecimal;
@@ -114,7 +116,7 @@ public class QuarantineRtvService {
     public RtvActionResponse createRtv(Long receiptId,
                                         ReceiptRtvCreateRequest request,
                                         User actor) {
-        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CREATE");
         receiptValidationService.assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
@@ -377,7 +379,11 @@ public class QuarantineRtvService {
 
         List<ReceiptItem> failedItems = receiptItemRepository.findQuarantineItemsByWarehouseId(warehouseId);
         List<QuarantineRecord> quarantineRecords = quarantineRecordRepository
-                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO);
+                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO)
+                .stream()
+                .filter(qr -> !adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                        "QUARANTINE_RECORD", qr.getId(), com.wms.enums.stock_control.AdjustmentType.DISPOSAL))
+                .collect(java.util.stream.Collectors.toList());
 
         List<QuarantineItemResponse> responses = new java.util.ArrayList<>();
 
@@ -395,7 +401,7 @@ public class QuarantineRtvService {
                     .id(item.getId())
                     .productSku(item.getProduct().getSku())
                     .productName(item.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
+                    .qcFailedQty(failedQty)
                     .qcFailureReason(item.getQcFailureReason())
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
@@ -415,15 +421,22 @@ public class QuarantineRtvService {
 
             BigDecimal failedQty = qr.getRemainingQuantity();
             BigDecimal totalValue = failedQty.multiply(unitCost);
+            DeliveryOrder deliveryOrder = qr.getDeliveryOrder();
 
             responses.add(QuarantineItemResponse.builder()
                     .id(qr.getId())
                     .productSku(qr.getProduct().getSku())
                     .productName(qr.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
+                    .qcFailedQty(failedQty)
                     .qcFailureReason(qr.getReason())
-                    .receiptNumber(qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
+                    .receiptNumber(deliveryOrder != null
+                            ? deliveryOrder.getDoNumber()
+                            : qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
                     .supplierId(null)
+                    .dealerId(deliveryOrder != null && deliveryOrder.getDealer() != null
+                            ? deliveryOrder.getDealer().getId() : null)
+                    .dealerName(deliveryOrder != null && deliveryOrder.getDealer() != null
+                            ? deliveryOrder.getDealer().getName() : null)
                     .totalValue(totalValue)
                     .unit(qr.getProduct().getUnit() != null ? qr.getProduct().getUnit() : "cái")
                     .receiptId(null)

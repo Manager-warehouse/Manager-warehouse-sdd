@@ -47,6 +47,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.stream.Stream;
 
@@ -119,6 +120,18 @@ public class GlobalExceptionHandlerTest {
         public void throwIllegalArgument() {
             throw new IllegalArgumentException("INVALID_CREDENTIALS");
         }
+
+        @GetMapping("/test/inventory-row-conflict")
+        public void throwInventoryRowConflict() {
+            throw new DataIntegrityViolationException("duplicate",
+                    new RuntimeException("duplicate key violates constraint inventories_warehouse_id_product_id_batch_id_location_id_key"));
+        }
+
+        @GetMapping("/test/adjustment-number-conflict")
+        public void throwAdjustmentNumberConflict() {
+            throw new DataIntegrityViolationException("duplicate",
+                    new RuntimeException("duplicate key violates constraint adjustments_adjustment_number_key"));
+        }
     }
 
     static Stream<Arguments> provideExceptionEndpoints() {
@@ -129,7 +142,9 @@ public class GlobalExceptionHandlerTest {
             Arguments.of("/test/transfer-business-rule", 422, "INSUFFICIENT_AVAILABLE_STOCK", null),
             Arguments.of("/test/generic-business-rule", 422, "BUSINESS_RULE_VIOLATION", "Dealer is inactive"),
             Arguments.of("/test/access-denied", 403, "ACCESS_DENIED", null),
-            Arguments.of("/test/illegal-argument", 401, "UNAUTHORIZED", null)
+            Arguments.of("/test/illegal-argument", 401, "UNAUTHORIZED", null),
+            Arguments.of("/test/inventory-row-conflict", 409, "INVENTORY_ROW_CONFLICT", null),
+            Arguments.of("/test/adjustment-number-conflict", 409, "ADJUSTMENT_NUMBER_CONFLICT", null)
         );
     }
 

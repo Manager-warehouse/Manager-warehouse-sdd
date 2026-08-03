@@ -110,7 +110,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.driver_management.DriverRepository;
-import com.wms.repository.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InterWarehouseTransferAllocationRepository;
 import com.wms.repository.InterWarehouseTransferItemRepository;

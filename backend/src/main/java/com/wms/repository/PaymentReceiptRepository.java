@@ -17,4 +17,22 @@ public interface PaymentReceiptRepository extends JpaRepository<PaymentReceipt, 
     List<PaymentReceipt> findByInvoiceId(Long invoiceId);
 
     List<PaymentReceipt> findByAccountingPeriodIdOrderByCreatedAtDesc(Long accountingPeriodId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PaymentReceipt p JOIN p.invoice i JOIN i.deliveryOrder do WHERE " +
+           "do.warehouse.id IN :warehouseIds " +
+           "AND (:dealerId IS NULL OR p.dealer.id = :dealerId) " +
+           "AND (:periodId IS NULL OR p.accountingPeriod.id = :periodId) " +
+           "ORDER BY p.createdAt DESC")
+    List<PaymentReceipt> findFilteredPaymentReceiptsWithWarehouses(
+            @org.springframework.data.repository.query.Param("warehouseIds") List<Long> warehouseIds,
+            @org.springframework.data.repository.query.Param("dealerId") Long dealerId,
+            @org.springframework.data.repository.query.Param("periodId") Long periodId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PaymentReceipt p WHERE " +
+           "(:dealerId IS NULL OR p.dealer.id = :dealerId) " +
+           "AND (:periodId IS NULL OR p.accountingPeriod.id = :periodId) " +
+           "ORDER BY p.createdAt DESC")
+    List<PaymentReceipt> findFilteredPaymentReceiptsWithoutWarehouses(
+            @org.springframework.data.repository.query.Param("dealerId") Long dealerId,
+            @org.springframework.data.repository.query.Param("periodId") Long periodId);
 }

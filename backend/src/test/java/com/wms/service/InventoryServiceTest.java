@@ -72,7 +72,7 @@ import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
-import com.wms.repository.ReceiptRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.StockAlertRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.repository.WarehouseProductReservationRepository;

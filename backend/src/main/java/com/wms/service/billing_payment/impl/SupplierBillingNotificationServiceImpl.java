@@ -8,7 +8,7 @@ import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.repository.SupplierBillingNotificationRepository;
 import com.wms.service.billing_payment.SupplierBillingNotificationService;
 import org.springframework.security.access.AccessDeniedException;
@@ -79,8 +79,12 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
     @Transactional(readOnly = true)
     public List<SupplierBillingNotificationResponse> getPendingNotifications(User actor) {
         requireAccountant(actor);
+        // Use the putaway-guarded query so that stale notifications (whose receipt
+        // status was reset to a pre-putaway state) never surface in the accountant
+        // worklist.  The migration V65 corrects existing data; this guard covers
+        // any future edge case.
         List<SupplierBillingNotification> list = supplierBillingNotificationRepository
-                .findByStatusAndInvoiceStatus("ACTIVE", "NOT_INVOICED");
+                .findActiveNotInvoicedWithPutawayCompleted("ACTIVE", "NOT_INVOICED");
         return list.stream().map(this::toResponse).toList();
     }
 

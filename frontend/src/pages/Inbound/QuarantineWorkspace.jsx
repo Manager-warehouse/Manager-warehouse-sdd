@@ -147,6 +147,19 @@ const QuarantineWorkspace = () => {
     }
   };
 
+  const handleRejectDisposal = async (adjId) => {
+    setLoading(true);
+    try {
+      await inboundService.rejectDisposal(adjId);
+      addToast('Đã từ chối yêu cầu tiêu hủy. Sản phẩm đã quay lại Khu vực xử lý.', 'success');
+      fetchData();
+    } catch (e) {
+      addToast('Lỗi từ chối yêu cầu tiêu hủy', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getDisposalApprovalAuthority = () => {
     return hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
   };
@@ -251,6 +264,10 @@ const QuarantineWorkspace = () => {
                         <span className="bg-shade-30 text-ink border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Điều chuyển kho: {item.receipt_number}
                         </span>
+                      ) : item.origin_type === 'OUTBOUND_QC' ? (
+                        <span className="bg-danger-50 text-danger-700 border border-danger-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                          QC xuất kho: {item.receipt_number}
+                        </span>
                       ) : (
                         <span className="bg-canvas-cream text-shade-70 border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Nhập từ NCC: {item.receipt_number}
@@ -265,6 +282,11 @@ const QuarantineWorkspace = () => {
                     ) : item.origin_type === 'RECEIPT' ? (
                       <div>
                         <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
+                      </div>
+                    ) : item.origin_type === 'OUTBOUND_QC' ? (
+                      <div>
+                        <span className="font-semibold text-shade-50">Đại lý nhận hàng:</span>{' '}
+                        <strong className="text-ink">{item.dealer_name || (item.dealer_id ? `Đại lý ID: ${item.dealer_id}` : 'N/A')}</strong>
                       </div>
                     ) : null}
                     <div>
@@ -341,12 +363,20 @@ const QuarantineWorkspace = () => {
                         <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
-                            <button
-                              onClick={() => handleApproveDisposal(adj.id)}
-                              className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-                            >
-                              Phê duyệt
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleRejectDisposal(adj.id)}
+                                className="inline-flex items-center justify-center rounded-full bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                              >
+                                Từ chối
+                              </button>
+                              <button
+                                onClick={() => handleApproveDisposal(adj.id)}
+                                className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                              >
+                                Phê duyệt
+                              </button>
+                            </div>
                           ) : (
                             <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                           )}
@@ -380,14 +410,22 @@ const QuarantineWorkspace = () => {
                       <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{totalVal.toLocaleString('vi-VN')} VND</span></p>
                       <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
                     </div>
-                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <div className="p-4 border-t border-hairline-light flex justify-end gap-2">
                       {isAuthorized ? (
-                        <button
-                          onClick={() => handleApproveDisposal(adj.id)}
-                          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-                        >
-                          Phê duyệt
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleRejectDisposal(adj.id)}
+                            className="inline-flex items-center justify-center rounded-full bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                          >
+                            Từ chối
+                          </button>
+                          <button
+                            onClick={() => handleApproveDisposal(adj.id)}
+                            className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                          >
+                            Phê duyệt
+                          </button>
+                        </>
                       ) : (
                         <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                       )}
@@ -418,7 +456,6 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong className="text-ink">{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Nhà cung cấp:</span> <strong>{getSupplierName(selectedItem.supplier_id)}</strong></div>
                 <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
-                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn:</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold">Lý do xuất trả <span className="text-danger-600">*</span></label>
@@ -439,7 +476,7 @@ const QuarantineWorkspace = () => {
                 disabled={submitting || !actionNotes.trim()}
                 className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50"
               >
-                {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả & Đòi tiền'}
+                {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả'}
               </button>
             </div>
           </div>

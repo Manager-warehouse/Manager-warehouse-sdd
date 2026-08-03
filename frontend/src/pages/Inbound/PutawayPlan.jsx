@@ -85,7 +85,7 @@ const PutawayPlan = () => {
     const currentAllocs = allocations[itemId] || [];
     const totalAllocated = currentAllocs.reduce((sum, a) => sum + (Number(a.qty) || 0), 0);
     const unallocated = (item.qc_passed_qty || 0) - totalAllocated;
-    const defaultQty = unallocated > 0 ? unallocated : 1;
+    const defaultQty = unallocated > 0 ? unallocated : '';
 
     setAllocations({
       ...allocations,
@@ -110,9 +110,16 @@ const PutawayPlan = () => {
     const currentAllocs = allocations[itemId] || [];
     const updated = currentAllocs.map((alloc, i) => {
       if (i === index) {
+        if (field === 'qty') {
+          const parsed = parseInt(value, 10);
+          return {
+            ...alloc,
+            qty: isNaN(parsed) || value === '' ? '' : Math.max(0, parsed)
+          };
+        }
         return {
           ...alloc,
-          [field]: field === 'qty' ? Math.max(1, Number(value) || 0) : (value ? Number(value) : '')
+          [field]: value ? Number(value) : ''
         };
       }
       return alloc;

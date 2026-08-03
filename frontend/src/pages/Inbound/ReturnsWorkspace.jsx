@@ -270,17 +270,20 @@ const ReturnsWorkspace = () => {
   };
 
   const renderReturnAction = (ret) => {
-    if (ret.status === 'RETURN_TO_SUPPLIER_PENDING' && canConfirmSupplierReturn) {
-      return (
-        <button
-          onClick={() => confirmSupplierReturn(ret)}
-          disabled={submitting}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-danger-600 text-white hover:bg-danger-700 disabled:opacity-60 text-xs font-bold transition-colors"
-        >
-          <Truck className="w-3.5 h-3.5" />
-          Xác nhận trả NCC
-        </button>
-      );
+    if (ret.status === 'RETURN_TO_SUPPLIER_PENDING') {
+      if (canConfirmSupplierReturn) {
+        return (
+          <button
+            onClick={() => confirmSupplierReturn(ret)}
+            disabled={submitting}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-danger-600 text-white hover:bg-danger-700 disabled:opacity-60 text-xs font-bold transition-colors"
+          >
+            <Truck className="w-3.5 h-3.5" />
+            Xác nhận trả NCC
+          </button>
+        );
+      }
+      return <span className="text-amber-700 font-semibold text-[11px] italic">Chờ Quản lý kho duyệt</span>;
     }
     if (ret.status === 'DRAFT' && canManageReturnOperations) {
       return (

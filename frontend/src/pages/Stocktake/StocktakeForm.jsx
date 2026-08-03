@@ -216,7 +216,7 @@ const StocktakeForm = () => {
           {/* Document Date */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-              Ngày Nhập Hàng <span className="text-danger-500">*</span>
+              Ngày chứng từ <span className="text-danger-500">*</span>
             </label>
             <input
               type="date"
