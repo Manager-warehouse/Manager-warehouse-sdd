@@ -2,6 +2,7 @@ package com.wms.dto.request;
 
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -29,14 +30,17 @@ public class DeliveryOrderPickQcRowRequest {
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = true)
+    @Digits(integer = 8, fraction = 2)
     private BigDecimal pickedQty;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = true)
+    @Digits(integer = 8, fraction = 2)
     private BigDecimal qcPassQty;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = true)
+    @Digits(integer = 8, fraction = 2)
     private BigDecimal qcFailQty;
 
     @Size(max = 1000)
