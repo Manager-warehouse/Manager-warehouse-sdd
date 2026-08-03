@@ -5,7 +5,7 @@ import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle, Loader2
 import { WAREHOUSES, ROLES } from '../../utils/constants';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
-import useAuthStore from '../../stores/auth.store';
+import { useAuthStore } from '../../stores/auth.store';
 
 const InventoryValuation = () => {
   const [data, setData] = useState(null);

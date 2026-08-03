@@ -32,11 +32,11 @@ Hệ thống WMS có **10 Actors**, chia thành 3 tầng theo mô hình **Maker-
 
 | #   | Actor                                 | Description                                                                                                                                                                                                                                                                            |
 | --- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **CEO**                               | Checker cấp cao. Xem Dashboard chiến lược (tồn kho, công nợ, P&L, tỷ lệ lỗi QC, OTD). Phê duyệt thay đổi cấu hình hệ thống quan trọng và yêu cầu điều chuyển liên kho do Trưởng kho đề xuất. |
+| 1   | **CEO**                               | Viewer cấp cao. Xem Dashboard chiến lược (tồn kho, công nợ, P&L, tỷ lệ lỗi QC, OTD) và giám sát read-only các yêu cầu điều chuyển liên kho. |
 | 2   | **System Admin**                      | Admin. Tạo/vô hiệu hóa tài khoản người dùng, phân quyền theo Role + Chi nhánh Kho (RBAC), cấu hình tham số hệ thống (hạn mức công nợ mặc định, tồn kho tối thiểu mặc định, kỳ hạn thanh toán mặc định, ngày khóa kỳ kế toán).                                                          |
 | 3   | **Trưởng kho (Warehouse Manager)**    | Checker. Phê duyệt phiếu nhập/xuất/điều chuyển kho, phê duyệt mọi chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi trực tiếp (không phân cấp theo giá trị), phê duyệt biên bản xử lý hàng lỗi (RTV/tiêu hủy), xem tồn kho liên kho read-only để đề xuất điều chuyển khi kho mình thiếu hàng. |
 | 4   | **Kế toán trưởng (Chief Accountant)** | Checker. Duyệt bảng giá do Kế toán viên trình, thiết lập Hạn mức tín dụng (Credit Limit) và kỳ hạn thanh toán (Net 30/60) cho Đại lý, chốt sổ kế toán hàng tháng, xem Aging Report và P&L Report.                                                                                      |
-| 5   | **Planner**                           | Maker. Tiếp nhận yêu cầu nhập/xuất hàng từ Công ty mẹ, lập Lệnh nhập kho và Đơn xuất hàng (kiểm tra Credit Check + tồn kho tự động), nhập Phiếu điều chuyển kho nội bộ theo lệnh ngoài hoặc yêu cầu đã được CEO duyệt.                                                                 |
+| 5   | **Planner**                           | Maker. Tiếp nhận yêu cầu nhập/xuất hàng từ Công ty mẹ, lập Lệnh nhập kho và Đơn xuất hàng (kiểm tra Credit Check + tồn kho tự động), nhập Phiếu điều chuyển kho nội bộ theo lệnh ngoài hoặc yêu cầu đã được Trưởng kho nguồn duyệt/giữ hàng.                                                                 |
 | 6   | **Dispatcher**                        | Maker. Lập Chuyến xe nội bộ Phúc Anh (Trip), gán xe/tài xế, tối ưu Stop Order, kiểm tra tải trọng/thể tích xe, đảm bảo không phát sinh chi phí 3PL.                                                                                                                                    |
 | 7   | **Thủ kho kiêm QC (Storekeeper)**     | Maker. Quản lý SKU/danh mục sản phẩm, kiểm QC inbound/outbound, lập kế hoạch soạn hàng, kiểm kê, cất hàng vào Bin Location, xác nhận điều chuyển ở cả kho nguồn và kho đích.                                                                                                           |
 | 8   | **Nhân viên kho (Warehouse Staff)**   | Maker. Đếm hàng thực tế khi nhận hàng (`PENDING_RECEIPT → DRAFT`), ghi nhận kết quả QC inbound/outbound, bốc xếp và di chuyển hàng hóa vào Bin/Quarantine theo chỉ dẫn của Thủ kho.                                                                                                    |
@@ -171,8 +171,8 @@ _Danh sách UC-01 đến UC-41 tại mục b là nguồn chuẩn cho từng use 
 | UC-18 | 004 – Trip Dispatch       | Dispatch Delivery Trip                        | Dispatcher lập Chuyến xe (`trip_type=DELIVERY`), gán xe/tài xế cùng kho                                                      |
 | UC-19 | 004 – Driver Mobile POD   | Confirm Delivery (POD + OTP)                  | Tài xế upload ảnh hàng/chữ ký, nhập OTP; hệ thống chuyển DO `COMPLETED`                                                      |
 | UC-20 | 004 – Auto Invoice        | Auto-create Invoice on Delivery               | Hệ thống tự tạo Invoice + cộng công nợ Đại lý khi DO giao thành công                                                         |
-| UC-21 | 005 – Transfer Request    | View Cross-Warehouse Stock & Request Transfer | Trưởng kho kho thiếu xem tồn liên kho read-only, tạo yêu cầu điều chuyển gửi CEO                                             |
-| UC-22 | 005 – Transfer Planning   | Create Transfer Order (TRF-\*)                | Planner lập Phiếu điều chuyển theo lệnh ngoài hoặc request đã CEO duyệt                                                      |
+| UC-21 | 005 – Transfer Request    | View Cross-Warehouse Stock & Request Transfer | Trưởng kho kho thiếu xem tồn liên kho read-only, tạo yêu cầu điều chuyển gửi Trưởng kho nguồn duyệt/giữ hàng                 |
+| UC-22 | 005 – Transfer Planning   | Create Transfer Order (TRF-\*)                | Planner lập Phiếu điều chuyển theo lệnh ngoài hoặc request đã được Trưởng kho nguồn duyệt                                    |
 | UC-23 | 005 – Transfer Approval   | Approve/Reject Transfer & Reserve Stock       | Trưởng kho nguồn duyệt phiếu, giữ chỗ FIFO-eligible stock                                                                    |
 | UC-24 | 005 – Transfer Ship       | Dispatch Trip & Ship Goods                    | Dispatcher lập chuyến `TTR-*`; Thủ kho nguồn QC + xuất hàng lên xe                                                           |
 | UC-25 | 005 – Transfer Receive    | Receive & Confirm Transfer at Destination     | Công nhân đếm, Thủ kho kiểm/QC, Trưởng kho đích xác nhận cuối                                                                |
@@ -269,12 +269,12 @@ Quy ước: màn hình dạng oval/pop-up (VD: RTV Detail, OTP Entry, Excel Impo
 | 13  | Outbound Delivery | POD Upload (Mobile)           | Tài xế chụp/chọn ảnh hàng + ảnh chữ ký                                         |
 | 14  | Outbound Delivery | OTP Entry (Mobile)            | Tài xế nhập OTP do Đại lý đọc để xác nhận giao                                 |
 | 15  | Transfer          | Cross-Warehouse Stock View    | Trưởng kho xem tồn khả dụng liên kho read-only                                 |
-| 16  | Transfer          | Transfer Request Form         | Trưởng kho tạo yêu cầu điều chuyển gửi CEO duyệt                               |
+| 16  | Transfer          | Transfer Request Form         | Trưởng kho tạo yêu cầu điều chuyển gửi Trưởng kho nguồn duyệt                  |
 | 17  | Transfer          | Transfer Detail (Approve)     | Trưởng kho nguồn duyệt/từ chối phiếu `TRF-*`                                   |
 | 18  | Transfer          | Transfer Ship Screen          | Thủ kho nguồn QC + ghi nhận xuất hàng lên xe                                   |
 | 19  | Transfer          | Transfer Receive Screen       | Công nhân đếm → Thủ kho kiểm/QC → Trưởng kho đích xác nhận                     |
 | 20  | Stocktake         | Stocktake Count Screen        | Thủ kho nhập số lượng đếm thực tế theo Bin                                     |
-| 21  | Stocktake         | Variance Approval Detail      | Trưởng kho/CEO duyệt điều chỉnh tồn kho theo hạn mức                           |
+| 21  | Stocktake         | Variance Approval Detail      | Trưởng kho duyệt hoặc từ chối điều chỉnh tồn kho trực tiếp                     |
 | 22  | Pricing           | Price List Screen             | Kế toán viên tạo/sửa bảng giá theo kỳ hiệu lực                                 |
 | 23  | Pricing           | Price Approval Detail         | Kế toán trưởng duyệt bảng giá                                                  |
 | 24  | Pricing           | Excel Import Popup            | Kế toán viên import bảng giá hàng loạt từ file mẫu                             |
@@ -315,7 +315,7 @@ Quy ước: màn hình dạng oval/pop-up (VD: RTV Detail, OTP Entry, Excel Impo
 | Driver Mobile POD/OTP         |             |              |             |                  |            |            |             |               |                 | X      |
 | Auto Invoice (system)         |             |              |             |                  |            |            |             |               | X (view)        |        |
 | Cross-WH Stock (read-only)    | X           |              | X           |                  |            |            |             |               |                 |        |
-| Transfer Request → CEO        | X (approve) |              | X (create)  |                  |            |            |             |               |                 |        |
+| Transfer Request              | X (view)    |              | X (create/approve source) |       |            |            |             |               |                 |        |
 | Transfer Planning             |             |              |             |                  | X          |            |             |               |                 |        |
 | Transfer Approval             |             |              | X           |                  |            |            |             |               |                 |        |
 | Transfer Ship                 |             |              |             |                  |            | X (trip)   | X (QC/ship) | X (load)      |                 |        |
@@ -3584,12 +3584,12 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 | UC ID and Name:    | UC-21_View Cross-Warehouse Stock & Request Transfer                                                                                                                                                                    |                   |            |
 | ------------------ | -------- | ------------------------------------- | ---------- |
 | Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
-| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER) của kho thiếu hàng           | Secondary Actors: | CEO (duyệt yêu cầu) |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER) của kho thiếu hàng           | Secondary Actors: | Trưởng kho nguồn (duyệt/giữ hàng), CEO (xem read-only) |
 | Trigger:           | Trưởng kho kho thiếu hàng muốn xem tồn liên kho để yêu cầu điều chuyển |                   |            |
-| Description:       | Trưởng kho xem tồn kho khả dụng (read-only) của 3 kho vật lý, tạo yêu cầu điều chuyển gửi CEO duyệt |                   |            |
+| Description:       | Trưởng kho xem tồn kho khả dụng (read-only) của 3 kho vật lý, tạo yêu cầu điều chuyển gửi Trưởng kho nguồn duyệt/giữ hàng |                   |            |
 | Preconditions:     | PRE-1: User có role `WAREHOUSE_MANAGER` được gán 1+ kho.       |                   |            |
 | Postconditions:    | POST-1: `transfer_requests` được tạo với `status = DRAFT`.<br>POST-2: Ghi audit log `TRANSFER_REQUEST_CREATED`. |                   |            |
-| Normal Flow:       | 11.0 Cross-Warehouse Stock View & Transfer Request<br>1. Trưởng kho truy cập "Cross-Warehouse Stock" (read-only, liên kho)<br>2. Trưởng kho xem tồn khả dụng mỗi kho<br>3. Trưởng kho chọn "Yêu cầu Điều Chuyển"<br>4. Trưởng kho chọn kho nguồn, kho đích, danh sách SKU + số lượng<br>5. Xác nhận gửi CEO<br>6. Hệ thống lưu `transfer_requests` (`DRAFT`)<br>7. Ghi audit log |                   |            |
+| Normal Flow:       | 11.0 Cross-Warehouse Stock View & Transfer Request<br>1. Trưởng kho truy cập "Cross-Warehouse Stock" (read-only, liên kho)<br>2. Trưởng kho xem tồn khả dụng mỗi kho<br>3. Trưởng kho chọn "Yêu cầu Điều Chuyển"<br>4. Trưởng kho chọn kho nguồn, kho đích, danh sách SKU + số lượng<br>5. Xác nhận gửi Trưởng kho nguồn duyệt<br>6. Hệ thống lưu `transfer_requests` (`DRAFT`)<br>7. Ghi audit log |                   |            |
 | Alternative Flows: | 11.1 Edit/Delete Draft Request<br>1. Trưởng kho sửa hoặc xóa request còn `DRAFT`<br>2. Hệ thống cập nhật hoặc xóa mềm (status = `CANCELLED`) |                   |            |
 | Exceptions:        | 11.0.E1 Kho đích = kho hiện tại<br>1. Hệ thống trả `SAME_WAREHOUSE` (422)       |                   |            |
 | Priority:          | Must Have                                                          |                   |            |
@@ -3602,7 +3602,7 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 
 | ID | Business Rule | Description |
 | --- | --- | --- |
-| BR-TRANSFER-01 | No Reservation on View | Cross-warehouse view không giữ chỗ; chỉ đề xuất có xác nhận CEO mới reserve |
+| BR-TRANSFER-01 | No Reservation on View | Cross-warehouse view không giữ chỗ; chỉ Trưởng kho nguồn duyệt mới reserve |
 
 ### 5.2 UC-22_Create Transfer Order (TRF-*)
 
@@ -3612,9 +3612,9 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 | ------------------ | -------- | ------------------------------------- | ---------- |
 | Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
 | Primary Actor:     | Planner (PLANNER) kho nguồn hoặc trung tâm       | Secondary Actors: | None       |
-| Trigger:           | CEO đã duyệt transfer request, hoặc Planner nhận lệnh điều chuyển từ Công ty mẹ |                   |            |
+| Trigger:           | Trưởng kho nguồn đã duyệt transfer request, hoặc Planner nhận lệnh điều chuyển từ Công ty mẹ |                   |            |
 | Description:       | Planner tạo Phiếu Điều Chuyển (TRF-*), liên kết kho nguồn/đích, danh sách hàng |                   |            |
-| Preconditions:     | PRE-1: User có role `PLANNER`.<br>PRE-2: Transfer request đã CEO duyệt (nếu từ request) hoặc lệnh từ ngoài.<br>PRE-3: SKU trong phiếu tồn tại. |                   |            |
+| Preconditions:     | PRE-1: User có role `PLANNER`.<br>PRE-2: Transfer request đã được Trưởng kho nguồn duyệt/giữ hàng (nếu từ request) hoặc lệnh từ ngoài.<br>PRE-3: SKU trong phiếu tồn tại. |                   |            |
 | Postconditions:    | POST-1: `transfers` được tạo với `status = NEW`.<br>POST-2: `transfer_items` được tạo kèm `sent_qty = 0` (chưa giao).<br>POST-3: Ghi audit log `TRANSFER_CREATED`. |                   |            |
 | Normal Flow:       | 12.0 Create Transfer<br>1. Planner truy cập Transfer List, chọn "Tạo Phiếu Điều Chuyển"<br>2. Planner nhập kho nguồn, kho đích, danh sách SKU + số lượng dự kiến gửi<br>3. Planner xác nhận tạo<br>4. Hệ thống validate (kho khác, SKU tồn tại)<br>5. Lưu `transfers` (`NEW`) + `transfer_items`<br>6. Ghi audit log |                   |            |
 | Alternative Flows: | 12.1 Edit/Delete Draft<br>1. Khi transfer `NEW`, Planner có thể sửa/xóa<br>2. Hệ thống cập nhật/xóa mềm |                   |            |
@@ -4939,10 +4939,10 @@ UI Design
 
 | Field Name           | Field Type   | Description                                |
 | ---------------------- | -------------- | ----------------------------------------------- |
-| Source Warehouse       | Text (read-only)| Kho dang thieu hang (kho cua Truong kho hien tai) |
-| Dest Warehouse\*       | Combo Box     | Kho nguon co the lay hang                       |
+| Source Warehouse\*     | Combo Box     | Kho nguon co the lay hang                       |
+| Destination Warehouse  | Text (read-only)| Kho dang thieu hang (kho cua Truong kho hien tai) |
 | Item Table\*           |               |                                                  |
-| Submit                 | Button        | Gui yeu cau cho CEO duyet                       |
+| Submit                 | Button        | Gui yeu cau cho Truong kho nguon duyet          |
 
 Database Access
 
