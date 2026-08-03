@@ -3,13 +3,13 @@
 ## Prerequisites
 
 - Backend running with Spring Boot profile configured for local PostgreSQL.
-- Test data includes active Planner assigned to a warehouse, active Warehouse Manager assigned to the same warehouse, active dealer, active products, and regular quality-valid inventory.
+- Test data includes active Planner assigned to a warehouse, active Warehouse Manager assigned to the same warehouse, active dealer, active products with positive `weight_kg`, regular quality-valid inventory, and active vehicles with `max_weight_kg` assigned to the warehouse.
 
 ## Happy Path: Create Delivery Order
 
 1. Login as Planner assigned to warehouse HP.
 2. Call `POST /api/v1/delivery-orders` with dealer, warehouse, document date, optional expected delivery date, and item list.
-3. Backend validates dealer credit, overdue invoices, planner warehouse scope, product availability, and reservation version.
+3. Backend validates dealer credit, overdue invoices, planner warehouse scope, product weight, warehouse fleet capacity, product availability, and reservation version.
 4. Backend creates Delivery Order in `NEW`.
 5. Backend increments `warehouse_product_reservations.reserved_qty`.
 6. Backend writes `DELIVERY_ORDER_CREATE` audit.
@@ -21,7 +21,7 @@
 2. Use a Delivery Order currently in `NEW`.
 3. Call `PUT /api/v1/delivery-orders/{id}` with the corrected header fields and full item list.
 4. Backend validates the order is still `NEW`.
-5. Backend re-runs dealer credit, overdue invoice, warehouse scope, product, price, accounting period, and stock availability checks.
+5. Backend re-runs dealer credit, overdue invoice, warehouse scope, product weight, fleet capacity, price, accounting period, and stock availability checks.
 6. Backend applies planner-level reservation deltas in `warehouse_product_reservations`.
 7. Backend writes `DELIVERY_ORDER_UPDATE` audit.
 8. Response returns the updated Delivery Order still in `NEW`.
@@ -59,6 +59,26 @@
 4. Response explains that selected warehouse stock is insufficient and does not suggest alternative warehouses.
 5. Verify no reservation mutation occurred.
 
+## Error Path: Delivery Order Exceeds Warehouse Fleet Capacity
+
+1. Configure active vehicles assigned to warehouse HP with combined `max_weight_kg = 12,000` across ready, busy, on-trip, and maintenance statuses.
+2. Create or update a Delivery Order whose item quantities and product weights total `12,001 kg`.
+3. Expect `422 DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY` and message `Tải trọng quá lớn để giao trong 1 lần, vui lòng chia nhỏ đơn thành nhiều phiếu xuất kho để có thể giao hàng.`
+4. Verify no Delivery Order, item, reservation delta, or success audit is created for create; verify the existing order and reservations are unchanged for update.
+
+## Boundary Path: Delivery Order Equals Warehouse Fleet Capacity
+
+1. Configure active warehouse vehicles with combined `max_weight_kg = 12,000`.
+2. Submit an otherwise-valid Delivery Order totaling exactly `12,000 kg`.
+3. Verify create/update succeeds because equality does not exceed fleet capacity.
+
+## Error Path: Product Weight Missing
+
+1. Use a requested product whose `weight_kg` is null, zero, or negative.
+2. Call create or update.
+3. Expect `422 PRODUCT_WEIGHT_MISSING`.
+4. Verify the service does not treat missing weight as zero and does not mutate reservations.
+
 ## Happy Path: Cancel Before Warehouse Approval
 
 1. Login as Warehouse Manager assigned to the DO warehouse.
@@ -81,10 +101,18 @@
 - Unit: Planner update outside `NEW` is rejected without reservation changes.
 - Unit: Planner cancel in `NEW` releases planner-level reservations.
 - Unit: Planner cancel outside `NEW` is rejected without reservation changes.
+- Unit: active ready, busy, on-trip, and maintenance vehicles are included in fleet capacity.
+- Unit: inactive and other-warehouse vehicles are excluded from fleet capacity.
+- Unit: order weight above fleet capacity is rejected before persistence/reservation/audit.
+- Unit: order weight equal to fleet capacity is allowed.
+- Unit: missing/non-positive product weight is rejected.
+- Unit: Planner update in `NEW` re-runs fleet-capacity validation.
 - Unit: cancellation before `WAREHOUSE_APPROVED` releases reservations.
 - Unit: cancellation at `WAREHOUSE_APPROVED` or later is rejected.
 - Integration: `POST /api/v1/delivery-orders` happy path and major errors.
 - Integration: `PUT /api/v1/delivery-orders/{id}` Planner update happy path and forbidden state.
+- Integration: create/update fleet-capacity and missing-product-weight errors return HTTP 422 with stable codes/messages.
+- Frontend: Planner create form displays the backend fleet-capacity message.
 - Integration: `PUT /api/v1/delivery-orders/{id}/cancel` happy path and forbidden states/roles.
 
 ## Verification Commands

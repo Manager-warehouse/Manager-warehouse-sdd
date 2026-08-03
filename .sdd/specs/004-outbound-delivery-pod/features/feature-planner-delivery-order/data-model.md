@@ -38,6 +38,7 @@
 - Planner update is allowed only when status is `NEW`.
 - Planner cancel is allowed only when status is `NEW`.
 - Planner update must re-run the same warehouse assignment, dealer credit, overdue invoice, product, price, accounting period, and selected-warehouse availability validations as create.
+- Create/update must calculate total goods weight and reject when it exceeds the selected warehouse's active-fleet maximum payload.
 - On cancel, status must be before `WAREHOUSE_APPROVED`.
 
 **State transitions**
@@ -61,6 +62,7 @@
 - `reserved_qty`: set to requested quantity for planner-level reservation tracking on the DO item.
 - `issued_qty`: starts at `0`.
 - `unit_price`: not trusted from client for credit control; invoice price is finalized by picking-plan when Storekeeper prepares concrete picking.
+- `product.weight_kg`: required to be positive for every requested product so Delivery Order total weight can be calculated safely.
 
 **Fields updated by Planner before picking plan**
 
@@ -74,6 +76,26 @@
 - `requested_qty > 0`.
 - Duplicate product rows in one request should be normalized or rejected; implementation should prefer rejecting duplicates with a clear validation error unless the existing API convention already merges line quantities.
 - Planner update replaces the planner-level item set while the Delivery Order is `NEW`; once Storekeeper saves a picking plan, item changes are blocked.
+- Total line weight is `requested_qty * product.weight_kg`.
+
+## Vehicle
+
+**Purpose**: Defines the maximum fleet payload available to the selected warehouse for one coordinated delivery wave.
+
+**Fields used**
+
+- `warehouse_id`
+- `max_weight_kg`
+- `is_active`
+- `status`: read only for diagnostics; not used to exclude active vehicles from the fleet ceiling.
+
+**Validation rules**
+
+- Fleet ceiling is `sum(max_weight_kg)` for all active vehicles assigned to the Delivery Order warehouse.
+- Include active vehicles regardless of whether status is ready, busy, on trip, or under maintenance.
+- Exclude inactive vehicles and vehicles assigned to another warehouse.
+- Reject create/update with `DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY` when total order weight is greater than the fleet ceiling.
+- Equality is allowed.
 
 ## WarehouseProductReservation
 

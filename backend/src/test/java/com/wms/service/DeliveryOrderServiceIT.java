@@ -95,6 +95,7 @@ import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
@@ -162,6 +163,9 @@ public class DeliveryOrderServiceIT {
     private UserWarehouseAssignmentRepository assignmentRepository;
 
     @Autowired
+    private VehicleRepository vehicleRepository;
+
+    @Autowired
     private com.wms.repository.DeliveryOrderItemAllocationRepository allocationRepository;
 
     private User planner;
@@ -183,6 +187,7 @@ public class DeliveryOrderServiceIT {
         priceHistoryRepository.deleteAll();
         reservationRepository.deleteAll();
         assignmentRepository.deleteAll();
+        vehicleRepository.deleteAll();
         locationRepository.deleteAll();
         productRepository.deleteAll();
         dealerRepository.deleteAll();
@@ -212,6 +217,12 @@ public class DeliveryOrderServiceIT {
         // 2. Setup Warehouse & Dealer
         warehouse = warehouseRepository.save(Warehouse.builder()
                 .code("WH-MAIN").name("Main Warehouse").type(WarehouseType.PHYSICAL).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
+
+        vehicleRepository.save(Vehicle.builder()
+                .plateNumber("15C-DO100").vehicleType("TRUCK")
+                .maxWeightKg(new BigDecimal("100.00")).maxVolumeM3(new BigDecimal("20.000"))
+                .warehouse(warehouse).status(VehicleStatus.AVAILABLE).isActive(true)
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
 
         dealer = dealerRepository.save(Dealer.builder()

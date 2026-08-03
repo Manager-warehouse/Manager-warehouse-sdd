@@ -71,6 +71,11 @@ const createEmptyForm = () => ({
   items: [createEmptyItemRow()],
 });
 
+export const getDeliveryOrderSubmitErrorMessage = (error, isEditing) => (
+  error?.message
+  || (isEditing ? 'Lỗi khi cập nhật đơn xuất hàng' : 'Lỗi khi tạo đơn xuất hàng')
+);
+
 const createEditForm = (order) => ({
   dealer_id: order.dealer_id || '',
   document_date: order.document_date || getLocalDateString(),
@@ -96,6 +101,20 @@ const toMoney = (value) => {
 const calculateOrderValue = (items) => items.reduce((total, item) => (
   total + (toMoney(item.requested_qty) * toMoney(item.unit_price))
 ), 0);
+
+export const calculateDeliveryOrderWeight = (items, products) => items.reduce((total, item) => {
+  const product = products.find((candidate) => Number(candidate.id) === Number(item.product_id));
+  return total + (toMoney(item.requested_qty) * toMoney(product?.weight_kg));
+}, 0);
+
+export const calculateWarehouseFleetCapacity = (vehicles, warehouseId) => vehicles
+  .filter((vehicle) => vehicle.is_active !== false
+    && Number(vehicle.warehouse_id) === Number(warehouseId))
+  .reduce((total, vehicle) => total + toMoney(vehicle.max_weight_kg), 0);
+
+const formatWeightKg = (value) => Number(value || 0).toLocaleString('vi-VN', {
+  maximumFractionDigits: 3,
+});
 
 const getCreditCheck = (dealer, orderValue) => {
   if (!dealer) {
@@ -153,6 +172,7 @@ export default function DeliveryOrders() {
   const [search, setSearch] = useState('');
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [approvedProductIds, setApprovedProductIds] = useState(null);
   const [masterDataLoading, setMasterDataLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -209,6 +229,7 @@ export default function DeliveryOrders() {
       const promises = [
         masterDataService.getDealers(),
         masterDataService.getProducts({ size: 200 }),
+        masterDataService.getVehicles(),
       ];
       if (activeWarehouse?.id) {
         promises.push(outboundService.getAllAvailability(activeWarehouse.id));
@@ -217,9 +238,10 @@ export default function DeliveryOrders() {
             .catch(() => []),
         );
       }
-      const [dealersData, productsData, stockData, approvedPrices] = await Promise.all(promises);
+      const [dealersData, productsData, vehiclesData, stockData, approvedPrices] = await Promise.all(promises);
       setDealers(dealersData.filter((dealer) => dealer.is_active !== false));
       setProducts(productsData.filter((product) => product.is_active !== false));
+      setVehicles(vehiclesData);
 
       if (stockData) {
         const map = {};
@@ -397,7 +419,7 @@ export default function DeliveryOrders() {
       handleCloseCreateModal();
       fetchOrders();
     } catch (error) {
-      addToast(error.message || (editingOrder ? 'Lỗi khi cập nhật đơn xuất hàng' : 'Lỗi khi tạo đơn xuất hàng'), 'error');
+      addToast(getDeliveryOrderSubmitErrorMessage(error, Boolean(editingOrder)), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -423,6 +445,8 @@ export default function DeliveryOrders() {
   const qcPendingDO = orders.filter((order) => order.status === 'QC_PENDING_APPROVAL').length;
   const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
   const orderValue = calculateOrderValue(formData.items);
+  const deliveryOrderWeightKg = calculateDeliveryOrderWeight(formData.items, products);
+  const warehouseFleetCapacityKg = calculateWarehouseFleetCapacity(vehicles, activeWarehouse?.id);
   const creditCheck = getCreditCheck(selectedDealerObj, orderValue);
   const creditStatus = creditCheck.status;
   const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
@@ -677,6 +701,18 @@ export default function DeliveryOrders() {
                 placeholder="Ghi chú về đơn hàng..."
               />
             </div>
+
+            <Input
+              label="Tổng trọng lượng đơn hàng"
+              value={`${formatWeightKg(deliveryOrderWeightKg)} kg`}
+              readOnly
+            />
+
+            <Input
+              label="Tổng tải trọng tất cả xe trong kho"
+              value={masterDataLoading ? 'Đang tính...' : `${formatWeightKg(warehouseFleetCapacityKg)} kg`}
+              readOnly
+            />
           </div>
 
           <div>

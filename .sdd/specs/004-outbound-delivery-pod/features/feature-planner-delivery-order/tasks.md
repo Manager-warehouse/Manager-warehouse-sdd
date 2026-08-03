@@ -142,6 +142,35 @@
 
 ---
 
+## Phase 5B: User Story 5 - Planner is warned when one delivery wave exceeds the warehouse fleet (Priority: P1)
+
+**Goal**: Prevent Planner from creating or updating a Delivery Order that cannot fit in one coordinated delivery wave even when every active vehicle assigned to the selected warehouse is counted, and instruct Planner to split the demand into multiple Delivery Orders.
+
+**Independent Test**: Configure active warehouse vehicles across ready, busy, on-trip, and maintenance statuses with a known combined payload. Verify an order above that payload is rejected with the required message and no persistence/reservation/audit mutation; verify equality succeeds and inactive/other-warehouse vehicles are excluded.
+
+### Tests for User Story 5
+
+- [x] T060 [P] [US5] Add service unit tests for fleet-capacity exceedance, equality, operational-status inclusion, inactive/other-warehouse exclusion, and missing product weight in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T061 [P] [US5] Add service unit tests proving create/update rejection occurs before Delivery Order persistence, reservation mutation, and success audit in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T062 [P] [US5] Add controller tests for create/update HTTP 422 responses with `DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY` and `PRODUCT_WEIGHT_MISSING` in `backend/src/test/java/com/wms/controller/DeliveryOrderControllerTest.java`
+- [x] T063 [P] [US5] Add Planner UI tests for displaying the fleet-capacity backend message on create/update failure in `frontend/src/pages/Outbound/DeliveryOrders.test.jsx`
+
+### Implementation for User Story 5
+
+- [x] T064 [US5] Add active-vehicle lookup or aggregate support scoped by warehouse in `backend/src/main/java/com/wms/repository/VehicleRepository.java`
+- [x] T065 [US5] Implement product-weight and combined active-fleet payload validation before create/update persistence and reservation deltas in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
+- [x] T066 [US5] Return stable 422 business errors and required Planner guidance text from `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
+- [x] T067 [US5] Document changed create/update error responses with OpenAPI annotations in `backend/src/main/java/com/wms/controller/order_fulfillment/DeliveryOrderController.java`
+- [x] T068 [US5] Preserve and display backend business-error messages in the Planner create/update flow in `frontend/src/pages/Outbound/DeliveryOrders.jsx`
+- [x] T069 [US5] Keep the API contract aligned with implementation in `.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/contracts/delivery-orders.openapi.yaml`
+- [x] T070 [P] [US5] Add UI calculation tests for order weight and active warehouse fleet payload in `frontend/src/pages/Outbound/DeliveryOrders.test.jsx`
+- [x] T071 [US5] Load active warehouse vehicles and calculate both weight totals in `frontend/src/pages/Outbound/DeliveryOrders.jsx`
+- [x] T072 [US5] Render both calculated totals as non-editable read-only fields on the Planner create/update form in `frontend/src/pages/Outbound/DeliveryOrders.jsx`
+
+**Checkpoint**: US5 is independently testable and does not allocate vehicles or change Dispatcher readiness rules.
+
+---
+
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 **Purpose**: Verification and documentation alignment after stories are complete.
@@ -164,6 +193,7 @@
 - **Phase 4 US2**: Depends on foundational helpers; can be implemented after or alongside US1 once shared create flow exists.
 - **Phase 5 US3**: Depends on foundational reservation helpers and can be implemented independently from US2.
 - **Phase 5A US4**: Depends on foundational reservation helpers and create flow; can be implemented after US1/US2 and before or alongside manager cancellation polish.
+- **Phase 5B US5**: Depends on the existing create/update validation seam and Product/Vehicle master data; it is independent of Dispatcher trip allocation.
 - **Phase 6 Polish**: Depends on implemented stories selected for release.
 
 ### User Story Dependencies
@@ -172,6 +202,7 @@
 - **US2**: Uses the same create validation seams as US1; can be delivered after US1 or parallel with clear service ownership.
 - **US3**: Uses shared reservation release helpers; no dependency on US2 behavior.
 - **US4**: Reuses create validation and reservation delta helpers; depends on `NEW` status semantics before Storekeeper picking-plan save.
+- **US5**: Reuses create/update item resolution and warehouse scope; it must complete before a fleet-oversized Delivery Order can enter Storekeeper/Dispatcher flows.
 
 ### Parallel Opportunities
 
@@ -181,6 +212,7 @@
 - T032 through T035 can be written in parallel.
 - T036 can be implemented in parallel with service cancellation tasks if the endpoint contract is stable.
 - T049 through T054 can be written in parallel once the Planner update/cancel contract is stable.
+- T060 through T063 can be written in parallel before T064 through T069.
 - T044 and T045 can run in parallel during polish.
 
 ## Parallel Example: User Story 1
@@ -226,7 +258,8 @@ Task: "T035 [P] [US3] Add integration tests for cancel endpoint"
 2. Deliver US2 create rejection and suggestion behavior.
 3. Deliver US3 Warehouse Manager cancellation.
 4. Deliver US4 Planner update/cancel while Delivery Order is `NEW`.
-5. Finish polish verification and OpenAPI alignment.
+5. Deliver US5 warehouse fleet-capacity guard and Planner guidance.
+6. Finish polish verification and OpenAPI alignment.
 
 ### Validation Checklist
 
@@ -237,3 +270,4 @@ Task: "T035 [P] [US3] Add integration tests for cancel endpoint"
 - All write endpoints use request DTO validation.
 - Service unit tests cover business invariants.
 - Integration tests cover HTTP happy and error paths.
+- Fleet-capacity validation includes all active warehouse vehicles regardless of operational status, excludes inactive/other-warehouse vehicles, allows equality, and rejects missing product weight.
