@@ -151,6 +151,22 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             @Param("locationId") Long locationId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select i from Inventory i
+            join fetch i.location location
+            where i.warehouse.id = :warehouseId
+              and i.product.id = :productId
+              and i.batch.id = :batchId
+              and i.totalQty > i.reservedQty
+            order by case when :preferredLocationId is not null and location.id = :preferredLocationId then 0 else 1 end,
+                     i.id asc
+            """)
+    List<Inventory> findAvailableByWarehouseProductBatchForUpdate(@Param("warehouseId") Long warehouseId,
+            @Param("productId") Long productId,
+            @Param("batchId") Long batchId,
+            @Param("preferredLocationId") Long preferredLocationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Inventory i where i.id = :id")
     Optional<Inventory> findByIdForUpdate(@Param("id") Long id);
 

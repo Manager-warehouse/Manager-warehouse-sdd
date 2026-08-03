@@ -328,22 +328,45 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
             if (location == null || hold.getBatch() == null) {
                 throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_INCOMPLETE");
             }
-            Inventory destination = inventoryRepository.findByStockKeyForUpdate(
-                            hold.getWarehouse().getId(), hold.getProduct().getId(),
-                            hold.getBatch().getId(), location.getId())
-                    .orElseThrow(() -> new BusinessRuleViolationException("INVENTORY_ROW_NOT_FOUND"));
-            BigDecimal available = destination.getTotalQty().subtract(destination.getReservedQty());
-            if (available.compareTo(hold.getHoldQty()) < 0) {
-                throw new BusinessRuleViolationException("DESTINATION_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION");
+            deductDestinationOverReceipt(incident, hold, reason, actor);
+        }
+    }
+
+    private void deductDestinationOverReceipt(DiscrepancyIncident incident,
+                                              DiscrepancyHoldEntry hold,
+                                              String reason,
+                                              User actor) {
+        List<Inventory> destinationRows = inventoryRepository.findAvailableByWarehouseProductBatchForUpdate(
+                hold.getWarehouse().getId(),
+                hold.getProduct().getId(),
+                hold.getBatch().getId(),
+                hold.getHoldLocation().getId());
+        BigDecimal availableQty = destinationRows.stream()
+                .map(row -> row.getTotalQty().subtract(row.getReservedQty()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (availableQty.compareTo(hold.getHoldQty()) < 0) {
+            throw new BusinessRuleViolationException("DESTINATION_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION");
+        }
+
+        BigDecimal remaining = hold.getHoldQty();
+        for (Inventory destination : destinationRows) {
+            if (remaining.signum() <= 0) {
+                break;
             }
+            BigDecimal available = destination.getTotalQty().subtract(destination.getReservedQty());
+            if (available.signum() <= 0) {
+                continue;
+            }
+            BigDecimal deducted = available.min(remaining);
             BigDecimal beforeQty = destination.getTotalQty();
-            destination.setTotalQty(beforeQty.subtract(hold.getHoldQty()));
+            destination.setTotalQty(beforeQty.subtract(deducted));
             destination.setUpdatedAt(OffsetDateTime.now());
             inventoryRepository.save(destination);
-            applyLocationOccupancy(location, hold.getProduct(), hold.getHoldQty().negate());
-            auditInventory(actor, destination, beforeQty, destination.getTotalQty(), hold.getHoldQty().negate(), reason);
-            createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
-                    hold.getHoldQty().negate(), reason, actor);
+            applyLocationOccupancy(destination.getLocation(), hold.getProduct(), deducted.negate());
+            auditInventory(actor, destination, beforeQty, destination.getTotalQty(), deducted.negate(), reason);
+            createApprovedAdjustment(incident, hold.getWarehouse(), destination.getLocation(), hold.getBatch(),
+                    deducted.negate(), reason, actor);
+            remaining = remaining.subtract(deducted);
         }
     }
 
