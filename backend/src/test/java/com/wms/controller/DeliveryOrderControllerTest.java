@@ -468,21 +468,6 @@ class DeliveryOrderControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
-    void requestPickingPlanAdjustment_success() throws Exception {
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
-        when(deliveryOrderService.requestPickingPlanAdjustment(eq(100L), any(), eq(warehouseStaff)))
-                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
-
-        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan-adjustment-request")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"Tong phan bo 12 vuot so luong yeu cau 10\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
-    }
-
-    @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void approveQuality_success() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
@@ -495,21 +480,6 @@ class DeliveryOrderControllerTest {
                         .content("{\"notes\":\"All replacement goods passed\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("QC_COMPLETED"));
-    }
-
-    @Test
-    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
-    void rejectQualityForRecount_success() throws Exception {
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
-        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
-                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
-
-        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"decision\":\"REJECT\",\"rejectionReason\":\"So luong thuc te khong khop\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
     }
 
     @Test

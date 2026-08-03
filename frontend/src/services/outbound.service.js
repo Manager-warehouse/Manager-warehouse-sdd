@@ -1210,39 +1210,7 @@ export const outboundService = {
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/quality-approval`, { decision: 'ACCEPT', notes });
-    return normalizeDeliveryOrder(response.data);
-  },
-
-  rejectQualityOutbound: async (id, rejectionReason, notes = '') => {
-    if (useMock) {
-      await mockDelay();
-      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
-      const idx = orders.findIndex((order) => order.id === Number(id));
-      if (idx === -1) throw new Error('Không tìm thấy đơn xuất hàng');
-      orders[idx] = {
-        ...orders[idx],
-        status: 'WAITING_PICKING',
-        raw_status: 'WAITING_PICKING',
-        rejection_reason: rejectionReason,
-      };
-      saveDb(KEYS.DELIVERY_ORDERS, orders);
-      return orders[idx];
-    }
-    const response = await apiClient.put(`/delivery-orders/${id}/quality-approval`, {
-      decision: 'REJECT',
-      rejectionReason,
-      notes,
-    });
-    return normalizeDeliveryOrder(response.data);
-  },
-
-  requestPickingPlanAdjustment: async (id, reason) => {
-    if (useMock) {
-      await mockDelay();
-      return { id: Number(id), status: 'WAITING_PICKING', rejection_reason: reason };
-    }
-    const response = await apiClient.put(`/delivery-orders/${id}/picking-plan-adjustment-request`, { reason });
+    const response = await apiClient.put(`/delivery-orders/${id}/quality-approval`, { notes });
     return normalizeDeliveryOrder(response.data);
   },
 

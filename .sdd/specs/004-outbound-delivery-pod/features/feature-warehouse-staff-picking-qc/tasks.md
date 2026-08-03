@@ -138,9 +138,6 @@
 - [X] T058 Run targeted delivery-order controller and service tests in `backend/pom.xml`
 - [X] T059 Run backend compile to verify DTO, entity, repository, and service wiring in `backend/pom.xml`
 - [X] T060 Verify quickstart scenarios against the implemented API using `.sdd/specs/004-outbound-delivery-pod/features/feature-warehouse-staff-picking-qc/quickstart.md`
-- [X] T061 Add Storekeeper QC rejection decision, mandatory recount reason, active QC history fields, and Flyway migration.
-- [X] T062 Keep pending inventory at source, reset active QC summaries, and return the Delivery Order to `WAITING_PICKING`.
-- [X] T063 Add Storekeeper rejection UI, Warehouse Staff recount reason display, OpenAPI/spec updates, and focused backend/frontend tests.
 - [X] T064 Defer staging/quarantine inventory movement and QC-fail evidence creation until Storekeeper quality approval.
 
 ---

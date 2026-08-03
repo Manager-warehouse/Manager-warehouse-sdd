@@ -64,7 +64,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{id}/quality-approval:
     put:
-      summary: Accept outbound quality or reject it for Warehouse Staff recount
+      summary: Approve outbound quality after QC review
       operationId: approveDeliveryOrderQuality
       tags:
         - Delivery Orders
@@ -85,7 +85,7 @@ paths:
               $ref: "#/components/schemas/QualityApprovalRequest"
       responses:
         "200":
-          description: Quality accepted and moved to QC_COMPLETED, or rejected and returned to WAITING_PICKING
+          description: Quality approved and moved to QC_COMPLETED
           content:
             application/json:
               schema:
@@ -109,53 +109,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Quality decision, destination state, or capacity failed validation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-  /api/v1/delivery-orders/{id}/picking-plan-adjustment-request:
-    put:
-      summary: Request Storekeeper to revise an imbalanced picking plan
-      operationId: requestPickingPlanAdjustment
-      tags:
-        - Delivery Orders
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PickingPlanAdjustmentRequest"
-      responses:
-        "200":
-          description: Staff request recorded for Storekeeper while the order remains WAITING_PICKING
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeliveryOrderResponse"
-        "400":
-          description: Adjustment reason is missing
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Warehouse staff is outside the Delivery Order warehouse scope
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "422":
-          description: Delivery Order is not WAITING_PICKING or the plan is already balanced
+          description: Quality approval, destination state, or capacity failed validation
           content:
             application/json:
               schema:
@@ -329,26 +283,8 @@ components:
     QualityApprovalRequest:
       type: object
       properties:
-        decision:
-          type: string
-          enum: [ACCEPT, REJECT]
-          default: ACCEPT
-        rejectionReason:
-          type: string
-          minLength: 1
-          maxLength: 1000
-          description: Required when decision is REJECT
         notes:
           type: string
-          maxLength: 1000
-    PickingPlanAdjustmentRequest:
-      type: object
-      required:
-        - reason
-      properties:
-        reason:
-          type: string
-          minLength: 1
           maxLength: 1000
     WarehouseApprovalRequest:
       type: object

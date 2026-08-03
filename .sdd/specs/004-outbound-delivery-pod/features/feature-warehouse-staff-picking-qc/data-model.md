@@ -109,7 +109,6 @@
 - `qc_fail_reason` is required when `qc_fail_qty > 0`.
 - A repeated request with the same `idempotency_key` and the same payload hash returns the previous success without replaying movement.
 - Active rows participate in the current review cycle; only rows with `inventory_moved_at` participate in trip quantities and approved QC reporting.
-- A Storekeeper recount rejection retains the row as history with `is_active = false` and rejection metadata.
 - New Staff submissions keep `inventory_moved_at = null`; Storekeeper approval sets it only after all inventory and QC-fail evidence mutations succeed.
 
 ## Inventory

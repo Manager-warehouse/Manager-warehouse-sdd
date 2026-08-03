@@ -5,7 +5,6 @@ import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
-import com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest;
 import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
@@ -184,22 +183,6 @@ public class DeliveryOrderController {
         return deliveryOrderService.saveDeliveryOrderPickQcResult(id, request, currentUser());
     }
 
-    @PutMapping("/{id}/picking-plan-adjustment-request")
-    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
-    @Operation(summary = "Request Storekeeper to revise an imbalanced picking plan")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Adjustment request recorded"),
-            @ApiResponse(responseCode = "400", description = "Reason is missing", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Warehouse scope or role is invalid", content = @Content),
-            @ApiResponse(responseCode = "422",
-                    description = "Order is not waiting for picking or its picking plan is already balanced",
-                    content = @Content)
-    })
-    public DeliveryOrderResponse requestPickingPlanAdjustment(@PathVariable Long id,
-            @Valid @RequestBody DeliveryOrderPickingPlanAdjustmentRequest request) {
-        return deliveryOrderService.requestPickingPlanAdjustment(id, request, currentUser());
-    }
-
     @PutMapping("/{id}/replacement-plan")
     @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(
@@ -228,17 +211,13 @@ public class DeliveryOrderController {
 
     @PutMapping("/{id}/quality-approval")
     @PreAuthorize("hasRole('STOREKEEPER')")
-    @Operation(summary = "Accept outbound quality or reject it for Warehouse Staff recount")
+    @Operation(summary = "Approve outbound quality after QC review")
     @ApiResponses({
-            @ApiResponse(responseCode = "200",
-                    description = "Quality accepted and moved to QC_COMPLETED, or rejected and returned to WAITING_PICKING"),
+            @ApiResponse(responseCode = "200", description = "Quality approved and delivery order moved to QC_COMPLETED"),
             @ApiResponse(responseCode = "400", description = "Invalid quality-approval payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "409", description = "Inventory version or row conflict while applying approved QC movement", content = @Content),
-            @ApiResponse(responseCode = "422",
-                    description = "Validation, destination state, or capacity failed, such as QC_REPLACEMENT_REQUIRED, "
-                            + "OUTBOUND_QC_REJECTION_REASON_REQUIRED, or DELIVERY_ORDER_STATUS_INVALID",
-                    content = @Content)
+            @ApiResponse(responseCode = "422", description = "Quality approval validation failed, such as QC_REPLACEMENT_REQUIRED or DELIVERY_ORDER_STATUS_INVALID", content = @Content)
     })
     public DeliveryOrderResponse approveDeliveryOrderQuality(@PathVariable Long id,
                                                              @Valid @RequestBody DeliveryOrderQualityApprovalRequest request) {

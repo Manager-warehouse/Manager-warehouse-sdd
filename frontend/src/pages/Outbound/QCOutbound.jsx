@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Check, Loader2, PackageSearch, RotateCcw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Loader2, PackageSearch } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
@@ -143,34 +143,6 @@ export default function QCOutbound() {
     }
   };
 
-  const planMismatches = (order?.items || []).map((item) => {
-    const plannedQty = (item.allocations || []).reduce(
-      (total, allocation) => total + Number(allocation.planned_qty || 0),
-      0,
-    );
-    return {
-      productName: item.product_name,
-      requestedQty: Number(item.requested_qty || 0),
-      plannedQty: roundQuantity(plannedQty),
-    };
-  }).filter((item) => item.plannedQty !== item.requestedQty);
-
-  const handleRequestPlanAdjustment = async () => {
-    const reason = planMismatches.map((item) => (
-      `${item.productName}: yêu cầu ${item.requestedQty}, đang phân bổ ${item.plannedQty}`
-    )).join('; ').slice(0, 1000);
-    setSubmitting(true);
-    try {
-      await outboundService.requestPickingPlanAdjustment(id, reason);
-      addToast('Đã gửi yêu cầu Storekeeper phân bổ lại kế hoạch lấy hàng.', 'success');
-      navigate(`/outbound/delivery-orders/${id}`);
-    } catch (error) {
-      addToast(error.message || 'Không thể gửi yêu cầu phân bổ lại kế hoạch lấy hàng.', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const failedRows = qcRows.filter((row) => Number(row.qc_fail_qty) > 0);
   const failCount = failedRows.length;
   const totalFailQty = failedRows.reduce((total, row) => total + Number(row.qc_fail_qty), 0);
@@ -208,38 +180,6 @@ export default function QCOutbound() {
           </p>
         </div>
       </div>
-
-      {order.cancel_reason && (
-        <div className="flex items-start gap-3 rounded-lg border border-warning-200 bg-warning-50 p-4">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
-          <div>
-            <p className="text-sm font-semibold text-warning-800">Storekeeper yêu cầu đếm/QC lại</p>
-            <p className="mt-1 text-sm text-warning-700">{order.cancel_reason}</p>
-          </div>
-        </div>
-      )}
-
-      {planMismatches.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-lg border border-warning-300 bg-warning-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
-            <div>
-              <p className="text-sm font-semibold text-warning-900">Kế hoạch lấy hàng đang lệch số lượng yêu cầu</p>
-              <p className="mt-1 text-xs text-warning-800">
-                Đã có phân bổ hàng bù nên Staff không thể gửi kết quả đếm lại cho đến khi Storekeeper phân bổ lại.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={handleRequestPlanAdjustment}
-            className="btn-pill border border-warning-400 bg-canvas-light px-4 py-2 text-xs font-bold text-warning-900 disabled:opacity-50"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Yêu cầu Storekeeper phân bổ lại
-          </button>
-        </div>
-      )}
 
       {failCount > 0 && (
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
@@ -355,7 +295,7 @@ export default function QCOutbound() {
           </Button>
           <button
             onClick={handleConfirmQC}
-            disabled={!qcRows.length || submitting || planMismatches.length > 0}
+            disabled={!qcRows.length || submitting}
             className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
           >
             {submitting ? (

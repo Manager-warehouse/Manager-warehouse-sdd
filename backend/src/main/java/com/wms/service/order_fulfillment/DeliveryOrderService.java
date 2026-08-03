@@ -5,7 +5,6 @@ import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
-import com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest;
 import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
@@ -32,8 +31,6 @@ public interface DeliveryOrderService {
     DeliveryOrderResponse cancelDeliveryOrder(Long id, DeliveryOrderCancelRequest request, User actor);
     DeliveryOrderResponse saveDeliveryOrderPickingPlan(Long id, DeliveryOrderPickingPlanRequest request, User actor);
     DeliveryOrderResponse saveDeliveryOrderPickQcResult(Long id, DeliveryOrderPickQcResultRequest request, User actor);
-    DeliveryOrderResponse requestPickingPlanAdjustment(Long id,
-            DeliveryOrderPickingPlanAdjustmentRequest request, User actor);
     DeliveryOrderResponse saveDeliveryOrderReplacementPlan(Long id, DeliveryOrderReplacementPlanRequest request, User actor);
     DeliveryOrderResponse approveDeliveryOrderQuality(Long id, DeliveryOrderQualityApprovalRequest request, User actor);
     DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseApprovalRequest request, User actor);
