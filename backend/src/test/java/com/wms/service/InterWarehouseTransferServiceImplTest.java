@@ -81,6 +81,7 @@ import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.SourceLoadReportItemRequest;
+import com.wms.dto.request.SourceLoadPickRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
@@ -313,9 +314,16 @@ class InterWarehouseTransferServiceImplTest {
 
     private void recordPassingOutboundQcAndHandover() {
         service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
+                sourceLoadItem(transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed", "outbound-qc.jpg"), sourceManager);
         service.loadHandover(1L, new LoadHandoverRequest("load-handover.jpg"), sourceManager);
+    }
+
+    private SourceLoadReportItemRequest sourceLoadItem(BigDecimal qty) {
+        return new SourceLoadReportItemRequest(
+                transferItem.getId(),
+                qty,
+                List.of(new SourceLoadPickRequest(sourceInventory.getId(), sourceLocation.getId(), qty)));
     }
 
     private void moveTransferToCheckedReceiving() {
@@ -500,7 +508,7 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(unshipped.items().get(0).sentQty()).isNull();
 
         service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
+                sourceLoadItem(transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed again", "outbound-qc-2.jpg"), sourceManager);
         service.shipTransfer(1L, sourceManager);
         service.loadHandover(1L, new LoadHandoverRequest("load-handover-2.jpg"), sourceManager);
@@ -539,7 +547,7 @@ class InterWarehouseTransferServiceImplTest {
                 .hasMessageContaining("SOURCE_LOAD_REPORT_REQUIRED");
 
         service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
+                sourceLoadItem(transferItem.getPlannedQty())), null), sourceManager);
         InterWarehouseTransferResponse failedQc = service.recordOutboundQc(1L,
                 new OutboundQcRequest(false, "Mop meo vo hop", "qc-fail.jpg"), sourceManager);
         assertThat(failedQc.sourceLoadReworkRequired()).isTrue();
@@ -552,7 +560,7 @@ class InterWarehouseTransferServiceImplTest {
                 .hasMessageContaining("SOURCE_LOAD_REWORK_REQUIRED");
 
         InterWarehouseTransferResponse reloaded = service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), "Da doi hang"), sourceManager);
+                sourceLoadItem(transferItem.getPlannedQty())), "Da doi hang"), sourceManager);
         assertThat(reloaded.sourceLoadReworkRequired()).isFalse();
         assertThat(reloaded.outboundQcPassed()).isNull();
 
@@ -572,6 +580,18 @@ class InterWarehouseTransferServiceImplTest {
                 new SourceLoadReportItemRequest(transferItem.getId(), new BigDecimal("4.00"))), ""), sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("SOURCE_LOAD_QTY_MUST_MATCH_PLAN");
+    }
+
+    @Test
+    void sourceFlow_rejectsLoadReportWithoutReservedBinPicks() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        assertThatThrownBy(() -> service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), ""), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_PICK_ROWS_REQUIRED");
     }
 
     @Test
@@ -601,6 +621,21 @@ class InterWarehouseTransferServiceImplTest {
                 dispatcher))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("TRIP_END_MUST_NOT_BE_AFTER_REQUIRED_DATE");
+    }
+
+    @Test
+    void assignTrip_rejectsVehicleThatCannotCarryTransferLoad() {
+        product.setWeightKg(new BigDecimal("20.00"));
+        service.approveTransfer(1L, sourceManager);
+        vehicle.setMaxWeightKg(new BigDecimal("50.00"));
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("VEHICLE_CANNOT_CARRY_TRANSFER_LOAD");
     }
 
     @Test

@@ -363,6 +363,11 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  getSourceLoadPickCandidates: async (id) => {
+    const response = await apiClient.get(`/inter-warehouse-transfers/${id}/source-load-pick-candidates`);
+    return response.data;
+  },
+
   // Kho nguồn: công nhân báo xếp -> thủ kho QC xuất -> ship -> bàn giao -> tài xế depart.
   // Frontend upload/giữ photoRef để nút không bị bấm thiếu bằng chứng.
   recordSourceLoadReport: async (id, items, reworkReason = '') => {

@@ -49,11 +49,14 @@
 7. Dispatcher gán chuyến:
    - `POST /api/v1/inter-warehouse-transfers/{id}/trip`
    - Dùng xe khả dụng và tài xế có scope kho chứa kho nguồn của transfer.
+   - Nếu xe được chọn không chứa được tổng tải phiếu, backend trả `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD`; đổi sang xe tải trọng/thể tích lớn hơn.
    - Kỳ vọng có một trip `TRANSFER` liên kết transfer và mã trip dạng `TTR-YYYYMMDD-####`.
 
 8. Công nhân nguồn báo xếp, QC xuất, ship và bàn giao:
+   - Công nhân nguồn gọi `GET /api/v1/inter-warehouse-transfers/{id}/source-load-pick-candidates` để xem kệ/bin nào còn bao nhiêu hàng đã được giữ.
    - Công nhân nguồn gọi `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report`.
-   - Payload phải có mọi transfer item và `loadedQty` thực tế đã đặt lên xe.
+   - Payload phải có mọi transfer item, `loadedQty` thực tế đã đặt lên xe và `picks` theo từng `inventoryId`, `locationId`, `quantity`.
+   - Tổng `picks.quantity` của từng item phải đúng `plannedQty`; thiếu/thừa hoặc chọn sai kệ bị reject trước khi gửi cho thủ kho QC.
    - `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc`
    - `POST /api/v1/inter-warehouse-transfers/{id}/ship`
    - `POST /api/v1/inter-warehouse-transfers/{id}/load-handover`
@@ -146,7 +149,7 @@ Chạy các case sau trước khi chấp nhận thay đổi transfer-flow:
 2. Tạo/sửa `TRF` thiếu external instruction, source/destination trùng, `documentDate` quá khứ, `plannedDate` quá khứ, `plannedDate < documentDate`, dòng SKU trùng, số lượng lẻ, product/warehouse inactive, và external instruction đang active bị trùng. Kỳ vọng mã lỗi backend ổn định kèm message tiếng Việt.
 3. Duyệt `TRQ` khi tồn khả dụng nguồn thấp hơn requested quantity. Kỳ vọng lỗi `INSUFFICIENT_AVAILABLE_STOCK` hoặc tương đương; status vẫn `SUBMITTED`; không tạo partial reservation/allocation hoặc audit approval.
 4. Gán trip với scope Dispatcher sai, tài xế không hợp lệ với kho nguồn, xe/tài xế unavailable, trùng lịch, time window sai, planned time quá khứ, deadline transfer hết hạn, và vượt capacity. Kỳ vọng reject trip mutation và không lock resource.
-5. Submit source load thiếu item, trùng item, loaded quantity âm/lẻ hoặc quantity mismatch thiếu rework reason. Kỳ vọng lỗi source-load và chưa bật outbound QC.
+5. Submit source load thiếu item, trùng item, thiếu `picks`, chọn sai kệ, pick vượt allocation, loaded quantity âm/lẻ hoặc tổng pick không khớp kế hoạch. Kỳ vọng lỗi source-load và chưa bật outbound QC.
 6. Submit outbound QC hoặc handover khi chưa chọn/chụp ảnh bằng chứng. Kỳ vọng client disabled action và backend trả `TRANSFER_PHOTO_REQUIRED` nếu bypass.
 7. Thử ship/depart trước load report, trước outbound QC pass, trước load handover, bằng sai tài xế hoặc sau khi trip assignment bị lock. Kỳ vọng validation đúng thứ tự và inventory không đổi.
 8. Submit receive-count trước arrival/handover, có dòng item trùng, thiếu dòng item, số âm/lẻ, vượt sent quantity hoặc shortage thiếu reason. Kỳ vọng receive-count validation và chưa ghi tồn; handover kho đích không yêu cầu ảnh.

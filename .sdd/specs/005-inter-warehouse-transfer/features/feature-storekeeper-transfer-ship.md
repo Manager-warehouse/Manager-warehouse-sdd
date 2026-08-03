@@ -2,13 +2,13 @@
 
 ## 1. Bối cảnh và mục tiêu
 
-Công nhân kho nguồn lấy hàng, bốc xếp lên xe nội bộ và báo cáo số lượng thực xếp theo phiếu đã duyệt. Thủ kho nguồn QC xuất sau khi có báo cáo xếp, yêu cầu công nhân xử lý lại nếu QC thất bại, và chỉ cho bàn giao tài xế khi QC đạt. Dispatcher lập chuyến xe `TTR-*` riêng cho phiếu điều chuyển. Tài xế được gán xác nhận nhận hàng và rời kho để hệ thống chuyển tồn sang `IN_TRANSIT`.
+Công nhân kho nguồn lấy hàng theo đúng kệ/bin đã được hệ thống giữ hàng, nhập số lượng lấy ở từng kệ, bốc xếp lên xe nội bộ và báo cáo số lượng thực xếp theo phiếu đã duyệt. Thủ kho nguồn QC xuất sau khi có báo cáo xếp, yêu cầu công nhân xử lý lại nếu QC thất bại, và chỉ cho bàn giao tài xế khi QC đạt. Dispatcher lập chuyến xe `TTR-*` riêng cho phiếu điều chuyển. Tài xế được gán xác nhận nhận hàng và rời kho để hệ thống chuyển tồn sang `IN_TRANSIT`.
 
 Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nội bộ**, không liên quan luồng `RN-*` nhập nhà cung cấp. Sprint 1 không dùng Barcode/QR; các bước báo xếp, QC xuất và bàn giao dùng số lượng nhập/xác nhận và ảnh bằng chứng. UI không nhập link ảnh thủ công; người dùng chọn file ảnh hoặc chụp trực tiếp trước khi nút xác nhận được bật.
 
 ## 2. Tác nhân
 
-- **Công nhân/Nhân viên kho nguồn**: Lấy hàng, bốc xếp lên xe và báo số lượng xếp theo từng dòng phiếu.
+- **Công nhân/Nhân viên kho nguồn**: Xem kệ/bin đã giữ hàng, lấy đúng số lượng từ từng kệ, bốc xếp lên xe và báo số lượng xếp theo từng dòng phiếu.
 - **Thủ kho nguồn**: QC xuất, yêu cầu xử lý lại khi QC fail, xác nhận hàng đủ điều kiện bàn giao.
 - **Trưởng kho nguồn**: Duyệt hoặc từ chối phiếu điều chuyển.
 - **Dispatcher kho nguồn**: Lập chuyến xe, gán xe và tài xế khả dụng trong scope kho nguồn.
@@ -29,9 +29,12 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - Khi từ chối, bắt buộc reason, set status `REJECTED`, không đổi tồn và ghi audit `TRANSFER_REJECT`.
 - Dispatcher gán/cập nhật trip chỉ khi transfer `APPROVED`, thời gian hợp lệ, không quá khứ, không vượt hạn cần hàng.
 - Xe/tài xế được chọn phải khả dụng, không trùng lịch và đúng scope kho nguồn.
+- Tổng trọng lượng/thể tích phiếu phải không vượt tải xe được chọn; nếu vượt thì yêu cầu đổi xe lớn hơn.
 - Có thể đổi xe/tài xế/lịch trước departure; sau departure trip assignment bị lock.
-- Công nhân nguồn báo `loaded_qty` cho mọi item trước outbound QC.
-- `loaded_qty` phải là số nguyên không âm; trước khi QC pass, mọi dòng phải có `loaded_qty = planned_qty`.
+- Công nhân nguồn phải gọi danh sách kệ đã giữ hàng trước khi báo xếp, nhìn được `locationCode`, batch và số lượng còn phải lấy ở từng kệ.
+- Công nhân nguồn báo `loaded_qty` kèm danh sách `picks` theo `inventoryId`, `locationId`, `quantity` cho mọi item trước outbound QC.
+- `loaded_qty` là tổng `picks.quantity`, phải là số nguyên không âm; mọi dòng phải có `loaded_qty = planned_qty`.
+- Mỗi pick phải thuộc allocation đã giữ của transfer item, không lấy vượt số lượng đã giữ ở kệ đó và tổng pick của từng dòng phải đúng kế hoạch.
 - Nếu QC fail, hệ thống set rework marker; công nhân phải dỡ/đổi/sửa/báo lại trước khi QC được pass.
 - Outbound QC bắt buộc có ảnh bằng chứng, không yêu cầu Barcode/QR.
 - Khi QC thiếu hoặc fail, hệ thống chặn ship, load handover và depart.
@@ -48,6 +51,7 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - `POST /api/v1/inter-warehouse-transfers/{id}/approve` - Trưởng kho nguồn duyệt và giữ hàng.
 - `POST /api/v1/inter-warehouse-transfers/{id}/reject` - Trưởng kho nguồn từ chối phiếu `NEW` với lý do.
 - `POST /api/v1/inter-warehouse-transfers/{id}/trip` - Dispatcher gán chuyến xe nội bộ.
+- `GET /api/v1/inter-warehouse-transfers/{id}/source-load-pick-candidates` - Công nhân nguồn xem kệ/bin đã giữ hàng và số lượng phải lấy.
 - `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` - Công nhân nguồn báo số lượng thực xếp trước QC.
 - `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc` - Thủ kho nguồn QC xuất sau khi công nhân báo xếp.
 - `POST /api/v1/inter-warehouse-transfers/{id}/ship` - Thủ kho nguồn chốt số lượng gửi sau QC đạt.
@@ -66,10 +70,15 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - `TRIP_DATE_MUST_NOT_BE_PAST` (HTTP 400): Lịch chuyến ở quá khứ.
 - `TRIP_DEADLINE_EXPIRED` (HTTP 409): Hạn cần hàng đã qua trước dispatch/depart.
 - `TRIP_END_BEFORE_START` (HTTP 400): Giờ kết thúc trước giờ bắt đầu.
-- `TRIP_CAPACITY_EXCEEDED` (HTTP 422): Vượt tải trọng/thể tích xe.
+- `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD` (HTTP 422): Xe được chọn không thể chứa tổng tải điều chuyển.
 - `WAREHOUSE_SCOPE_REQUIRED` (HTTP 403): Actor ngoài scope kho nguồn.
 - `SOURCE_LOAD_REPORT_REQUIRED` (HTTP 409): Chưa có báo cáo xếp hàng.
 - `SOURCE_LOAD_QTY_INVALID` (HTTP 400): `loaded_qty` âm hoặc không nguyên.
+- `SOURCE_PICK_ROWS_REQUIRED` (HTTP 400): Chưa gửi danh sách kệ/bin đã lấy.
+- `SOURCE_PICK_LOCATION_NOT_RESERVED` (HTTP 422): Kệ/bin được chọn không thuộc allocation đã giữ.
+- `SOURCE_PICK_QTY_EXCEEDS_AVAILABLE` (HTTP 422): Lấy vượt số lượng đã giữ ở kệ/bin.
+- `SOURCE_PICK_QTY_MUST_MATCH_PLAN` (HTTP 422): Tổng số lượng lấy theo kệ không khớp kế hoạch.
+- `SOURCE_PICK_QTY_MUST_MATCH_RESERVED_BIN` (HTTP 422): Số lượng lấy ở từng kệ không khớp allocation đã giữ.
 - `SOURCE_LOAD_REWORK_REQUIRED` (HTTP 409): QC trước fail, công nhân phải xử lý/báo lại.
 - `OUTBOUND_QC_REQUIRED` (HTTP 409): Ship/depart trước QC pass.
 - `TRANSFER_PHOTO_REQUIRED` (HTTP 400): Thiếu ảnh QC hoặc handover.
@@ -105,7 +114,8 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - **Chặn dispatch quá hạn**: Nếu deadline đã qua trước khi depart, hệ thống trả `TRIP_DEADLINE_EXPIRED`.
 - **Planner hủy `NEW`**: Status thành `CANCELLED`, audit `TRANSFER_CANCEL`, tồn không đổi.
 - **Trưởng kho hủy `APPROVED` chưa ship**: Release reservation và audit `TRANSFER_CANCEL`.
-- **Công nhân báo xếp trước QC**: Sau `loaded_qty = planned_qty`, thủ kho được QC xuất.
+- **Công nhân báo xếp trước QC**: Sau khi chọn kệ/bin đã giữ hàng, tổng pick đúng `planned_qty` và `loaded_qty = planned_qty`, thủ kho được QC xuất.
+- **Chặn không chọn kệ**: Gửi `source-load-report` không có `picks` bị reject `SOURCE_PICK_ROWS_REQUIRED`.
 - **QC fail trả về công nhân**: Hệ thống chặn handover/depart và chỉ hiện action rework/re-report.
 - **Chặn mismatch số lượng gửi**: `loaded_qty` 29 hoặc 31 cho kế hoạch 30 bị reject `SENT_QTY_MISMATCH`.
 - **Unship trước cancel**: Phiếu đã ship nhưng chưa depart phải `/unship` trước khi hủy.
