@@ -316,7 +316,164 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans:
+    post:
+      summary: Create a split delivery plan for one overloaded Delivery Order
+      operationId: createSplitDeliveryPlan
+      tags:
+        - Split Delivery Plans
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SplitDeliveryPlanCreateRequest"
+      responses:
+        "201":
+          description: Split delivery plan created in PLANNED status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
+        "403":
+          description: Dispatcher is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Delivery Order, vehicle, or driver already belongs to an active plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Allocation, readiness, or capacity validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{id}:
+    put:
+      summary: Update a planned split delivery plan before departure
+      operationId: updateSplitDeliveryPlan
+      tags:
+        - Split Delivery Plans
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SplitDeliveryPlanUpdateRequest"
+      responses:
+        "200":
+          description: Split delivery plan updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
+        "422":
+          description: Split delivery plan is no longer editable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{id}/cancel:
+    put:
+      summary: Cancel a planned split delivery plan
+      operationId: cancelSplitDeliveryPlan
+      tags:
+        - Split Delivery Plans
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SplitDeliveryPlanCancelRequest"
+      responses:
+        "200":
+          description: Split delivery plan cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
+        "422":
+          description: Split delivery plan is not cancellable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{id}/driver-readiness:
+    put:
+      summary: Confirm readiness for the authenticated driver's split leg
+      operationId: confirmSplitDriverReadiness
+      tags:
+        - Split Delivery Plans
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+      responses:
+        "200":
+          description: Driver readiness accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
+        "403":
+          description: Driver is not assigned to this split plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{id}/depart:
+    put:
+      summary: Lead driver departs all split legs together
+      operationId: departSplitDeliveryPlan
+      tags:
+        - Split Delivery Plans
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+      responses:
+        "200":
+          description: All split legs departed together
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
+        "403":
+          description: Authenticated driver is not the lead driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Drivers are not all ready or a vehicle/driver is no longer available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
+  parameters:
+    SplitPlanId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
   securitySchemes:
     bearerAuth:
       type: http
@@ -411,6 +568,85 @@ components:
         notes:
           type: string
           maxLength: 1000
+    SplitDeliveryPlanCreateRequest:
+      type: object
+      required:
+        - deliveryOrderId
+        - plannedDepartureAt
+        - leadDriverId
+        - legs
+      properties:
+        deliveryOrderId:
+          type: integer
+          format: int64
+        plannedDepartureAt:
+          type: string
+          format: date-time
+        leadDriverId:
+          type: integer
+          format: int64
+        notes:
+          type: string
+          maxLength: 1000
+        legs:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/SplitDeliveryLegRequest"
+    SplitDeliveryPlanUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/SplitDeliveryPlanCreateRequest"
+    SplitDeliveryPlanCancelRequest:
+      type: object
+      required:
+        - cancelReason
+      properties:
+        cancelReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    SplitDeliveryLegRequest:
+      type: object
+      required:
+        - vehicleId
+        - driverId
+        - stopOrder
+        - items
+      properties:
+        vehicleId:
+          type: integer
+          format: int64
+        driverId:
+          type: integer
+          format: int64
+        stopOrder:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SplitDeliveryLegItemRequest"
+    SplitDeliveryLegItemRequest:
+      type: object
+      required:
+        - deliveryOrderItemId
+        - productId
+        - batchId
+        - quantity
+      properties:
+        deliveryOrderItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+          minimum: 0.001
     TripResponse:
       type: object
       properties:
@@ -476,6 +712,73 @@ components:
           example: WAREHOUSE_APPROVED
         stopOrder:
           type: integer
+    SplitDeliveryPlanResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        planNumber:
+          type: string
+        deliveryOrderId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        dispatcherId:
+          type: integer
+          format: int64
+        leadDriverId:
+          type: integer
+          format: int64
+        plannedDepartureAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - PLANNED
+            - IN_TRANSIT
+            - COMPLETED
+            - CANCELLED
+            - RETURNED
+        totalWeightKg:
+          type: number
+        totalVolumeM3:
+          type: number
+        legs:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitDeliveryLegResponse"
+    SplitDeliveryLegResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        tripId:
+          type: integer
+          format: int64
+        vehicleId:
+          type: integer
+          format: int64
+        driverId:
+          type: integer
+          format: int64
+        stopOrder:
+          type: integer
+        status:
+          type: string
+        driverReadyAt:
+          type: string
+          format: date-time
+        departedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
     ErrorResponse:
       type: object
       properties:
@@ -488,6 +791,10 @@ components:
             - VEHICLE_NOT_AVAILABLE
             - DRIVER_NOT_AVAILABLE
             - VEHICLE_OVERLOAD
+            - SPLIT_ALLOCATION_INCOMPLETE
+            - SPLIT_NO_READY_VEHICLE
+            - SPLIT_DRIVER_READINESS_INCOMPLETE
+            - SPLIT_LEAD_DRIVER_REQUIRED
             - TRIP_NOT_EDITABLE
             - TRIP_NOT_READY_TO_DEPART
             - TRIP_NOT_READY_TO_COMPLETE

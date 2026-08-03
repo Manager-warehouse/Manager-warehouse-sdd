@@ -10,6 +10,20 @@ Khi OTP hợp lệ và còn hạn, hệ thống xác nhận giao hàng thành c�
 
 Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài xế bấm nút chuyển Delivery Order sang `RETURNED`; hàng vẫn nằm trong kho ảo `IN_TRANSIT` cho tới khi luồng hoàn hàng riêng tiếp nhận và xử lý. Sau khi mọi Delivery Order trong trip đã `COMPLETED` hoặc `RETURNED`, tài xế có nút xác nhận xe đã quay về kho để chuyển trip sang `COMPLETED`. Việc chuyển Delivery Order từ `RETURNED` sang `DELIVERY_FAILED` không thuộc thao tác của tài xế: nhân viên kho phải đếm số lượng và kiểm tra chất lượng hàng hoàn, Thủ kho duyệt kết quả và lập kế hoạch cất hàng, sau đó nhân viên kho xác nhận cất hàng thành công.
 
+## Clarifications
+
+### Session 2026-08-03
+
+- Q: Ảnh POD được lưu ở dịch vụ object storage hay local storage trên VPS? -> A: Lưu file trong persistent local storage trên VPS; database chỉ lưu relative storage path và metadata, còn frontend xem ảnh qua backend có kiểm tra quyền.
+- Q: Sau khi Driver giao hàng thành công, bằng chứng POD được xem lại ở đâu? -> A: Màn hình chi tiết Delivery Order ở trạng thái `COMPLETED` hoặc `CLOSED` phải hiển thị đúng hai ảnh POD đã được chấp nhận của lần giao thành công.
+- Q: Với một Delivery Order chia trên nhiều xe, POD và OTP được quản lý theo leg hay theo Delivery Order? -> A: Dùng chung một cặp POD và một OTP cho toàn bộ Delivery Order.
+- Q: Driver nào thực hiện POD và OTP cho Delivery Order chia nhiều xe? -> A: Chỉ lead driver thực hiện POD, yêu cầu OTP và xác nhận OTP.
+- Q: Khi nào được bắt đầu bàn giao hàng của Delivery Order chia nhiều xe? -> A: Tất cả xe/leg phải tự xác nhận đã đến điểm giao trước khi bất kỳ leg nào được bàn giao.
+- Q: Nếu một leg giao thất bại thì xử lý phần còn lại thế nào? -> A: Toàn bộ Delivery Order thất bại, tất cả leg chuyển sang hoàn hàng và dùng chung luồng hoàn hàng của Delivery Order.
+- Q: Có được thay ảnh POD sau khi đã yêu cầu OTP không? -> A: Cho phép thay đồng thời cả cặp ảnh POD; OTP hiện tại bị vô hiệu hóa và phải yêu cầu mã mới.
+- Q: Nếu gửi email OTP thất bại thì xử lý thế nào? -> A: Lưu trạng thái `SEND_FAILED` và cho phép gửi lại ngay trên cùng bản ghi OTP.
+- Q: Khi OTP thành công có tự động giải phóng toàn bộ xe không? -> A: Không; mỗi driver tự xác nhận xe của mình đã về kho, chỉ leg đó được giải phóng.
+
 ## 2. Actors
 
 - **Tài xế**: Xem trip hiện tại được gán cho driver profile của mình và các Delivery Order thuộc trip đó, upload `goodsImage`/`signDocumentImage`, yêu cầu OTP, nhập OTP, báo Đại lý từ chối/giao thất bại, và xác nhận xe đã quay về kho.
@@ -34,6 +48,8 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
   - The system SHALL treat the current delivery attempt as the latest `deliveries` record for the given `trip_id`, `do_id`, and authenticated `driver_id` that is not terminal.
   - The system SHALL NOT use `OUT_FOR_DELIVERY` in Sprint 1 delivery attempt status transitions.
   - The system SHALL require full Delivery Order delivery; partial delivery confirmation is not supported in Sprint 1.
+  - A split delivery SHALL use exactly one current delivery attempt, one shared POD evidence pair, and one active OTP lifecycle for the whole Delivery Order, not separate POD/OTP records per leg.
+  - Only the split plan's lead driver SHALL upload or replace the shared POD evidence, request/resend the shared OTP, and confirm the whole Delivery Order using that OTP.
   - The system SHALL create audit records for every user action in this flow: POD upload, OTP request/resend, OTP confirmation, delivery failure/return, and trip completion.
 
 - **Event-driven:**
@@ -58,16 +74,24 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Require `signDocumentImage` to show the signed delivery document or receipt confirmation.
     - Reject each image when it is larger than 5 MB or its binary content cannot be decoded as an allowed image format; validation SHALL inspect file signatures/content and SHALL NOT trust only the filename extension or client-supplied MIME type.
     - Accept camera output encoded as JPEG, PNG, or WebP; reject SVG, GIF, renamed non-image files, malformed images, and other unsupported formats.
-    - Upload images through the Spring Boot backend to a private Supabase Storage bucket, which SHOULD be named `pod-evidence`; the frontend SHALL NOT receive or contain the Supabase service key.
-    - Treat persistence as one logical operation: if either object upload or database update fails, the backend SHALL leave no partial POD state, remove objects created by that failed request where applicable, and allow retry with both images.
-    - Save only each image's object path/key and metadata on the current attempt's `deliveries` record; metadata SHALL include evidence type (`GOODS` or `SIGNED_DOCUMENT`), original filename, detected content type, size in bytes, and upload timestamp. The database SHALL NOT store a public URL, signed URL, or image binary.
+    - Store images through the Spring Boot backend in a configurable persistent local-storage root on the VPS. Production storage SHALL be outside the application release directory and mounted or retained across application restart, redeployment, and container replacement.
+    - Generate server-controlled relative paths in the form `deliveries/{deliveryId}/{evidenceType}-{uuid}.{ext}`; original client filenames SHALL NOT be used as filesystem paths.
+    - Treat persistence as one logical operation: if either file write or database update fails, the backend SHALL leave no partial POD state, remove files created by that failed request where applicable, and allow retry with both images.
+    - Save only each image's relative storage path and metadata on the current attempt's `deliveries` record; metadata SHALL include evidence type (`GOODS` or `SIGNED_DOCUMENT`), original filename, detected content type, size in bytes, and upload timestamp. The database SHALL NOT store an absolute VPS path, public URL, access URL, or image binary.
     - Allow every authenticated user who is authorized to view the relevant Delivery Order detail under existing role and warehouse-scope rules to view its POD evidence.
-    - Generate POD signed URLs only through the Spring Boot backend after rechecking Delivery Order detail access; each signed URL SHALL expire 15 minutes after generation and SHALL NOT be persisted in the database.
-    - POD evidence SHALL NOT be publicly accessible, and generating or viewing a signed URL SHALL NOT create an audit log.
+    - Serve POD image bytes only through authenticated Spring Boot endpoints after rechecking Delivery Order detail access; the local storage root SHALL NOT be exposed by a public static-resource mapping.
+    - Normalize and validate every resolved path under the configured storage root and reject any path that escapes that root.
+    - Reading POD evidence SHALL NOT create an audit log.
     - Create `UPLOAD_POD` audit log.
+  - WHEN the lead driver replaces POD evidence before delivery confirmation, the system SHALL:
+    - Require a new complete pair containing both `goodsImage` and `signDocumentImage`; partial replacement of one image SHALL be rejected.
+    - Replace the shared POD pair for the current Delivery Order attempt as one logical operation.
+    - Invalidate the current non-consumed OTP by setting its status to `EXPIRED`; any previously issued code SHALL no longer confirm delivery.
+    - Require the lead driver to request a new OTP after the replacement succeeds.
+    - Create a new `UPLOAD_POD` audit log containing the before/after POD metadata.
   - WHEN a driver requests delivery OTP after both POD images are uploaded, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
-    - Validate the current delivery attempt has object paths/keys for both POD images.
+    - Validate the current delivery attempt has relative local-storage paths for both POD images.
     - Generate a random 6-digit numeric OTP.
     - Send the OTP to the dealer email configured on the dealer profile.
     - Store only the OTP hash/verifier, recipient email, `created_at`, `expires_at`, `attempt_count`, and status in `delivery_otp_attempts`.
@@ -75,8 +99,15 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Maintain exactly one `delivery_otp_attempts` row per current delivery attempt; the first OTP request inserts the row, and later resend after expiry updates that same row.
     - Reject resend while the current OTP is still active and not expired with `OTP_STILL_ACTIVE`; the backend SHALL NOT overwrite the active OTP.
     - If a previous OTP row exists for the current delivery attempt and the driver requests resend after expiry, update that same row by overwriting the OTP hash, reset `created_at`, reset `expires_at`, reset `attempt_count`, clear `consumed_at`, and set status back to `ACTIVE`.
+    - If email delivery fails, keep the same OTP row, set status to `SEND_FAILED`, return `OTP_DELIVERY_FAILED`, and allow the lead driver to retry immediately without waiting for `expires_at`.
+    - On retry from `SEND_FAILED`, reuse the same OTP row with a newly generated hash and timestamps; never create a second OTP row for the current delivery attempt.
     - Never store raw OTP on `deliveries` or `delivery_otp_attempts`.
     - Create `REQUEST_OTP` audit log.
+  - WHEN drivers deliver one Delivery Order through a split delivery plan, the system SHALL:
+    - Require every assigned split driver to confirm dealer arrival for their own leg.
+    - Reject handover confirmation for every leg until all active legs have confirmed dealer arrival.
+    - Allow each assigned driver to confirm handover only for their own leg after the all-arrived gate is satisfied.
+    - Allow the lead driver to upload the shared POD pair and request/confirm the shared OTP only after every active leg has confirmed handover.
   - WHEN a driver confirms delivery with the OTP read by the dealer, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
     - Validate the current delivery attempt exists and is still `IN_TRANSIT`.
@@ -89,13 +120,21 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Increment `attempt_count` for each incorrect OTP submission.
     - Reject the third incorrect OTP submission with `OTP_MAX_ATTEMPTS_EXCEEDED`, set only the OTP row status to `LOCKED`, and leave the delivery attempt, Delivery Order, trip, inventory, invoice, and receivable states unchanged; after this lock, Driver cannot request a new OTP and Admin must reset the OTP row before the system can generate a new code.
     - Mark the OTP record as successful by setting status `VERIFIED` and `consumed_at`; the OTP SHALL no longer be usable after successful verification.
-    - Update the current attempt's `deliveries` record to `DELIVERED`, with POD object paths/keys and metadata, OTP verification timestamp, and delivery timestamp.
+    - Update the current attempt's `deliveries` record to `DELIVERED`, with POD relative storage paths and metadata, OTP verification timestamp, and delivery timestamp.
     - Confirm the whole Delivery Order only; partial delivery quantities SHALL be rejected.
     - Decrease virtual In-Transit inventory only for this Delivery Order's delivered quantities by item/product/batch.
     - Automatically create invoice and receivable for this Delivery Order only.
     - Move this Delivery Order directly to `COMPLETED`.
     - Run inventory movement, attempt update, OTP update, invoice/receivable creation, and Delivery Order status update in one transaction with optimistic version checks.
     - Create `CONFIRM_DELIVERY` audit log for the user confirmation action.
+  - WHEN an authorized user opens the detail of a Delivery Order in `COMPLETED` or `CLOSED`, the system SHALL:
+    - Resolve the successful `DELIVERED` attempt that completed the Delivery Order.
+    - Show a `Bằng chứng giao hàng` section containing exactly the accepted `goodsImage` and `signDocumentImage` from that successful attempt.
+    - Label the two images `Ảnh hàng đã giao` and `Ảnh phiếu giao hàng có chữ ký` so their purposes are unambiguous.
+    - Show each image as a preview and allow the user to open a larger view without leaving the Delivery Order detail workflow.
+    - Request both image resources from the authenticated backend when the section is opened and retry those requests when loading fails.
+    - Keep the rest of the Delivery Order detail available if POD evidence cannot be loaded, show a Vietnamese error state inside the evidence section, and provide a retry action.
+    - Treat the successful POD pair as read-only; viewing the Delivery Order detail SHALL NOT allow replacement or deletion after delivery confirmation.
   - WHEN a driver reports dealer refusal or delivery failure, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
     - Validate the Delivery Order belongs to the trip and is in `IN_TRANSIT`.
@@ -104,6 +143,15 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Update Delivery Order status to `RETURNED`.
     - NOT change inventory quantity; goods remain tracked in virtual `IN_TRANSIT` until the separate return flow receives and classifies them.
     - Create `FAIL_DELIVERY` audit log.
+    - For a split delivery plan, treat failure of any one leg as failure of the whole Delivery Order, set every active leg and the split plan to `RETURNED`, and open only one returned-goods flow for the Delivery Order.
+    - For a split delivery plan, preserve the reporting leg and failure reason in the audit trail while preventing the remaining legs from continuing handover, POD, or OTP confirmation.
+  - WHEN a split-delivery driver confirms their vehicle has returned to the source warehouse, the system SHALL:
+    - Validate the authenticated driver is assigned to that split leg.
+    - Mark only that driver's leg trip `COMPLETED` and mark only that leg's vehicle and driver `AVAILABLE`.
+    - Keep all other leg vehicles and drivers `ON_TRIP` until their assigned drivers separately confirm return.
+    - Mark the split delivery plan operationally complete only after every leg driver has confirmed return.
+    - Never release any split vehicle or driver merely because the shared OTP was verified and the Delivery Order became `COMPLETED`.
+    - Create one vehicle-return audit log per leg confirmation.
   - WHEN the assigned driver confirms the vehicle has returned to the source warehouse, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
     - Validate the trip is `IN_TRANSIT`.
@@ -171,17 +219,27 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 - **Success result:**
   - After valid OTP confirmation, the interface SHALL show an explicit Vietnamese delivery-success message without automatic navigation.
   - The success view SHALL provide `Xem chuyến xe`, which returns the Driver to the current trip detail page.
+- **Delivery Order detail POD review:**
+  - A `COMPLETED` or `CLOSED` Delivery Order detail SHALL include a visible `Bằng chứng giao hàng` section for users already authorized to view that order.
+  - The section SHALL use two stable preview slots labelled `Ảnh hàng đã giao` and `Ảnh phiếu giao hàng có chữ ký`; loading either image SHALL NOT resize or shift unrelated order-detail content.
+  - Selecting a preview SHALL open a larger image viewer with a clear close action and SHALL preserve the user's position in the Delivery Order detail after closing.
+  - Loading, unavailable, and retry states SHALL be handled within the evidence section without replacing the whole detail page.
+  - The evidence section SHALL be read-only after successful confirmation and SHALL NOT expose upload, replace, or delete controls.
 
 ## 4. API Endpoints
 
 - `GET /api/v1/trips/driver` - Driver mobile list of all assigned trips for the authenticated Driver, including both `DELIVERY` and `TRANSFER` trip summaries for filtering.
 - `GET /api/v1/trips/driver/{id}` - Driver mobile view for the current trip assigned to the authenticated Driver. This route is driver-scoped and separate from dispatcher/manager trip detail.
 - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence` - Upload POD images for one order in the trip.
-- `GET /api/v1/delivery-orders/{doId}/pod-evidence/signed-urls` - Generate fresh 15-minute signed URLs for authorized Delivery Order detail viewers.
+- `GET /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}` - Stream one locally stored POD image (`GOODS` or `SIGNED_DOCUMENT`) to an authorized Delivery Order detail viewer.
 - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` - Generate/resend OTP to dealer email after POD evidence exists.
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` - Confirm full Delivery Order delivery using dealer OTP.
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` - Record dealer refusal or delivery failure.
 - `PUT /api/v1/trips/{tripId}/complete` - Assigned driver confirms the vehicle has returned to the source warehouse.
+- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/dealer-arrival` - Assigned leg driver confirms their vehicle has arrived at the dealer.
+- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/handover` - Assigned leg driver confirms their goods were handed over after all legs arrived.
+- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/fail-delivery` - Assigned leg driver reports failure; the whole Delivery Order and all legs enter return handling.
+- `PUT /api/v1/trips/{tripId}/complete` - For a split leg trip, the assigned leg driver confirms only their own vehicle has returned; every leg driver calls this endpoint separately.
 - `GET /api/v1/delivery-orders/{doId}/returned-goods` - Warehouse-scoped viewer reads the current returned-goods flow state so frontend can resume the correct staff/storekeeper step.
 - `PUT /api/v1/delivery-orders/{doId}/returned-goods/receive` - Storekeeper confirms the returned goods have physically arrived back at the warehouse and opens staff count/QC.
 - `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit or resubmit actual, quality-passed, and quality-failed returned quantities with failure reasons for a `RETURNED` Delivery Order.
@@ -200,25 +258,34 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 
 Both image fields SHALL be submitted together. If either field is absent or invalid, the backend SHALL reject the whole request with `POD_FILE_INVALID` and SHALL NOT persist either image as accepted POD evidence. The backend SHALL verify actual binary image content and detected format rather than trusting only the extension or declared `Content-Type`.
 
-### POD evidence metadata and signed URL response
+### POD evidence local-storage metadata and image response
 
 For each POD image, the current delivery attempt SHALL persist:
 
-- `objectKey` - Private Supabase Storage object path/key.
+- `storagePath` - Backend-generated relative path under the configured persistent VPS storage root; the absolute storage root SHALL NOT be persisted.
 - `evidenceType` - `GOODS` for `goodsImage` or `SIGNED_DOCUMENT` for `signDocumentImage`.
 - `originalFilename` - Client-provided filename retained as metadata only and never used as the storage path without backend sanitization.
 - `contentType` - Backend-detected content type.
 - `sizeBytes` - Validated file size in bytes.
 - `uploadedAt` - Server-generated ISO 8601 upload timestamp with timezone.
 
-`GET /api/v1/delivery-orders/{doId}/pod-evidence/signed-urls` SHALL:
+The configured POD storage root SHALL:
+
+- Resolve to persistent local storage on the VPS, outside the application release directory; `/var/lib/wms/pod-evidence` is the recommended production location.
+- Be readable and writable only by the operating-system account running the backend and authorized VPS administrators.
+- Be included in operational backup and restore procedures.
+- Never be exposed through `/uploads/**`, a public web-server alias, or another unauthenticated static route.
+
+`GET /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}` SHALL:
 
 - Require authentication and apply the same authorization and warehouse-scope checks used to view the Delivery Order detail.
-- Resolve both private objects from the stored `objectKey` values.
-- Generate new signed URLs with a 15-minute validity period on every successful request.
-- Return `doId`, `deliveryId`, `expiresAt`, `goodsImage`, and `signDocumentImage`; each image object SHALL contain `signedUrl`, `evidenceType`, `originalFilename`, `contentType`, `sizeBytes`, and `uploadedAt`.
-- Never return the Supabase service key or expose the bucket publicly.
-- Never store the generated signed URLs in the database or create an audit log for URL generation or image viewing.
+- Return evidence only from the successful `DELIVERED` attempt that completed a `COMPLETED` or `CLOSED` Delivery Order.
+- Accept only `GOODS` or `SIGNED_DOCUMENT` as `evidenceType`.
+- Resolve the selected relative path under the configured storage root after normalization and root-boundary validation.
+- Stream the image bytes with the stored detected `Content-Type`, `Content-Length`, and an inline content disposition using a sanitized filename.
+- Never return the absolute VPS filesystem path.
+- Return `POD_EVIDENCE_NOT_FOUND` when the metadata or local file is missing and SHALL NOT reveal filesystem details.
+- Not create an audit log for image viewing.
 
 If the Delivery Order has no complete POD evidence, the endpoint SHALL return `POD_EVIDENCE_NOT_FOUND`. If the authenticated user cannot view the Delivery Order detail, the endpoint SHALL return the existing authorization failure without revealing whether POD objects exist.
 
@@ -236,7 +303,7 @@ Backend SHALL generate the 6-digit OTP; client SHALL NOT submit an OTP value in 
 
 - `deliveryId` - Current delivery attempt identifier.
 - `recipientEmail` - Dealer email address to which the OTP was sent; the Driver UI SHOULD mask part of the address when displayed.
-- `status` - Current OTP status: `ACTIVE`, `EXPIRED`, `LOCKED`, or `VERIFIED`.
+- `status` - Current OTP status: `PENDING`, `ACTIVE`, `SEND_FAILED`, `EXPIRED`, `LOCKED`, or `VERIFIED`.
 - `expiresAt` - Server-generated ISO 8601 timestamp with timezone indicating when the OTP expires.
 - `attemptCount` - Number of incorrect submissions for the current OTP, from `0` through `3`.
 - `maxAttempts` - Maximum incorrect submissions allowed; SHALL be `3` in Sprint 1.
@@ -291,7 +358,8 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
 | `DELIVERY_ATTEMPT_NOT_CURRENT` | 409  | Request targets an old or terminal delivery attempt.                                                                       |
 | `DELIVERY_ALREADY_FINALIZED`   | 409  | Delivery attempt is already `DELIVERED`, `FAILED`, or `RETURNED`.                                                          |
 | `POD_FILE_INVALID`             | 400  | Either POD file is missing, larger than 5 MB, malformed, not an image, or uses an unsupported binary image format.         |
-| `POD_EVIDENCE_NOT_FOUND`       | 404  | The Delivery Order/current attempt has no complete pair of POD evidence objects.                                           |
+| `POD_EVIDENCE_NOT_FOUND`       | 404  | The successful attempt has no complete POD metadata pair or a referenced local file is missing/unreadable.                 |
+| `POD_STORAGE_UNAVAILABLE`      | 503  | The configured persistent POD storage root is unavailable or not writable.                                                 |
 | `MISSING_POD`                  | 400  | Confirmation or OTP request is attempted before both POD images exist.                                                     |
 | `DEALER_EMAIL_MISSING`         | 422  | Dealer profile has no email for OTP delivery.                                                                              |
 | `OTP_NOT_REQUESTED`            | 400  | Delivery confirmation is attempted before OTP is requested.                                                                |
@@ -300,6 +368,10 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
 | `OTP_STILL_ACTIVE`             | 409  | Driver requested resend while the current OTP is still valid.                                                              |
 | `OTP_MAX_ATTEMPTS_EXCEEDED`    | 423  | OTP has been entered incorrectly 3 times and requires Admin reset.                                                         |
 | `OTP_RESET_REQUIRED`           | 423  | OTP is locked and must be reset by Admin before a new code can be generated.                                               |
+| `OTP_DELIVERY_FAILED`          | 502  | OTP email could not be sent; the OTP row is `SEND_FAILED` and may be retried immediately.                                  |
+| `SPLIT_LEAD_DRIVER_REQUIRED`   | 403  | A non-lead split driver attempted the shared POD or OTP action.                                                            |
+| `SPLIT_DELIVERY_INCOMPLETE`    | 422  | Handover, POD, or OTP was attempted before all required split-leg arrival/handover confirmations were complete.            |
+| `SPLIT_LEG_DRIVER_MISMATCH`    | 403  | Driver attempted to confirm arrival, handover, or failure for another driver's split leg.                                  |
 | `PARTIAL_DELIVERY_NOT_ALLOWED` | 422  | Request attempts to deliver less than the full Delivery Order.                                                             |
 | `IN_TRANSIT_STOCK_NOT_FOUND`   | 422  | Required In-Transit inventory rows are missing or insufficient for this DO.                                                |
 | `INVOICE_ALREADY_EXISTS`       | 409  | Invoice already exists for the Delivery Order.                                                                             |
@@ -393,6 +465,43 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
   - When Driver records dealer refusal with `failureReason`
   - Then the system SHALL close the current attempt as `FAILED`, move the Delivery Order to `RETURNED`, and keep goods in virtual In-Transit for the separate return flow.
 
+- **Scenario: Split delivery waits for every vehicle before handover**
+  - Given one Delivery Order is being delivered by two or more split legs
+  - And at least one assigned vehicle has not confirmed dealer arrival
+  - When any assigned driver attempts to confirm handover
+  - Then the system SHALL reject the request with `SPLIT_DELIVERY_INCOMPLETE`.
+  - When every assigned driver has confirmed arrival
+  - Then each assigned driver MAY confirm handover for their own leg.
+  - And only the lead driver MAY upload the one shared POD pair and request the one shared OTP after every leg has confirmed handover.
+
+- **Scenario: One failed split leg returns the whole Delivery Order**
+  - Given a split Delivery Order is `IN_TRANSIT`
+  - When any assigned leg driver reports delivery failure with a reason
+  - Then the system SHALL mark the current delivery attempt `FAILED`, the Delivery Order and split plan `RETURNED`, and every active leg `RETURNED`.
+  - And the system SHALL keep all quantities in virtual In-Transit for one Delivery Order-level returned-goods flow.
+  - And no remaining leg SHALL continue handover, POD, or OTP confirmation.
+
+- **Scenario: Replacing POD invalidates the current OTP**
+  - Given the lead driver uploaded both POD images and an OTP is current
+  - When the lead driver replaces both POD images in one request before delivery confirmation
+  - Then the system SHALL replace the shared POD pair atomically and set the current OTP status to `EXPIRED`.
+  - And the old OTP SHALL no longer confirm delivery.
+  - And the lead driver SHALL request a new OTP before confirming delivery.
+
+- **Scenario: Failed OTP email can be retried immediately**
+  - Given the shared POD pair exists for the current Delivery Order attempt
+  - When the backend cannot send the generated OTP email
+  - Then the system SHALL keep the single OTP row with status `SEND_FAILED` and return `OTP_DELIVERY_FAILED`.
+  - When the lead driver retries immediately
+  - Then the system SHALL update that same row with a newly generated OTP and attempt email delivery again without waiting for the previous expiry time.
+
+- **Scenario: Each split driver releases only their own vehicle**
+  - Given a split Delivery Order has been completed by the shared OTP or moved to `RETURNED` after failure
+  - When one assigned driver calls `PUT /api/v1/trips/{tripId}/complete` for their own split leg trip
+  - Then the system SHALL complete only that leg trip and mark only that leg's driver and vehicle `AVAILABLE`.
+  - And all other drivers and vehicles SHALL remain `ON_TRIP` until they separately confirm return.
+  - And successful shared OTP confirmation SHALL NOT automatically release any split driver or vehicle.
+
 - **Scenario: Driver completes trip after vehicle returns**
   - Given a trip is `IN_TRANSIT`
   - And every Delivery Order in the trip is `COMPLETED` or `RETURNED`
@@ -443,26 +552,46 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
   - Then the interface SHALL block progression beyond the POD step.
   - And it SHALL show plain Vietnamese instructions for granting camera permission again without exposing an error code, stack trace, or technical terminology.
 
-- **Scenario: Private POD storage does not expose credentials or public images**
+- **Scenario: Private VPS POD storage is persistent and not publicly exposed**
   - Given both valid POD images are ready for upload
   - When the Driver uploads the evidence
-  - Then the Spring Boot backend SHALL upload the images to a private Supabase Storage bucket, for which `pod-evidence` is the recommended name.
-  - And the frontend SHALL NOT contain the Supabase service key.
-  - And the database SHALL store only object paths/keys and metadata, while authorized viewing SHALL use time-limited signed URLs.
+  - Then the Spring Boot backend SHALL store both images under the configured persistent local-storage root on the VPS.
+  - And the database SHALL store only backend-generated relative paths and metadata.
+  - And neither the absolute VPS path nor a public static URL SHALL be returned to the frontend.
+  - And the files SHALL remain available after application restart and redeployment.
 
-- **Scenario: Authorized Delivery Order viewer requests fresh POD signed URLs**
-  - Given both POD object keys and metadata are stored for a Delivery Order
+- **Scenario: Authorized Delivery Order viewer loads locally stored POD images**
+  - Given both POD relative storage paths and metadata are stored for a Delivery Order
   - And the authenticated user is authorized to view that Delivery Order detail under existing role and warehouse-scope rules
-  - When the frontend calls `GET /api/v1/delivery-orders/{doId}/pod-evidence/signed-urls`
-  - Then the backend SHALL generate and return fresh signed URLs for both images with one `expiresAt` exactly 15 minutes after generation.
-  - And it SHALL NOT persist either signed URL or create an audit log for generating or viewing the URLs.
-  - When the URLs expire and the user views the evidence again
-  - Then the frontend SHALL call the endpoint again instead of reusing the expired URLs.
+  - When the frontend requests `GOODS` and `SIGNED_DOCUMENT` from `GET /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}`
+  - Then the backend SHALL stream the corresponding image bytes with the stored media metadata.
+  - And it SHALL NOT expose the absolute path or create an audit log for viewing the images.
 
-- **Scenario: Unauthorized user cannot obtain POD signed URLs**
+- **Scenario: Completed Delivery Order detail shows both uploaded POD images**
+  - Given a Delivery Order is `COMPLETED` or `CLOSED`
+  - And its successful `DELIVERED` attempt contains the accepted `goodsImage` and `signDocumentImage`
+  - And the authenticated user is authorized to view that Delivery Order detail
+  - When the user opens the Delivery Order detail
+  - Then the interface SHALL show a `Bằng chứng giao hàng` section with exactly two previews labelled `Ảnh hàng đã giao` and `Ảnh phiếu giao hàng có chữ ký`.
+  - And selecting either preview SHALL open a larger read-only view that can be closed without leaving the order detail.
+  - And the interface SHALL NOT show controls to replace or delete either confirmed image.
+
+- **Scenario: POD image loading failure does not block Delivery Order detail**
+  - Given an authorized user opens a completed Delivery Order detail
+  - When one or both POD images cannot be loaded from local storage
+  - Then the rest of the Delivery Order detail SHALL remain usable.
+  - And the `Bằng chứng giao hàng` section SHALL show a Vietnamese error state and a retry action.
+  - And retry SHALL request both authenticated image endpoints again.
+
+- **Scenario: Unauthorized user cannot read local POD files**
   - Given an authenticated user is not authorized to view the Delivery Order detail
-  - When that user requests POD signed URLs
-  - Then the backend SHALL reject access without generating URLs or revealing whether POD evidence exists.
+  - When that user requests either POD image endpoint
+  - Then the backend SHALL reject access without reading the file or revealing whether POD evidence exists.
+
+- **Scenario: POD storage path cannot escape the configured root**
+  - Given a stored path or request would resolve outside the configured POD storage root
+  - When the backend resolves the requested evidence file
+  - Then the backend SHALL reject the operation without reading or writing any file outside the configured root.
 
 - **Scenario: Failed POD upload can be retried in the current session**
   - Given the Driver has captured both required POD images

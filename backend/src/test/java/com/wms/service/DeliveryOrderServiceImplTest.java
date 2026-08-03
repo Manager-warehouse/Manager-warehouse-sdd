@@ -774,6 +774,49 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderPickingPlan_allowsSelectingNewerBatchWhileOlderStockExists() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(ZERO);
+        item.setPickedQty(ZERO);
+        item.setQcPassQty(ZERO);
+        item.setQcFailQty(ZERO);
+        reservation.setReservedQty(new BigDecimal("10.00"));
+        Batch newerBatch = batch(72L, product, warehouse);
+        WarehouseLocation newerBin = bin(802L, warehouse, zone);
+        Inventory newerInventory = inventory(502L, warehouse, product, newerBatch, newerBin,
+                new BigDecimal("20.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(newerInventory));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reservationRepository.save(any(WarehouseProductReservation.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation allocation = invocation.getArgument(0);
+            allocation.setId(901L);
+            return allocation;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(List.of(
+                allocationRequest(200L, 502L, 72L, 802L, 31L, new BigDecimal("10.00"))));
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(newerInventory.getReservedQty()).isEqualByComparingTo("10.00");
+        verify(inventoryRepository, never()).findFifoRowsForPlanning(20L, 30L);
+    }
+
+    @Test
     void saveDeliveryOrderPickingPlan_rejectsStagingZoneAsSource() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -817,6 +860,33 @@ class DeliveryOrderServiceImplTest {
         assertThat(response.get(200L)).hasSize(1);
         assertThat(response.get(200L).get(0).getInventoryId()).isEqualTo(502L);
         assertThat(response.get(200L).get(0).getAvailableQty()).isEqualByComparingTo("7.00");
+    }
+
+    @Test
+    void getPickingCandidates_ordersOlderReceivedBatchBeforeNewerBatch() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        Batch olderBatch = batch(71L, product, warehouse);
+        olderBatch.setReceivedDate(LocalDate.of(2026, 5, 1));
+        Batch newerBatch = batch(72L, product, warehouse);
+        newerBatch.setReceivedDate(LocalDate.of(2026, 6, 1));
+        WarehouseLocation newerBin = bin(802L, warehouse, zone);
+        Inventory olderInventory = inventory(501L, warehouse, product, olderBatch, bin,
+                new BigDecimal("10.00"), ZERO);
+        Inventory newerInventory = inventory(502L, warehouse, product, newerBatch, newerBin,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L, 100L))
+                .thenReturn(List.of(newerInventory, olderInventory));
+
+        Map<Long, List<PickingCandidateResponse>> response = service.getPickingCandidates(100L, storekeeper);
+
+        assertThat(response.get(200L))
+                .extracting(PickingCandidateResponse::getInventoryId)
+                .containsExactly(501L, 502L);
     }
 
     @Test

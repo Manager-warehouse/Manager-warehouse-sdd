@@ -46,7 +46,7 @@ import com.wms.dto.response.TripDriverViewResponse;
 import com.wms.entity.access_control.User;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.wms.dto.response.PodEvidenceSignedUrlsResponse;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodContent;
 
 public interface DriverDeliveryService {
     TripDriverViewResponse getAssignedTrip(Long tripId, User actor);
@@ -75,5 +75,5 @@ public interface DriverDeliveryService {
 
     DeliveryOtpResponse resetDeliveryOtp(Long deliveryOrderId, ResetDeliveryOtpRequest request, User actor);
 
-    PodEvidenceSignedUrlsResponse getPodEvidenceSignedUrls(Long deliveryOrderId, User actor);
+    StoredPodContent getPodEvidence(Long deliveryOrderId, String evidenceType, User actor);
 }

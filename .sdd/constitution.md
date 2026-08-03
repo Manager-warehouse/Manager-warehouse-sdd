@@ -2,17 +2,17 @@
 
 <!--
   Sync Impact Report
-  Version change: N/A → v1.0.0
-  Modified principles: (none — initial creation)
-  Added sections: All (initial creation)
-  Removed sections: (none)
-  Templates requiring updates: N/A (no .sdd/templates/ yet)
-  Follow-up actions: (none)
+  Version change: v1.0.0 -> v2.0.0
+  Modified principles: INV-02 now treats received-date ordering as presentation/default suggestion only.
+  Added sections: none
+  Removed sections: none
+  Templates requiring updates: none
+  Follow-up actions: none
 -->
 
-**Phiên bản:** v1.0.0
+**Phiên bản:** v2.0.0
 **Ngày phê chuẩn:** 2026-05-29
-**Ngày sửa đổi cuối:** 2026-05-29
+**Ngày sửa đổi cuối:** 2026-08-03
 **Trạng thái:** Có hiệu lực
 
 ---
@@ -126,9 +126,11 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
 1. **INV-01 (Non-negative inventory):** `inventory.quantity >= 0` MUST luôn
    đúng trước và sau mọi thao tác. Áp dụng DB constraint (`CHECK (quantity >= 0)`)
    VÀ application-level validation.
-2. **INV-02 (FIFO default):** Domain hiện tại là hàng gia dụng như nồi, chảo,
-   đồ nhựa và không quản lý hạn sử dụng. Batch được chọn ưu tiên theo ngày nhập
-   cũ nhất (First In First Out).
+2. **INV-02 (Received-date ordering):** Domain hiện tại là hàng gia dụng như
+   nồi, chảo, đồ nhựa và không quản lý hạn sử dụng. Danh sách batch MUST hiển
+   thị theo ngày nhận cũ đến mới, nhưng đây chỉ là thứ tự hiển thị và gợi ý mặc
+   định. Storekeeper MAY chọn bất kỳ batch hợp lệ nào có đủ số lượng khả dụng;
+   hệ thống MUST NOT từ chối chỉ vì vẫn còn batch cũ hơn.
 3. **INV-03 (No expiry in current scope):** FEFO và expiry date không thuộc phạm
    vi domain hiện tại. Nếu sau này mở rộng sang nhóm hàng có hạn sử dụng thì phải
    tạo spec và migration riêng trước khi áp dụng.
@@ -256,7 +258,8 @@ MUST NOT:
    paths)
 3. **Integration tests:** MUST viết cho tất cả API endpoints (happy path +
    error paths)
-4. **Batch logic:** FIFO allocation logic MUST có test riêng
+4. **Batch logic:** Thứ tự hiển thị theo ngày nhận và quyền chọn bất kỳ batch
+   hợp lệ MUST có test riêng
 5. **Inventory boundary:** Negative inventory, reserved > total, version
    conflict MUST có test
 6. **Frontend:** Component test với Jest + React Testing Library cho các
@@ -283,7 +286,7 @@ MUST NOT:
 [type]([scope]): [description]
 ```
 
-Ví dụ: `feat(inventory): add FIFO batch allocation logic`
+Ví dụ: `feat(inventory): add received-date batch ordering`
 
 ### 8.3 PR Rules
 
@@ -305,7 +308,7 @@ Một task chỉ được coi là **hoàn thành** khi tất cả các điều k
 - [ ] Error cases handled với proper HTTP status codes
 - [ ] Audit log entry created cho warehouse operations
 - [ ] No unresolved comments left in code
-- [ ] FIFO allocation logic tested cho batch management
+- [ ] Received-date ordering và free valid-batch selection được test
 
 ---
 

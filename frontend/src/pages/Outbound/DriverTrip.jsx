@@ -255,13 +255,21 @@ export default function DriverTrip() {
   const handleDepart = async () => {
     setSubmitting(true);
     try {
+      const splitStop = trip.delivery_orders?.find((item) => item.split_plan_id);
+      let successMessage = "Chuyến xe đã xuất phát!";
       if (isTransfer(trip)) {
         // Với TRF, depart chỉ hợp lệ sau khi kho nguồn ship, QC đạt và đã bàn giao hàng lên xe.
         await interWarehouseTransferService.departTransfer(getTransferId(trip));
+      } else if (splitStop && !splitStop.readiness_confirmed_at) {
+        await outboundService.confirmSplitDriverReadiness(splitStop.split_plan_id);
+        successMessage = "Đã xác nhận tài xế và xe sẵn sàng";
+      } else if (splitStop) {
+        await outboundService.departSplitDeliveryPlan(splitStop.split_plan_id);
+        successMessage = "Tất cả xe trong kế hoạch đã xuất phát";
       } else {
         await outboundService.departTrip(trip.id);
       }
-      addToast("Chuyến xe đã xuất phát!", "success");
+      addToast(successMessage, "success");
       fetchTrip(trip.id);
     } catch (error) {
       const messages = {
@@ -276,6 +284,30 @@ export default function DriverTrip() {
           "Lỗi khi xác nhận xuất phát",
         "error",
       );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSplitMilestone = async (doItem, action) => {
+    setSubmitting(true);
+    try {
+      if (action === "ARRIVAL") {
+        await outboundService.confirmSplitDealerArrival(
+          doItem.split_plan_id,
+          doItem.split_leg_id,
+        );
+        addToast("Đã xác nhận xe đến đại lý", "success");
+      } else {
+        await outboundService.confirmSplitHandover(
+          doItem.split_plan_id,
+          doItem.split_leg_id,
+        );
+        addToast("Đã xác nhận bàn giao hàng", "success");
+      }
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || "Không thể cập nhật mốc giao hàng", "error");
     } finally {
       setSubmitting(false);
     }
@@ -401,12 +433,20 @@ export default function DriverTrip() {
     }
     setSubmitting(true);
     try {
-      await outboundService.reportDeliveryFailure(
-        trip.id,
-        activeDO.do_id,
-        failureReason.trim(),
-        notes,
-      );
+      if (activeDO.split_plan_id) {
+        await outboundService.failSplitDeliveryLeg(
+          activeDO.split_plan_id,
+          activeDO.split_leg_id,
+          failureReason.trim(),
+        );
+      } else {
+        await outboundService.reportDeliveryFailure(
+          trip.id,
+          activeDO.do_id,
+          failureReason.trim(),
+          notes,
+        );
+      }
       addToast("Đã ghi nhận giao hàng thất bại", "success");
       closeModal();
       fetchTrip(trip.id);
@@ -619,6 +659,7 @@ export default function DriverTrip() {
     !isTransferTrip &&
     deliveryOrders.length > 0 &&
     deliveryOrders.every((d) => isDeliveryStopTerminal(d.delivery_status));
+  const splitStop = deliveryOrders.find((item) => item.split_plan_id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -698,7 +739,11 @@ export default function DriverTrip() {
             <>
               <button
                 onClick={handleDepart}
-                disabled={submitting || !transferLoaded}
+                disabled={
+                  submitting ||
+                  !transferLoaded ||
+                  (splitStop?.readiness_confirmed_at && !splitStop?.is_split_lead)
+                }
                 className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
@@ -706,7 +751,13 @@ export default function DriverTrip() {
                 ) : (
                   <Play className="w-4 h-4" />
                 )}
-                {transferLoaded ? "Xác nhận xuất phát" : "Chờ xếp hàng"}
+                {!transferLoaded
+                  ? "Chờ xếp hàng"
+                  : splitStop && !splitStop.readiness_confirmed_at
+                    ? "Xác nhận sẵn sàng"
+                    : splitStop && !splitStop.is_split_lead
+                      ? "Chờ xe trưởng xuất phát"
+                      : "Xác nhận xuất phát"}
               </button>
               {!transferLoaded && (
                 <p className="mt-2 text-[11px] leading-relaxed text-warning-700">
@@ -906,6 +957,8 @@ export default function DriverTrip() {
                 doItem.delivery_status === "DELIVERY_FAILED";
               const isUnsuccessful = isReturned || isDeliveryFailed;
               const isPending = !isDelivered && !isUnsuccessful;
+              const isSplit = Boolean(doItem.split_plan_id);
+              const splitHandoverReady = Boolean(doItem.handover_confirmed_at);
 
               return (
                 <div
@@ -941,16 +994,40 @@ export default function DriverTrip() {
 
                       {isPending && trip.status === "IN_TRANSIT" && (
                         <div className="flex gap-2 mt-4">
-                          <Button
-                            variant="primary"
-                            className="flex-1"
-                            onClick={() => {
-                              setActiveDO(doItem);
-                              setModalType("DELIVER");
-                            }}
-                          >
-                            Giao hàng (OTP)
-                          </Button>
+                          {isSplit && !doItem.dealer_arrived_at ? (
+                            <Button
+                              variant="primary"
+                              className="flex-1"
+                              disabled={submitting}
+                              onClick={() => handleSplitMilestone(doItem, "ARRIVAL")}
+                            >
+                              Xác nhận đến đại lý
+                            </Button>
+                          ) : isSplit && !splitHandoverReady ? (
+                            <Button
+                              variant="primary"
+                              className="flex-1"
+                              disabled={submitting}
+                              onClick={() => handleSplitMilestone(doItem, "HANDOVER")}
+                            >
+                              Xác nhận bàn giao
+                            </Button>
+                          ) : !isSplit || doItem.is_split_lead ? (
+                            <Button
+                              variant="primary"
+                              className="flex-1"
+                              onClick={() => {
+                                setActiveDO(doItem);
+                                setModalType("DELIVER");
+                              }}
+                            >
+                              Giao hàng (OTP)
+                            </Button>
+                          ) : (
+                            <p className="flex-1 text-xs font-semibold text-success-700 py-2">
+                              Đã bàn giao. Chờ xe trưởng xác nhận OTP.
+                            </p>
+                          )}
                           <button
                             onClick={() => {
                               setActiveDO(doItem);

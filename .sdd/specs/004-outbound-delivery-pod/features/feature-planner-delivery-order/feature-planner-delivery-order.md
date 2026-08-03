@@ -51,7 +51,7 @@ Additional Planner permission for this feature:
     - Validate `available_qty >= requested_qty` bằng tồn kho hợp lệ đã đạt chất lượng tại kho, sau khi trừ `warehouse_product_reservations.reserved_qty`.
     - IF tồn kho không đủ, chặn tạo đơn và hiển thị lý do `INSUFFICIENT_STOCK` hoặc thông báo tương đương rằng tồn kho không đủ.
     - Hệ thống SHALL NOT gợi ý, liệt kê, hoặc đề xuất các kho khác có đủ hàng khi tồn kho tại kho đã chọn không đủ.
-    - Với domain hiện tại là hàng gia dụng, áp dụng FIFO bằng cách xếp hạng hàng nhập kho cũ hơn trước hàng nhập kho mới hơn.
+    - Với domain hiện tại là hàng gia dụng, danh sách tồn kho được xếp hàng nhập kho cũ hơn trước hàng nhập kho mới hơn để hiển thị; thứ tự này không bắt buộc Thủ kho phải xuất lô cũ trước.
     - Không yêu cầu expiry date hoặc FEFO selection vì hàng gia dụng hiện tại như nồi, chảo, đồ nhựa không quản lý hạn sử dụng.
     - Tăng `delivery_order_items.reserved_qty` theo số lượng yêu cầu.
     - Tăng `warehouse_product_reservations.reserved_qty` theo số lượng yêu cầu cho từng cặp warehouse/product.

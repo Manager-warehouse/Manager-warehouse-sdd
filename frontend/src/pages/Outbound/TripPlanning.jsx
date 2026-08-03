@@ -37,6 +37,26 @@ const nowDateTimeValue = () => {
   return offsetDate.toISOString().slice(0, 16);
 };
 
+const getOrderItems = (order) => order?.items?.filter((item) => Number(item.requested_qty || item.qc_pass_qty || 0) > 0) || [];
+
+const getItemQuantity = (item) => Number(item.qc_pass_qty || item.requested_qty || 0);
+
+const getItemBatchId = (item) => item.batch_id || item.allocations?.[0]?.batch_id || item.allocations?.[0]?.batchId;
+
+const buildDefaultSplitRows = (order, vehicles, drivers) => {
+  const selectedVehicles = vehicles.slice(0, 2);
+  const selectedDrivers = drivers.slice(0, 2);
+  return selectedVehicles.map((vehicle, legIndex) => ({
+    vehicle_id: vehicle?.id || '',
+    driver_id: selectedDrivers[legIndex]?.id || '',
+    item_quantities: getOrderItems(order).reduce((map, item) => {
+      const total = getItemQuantity(item);
+      map[item.id] = legIndex === 0 ? Math.ceil(total / 2) : total - Math.ceil(total / 2);
+      return map;
+    }, {}),
+  }));
+};
+
 const getTripStatusBadge = (status) => {
   const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
@@ -58,6 +78,7 @@ export default function TripPlanning() {
   const [availableDOs, setAvailableDOs] = useState([]);
   const [formData, setFormData] = useState(emptyForm);
   const [selectedVehicleObj, setSelectedVehicleObj] = useState(null);
+  const [splitRows, setSplitRows] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [detailTrip, setDetailTrip] = useState(null);
 
@@ -80,6 +101,11 @@ export default function TripPlanning() {
       setDetailTrip(trip);
     }
   }, [routeId, trips]);
+
+  useEffect(() => {
+    if (formData.delivery_orders.length !== 1 || splitRows.length || vehicles.length < 2 || drivers.length < 2) return;
+    setSplitRows(buildDefaultSplitRows(formData.delivery_orders[0], vehicles, drivers));
+  }, [drivers, formData.delivery_orders, splitRows.length, vehicles]);
 
   const fetchTrips = async () => {
     setLoading(true);
@@ -138,6 +164,36 @@ export default function TripPlanning() {
     setFormData((prev) => ({ ...prev, delivery_orders: orders }));
   };
 
+  const updateSplitRow = (index, field, value) => {
+    setSplitRows((prev) => prev.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [field]: value } : row
+    )));
+  };
+
+  const updateSplitQuantity = (rowIndex, itemId, value) => {
+    setSplitRows((prev) => prev.map((row, index) => (
+      index === rowIndex
+        ? { ...row, item_quantities: { ...row.item_quantities, [itemId]: Number(value || 0) } }
+        : row
+    )));
+  };
+
+  const addSplitRow = () => {
+    const order = formData.delivery_orders[0];
+    setSplitRows((prev) => [
+      ...prev,
+      {
+        vehicle_id: '',
+        driver_id: '',
+        item_quantities: getOrderItems(order).reduce((map, item) => ({ ...map, [item.id]: 0 }), {}),
+      },
+    ]);
+  };
+
+  const removeSplitRow = (index) => {
+    setSplitRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
+  };
+
   const handleCreateSubmit = async () => {
     if (!formData.delivery_orders.length) {
       addToast('Vui lòng chọn ít nhất 1 đơn xuất hàng', 'error');
@@ -164,7 +220,7 @@ export default function TripPlanning() {
     }
     const totalWeight = formData.delivery_orders.reduce((sum, order) => sum + Number(order.weight || 0), 0);
     if (selectedVehicleObj && totalWeight > Number(selectedVehicleObj.max_weight_kg || selectedVehicleObj.maxWeightKg || 0)) {
-      addToast('Tổng khối lượng vượt quá tải trọng của xe', 'error');
+      addToast('Đơn vượt tải trọng 1 xe, hãy tạo kế hoạch nhiều xe', 'error');
       return;
     }
 
@@ -185,6 +241,63 @@ export default function TripPlanning() {
       fetchTrips();
     } catch (error) {
       addToast(error.message || 'Lỗi khi tạo chuyến xe', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCreateSplitSubmit = async () => {
+    const order = formData.delivery_orders[0];
+    const items = getOrderItems(order);
+    if (!order || splitRows.length < 2) {
+      addToast('Can it nhat 2 xe de chia mot DO', 'error');
+      return;
+    }
+    if (splitRows.some((row) => !row.vehicle_id || !row.driver_id)) {
+      addToast('Vui long chon du xe va tai xe cho tung leg', 'error');
+      return;
+    }
+    const vehicleIds = new Set(splitRows.map((row) => String(row.vehicle_id)));
+    const driverIds = new Set(splitRows.map((row) => String(row.driver_id)));
+    if (vehicleIds.size !== splitRows.length || driverIds.size !== splitRows.length) {
+      addToast('Xe va tai xe trong ke hoach split khong duoc trung nhau', 'error');
+      return;
+    }
+    const incompleteItem = items.find((item) => {
+      const assigned = splitRows.reduce((sum, row) => sum + Number(row.item_quantities[item.id] || 0), 0);
+      return assigned !== getItemQuantity(item);
+    });
+    if (incompleteItem) {
+      addToast('Tong so luong chia phai bang so luong can giao cua tung san pham', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await outboundService.createSplitDeliveryPlan({
+        do_id: order.id,
+        lead_driver_id: splitRows[0].driver_id,
+        planned_start_at: formData.planned_start_at,
+        planned_end_at: formData.planned_end_at,
+        legs: splitRows.map((row) => ({
+          vehicle_id: row.vehicle_id,
+          driver_id: row.driver_id,
+          items: items.map((item) => ({
+            do_item_id: item.id,
+            product_id: item.product_id,
+            batch_id: getItemBatchId(item),
+            quantity: Number(row.item_quantities[item.id] || 0),
+          })).filter((item) => item.quantity > 0),
+        })),
+      });
+      addToast('Da tao ke hoach giao hang nhieu xe', 'success');
+      setShowCreateModal(false);
+      setFormData(emptyForm);
+      setSelectedVehicleObj(null);
+      setSplitRows([]);
+      fetchTrips();
+    } catch (error) {
+      addToast(error.message || 'Loi khi tao ke hoach giao hang nhieu xe', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -235,6 +348,8 @@ export default function TripPlanning() {
   const currentWeight = formData.delivery_orders.reduce((sum, order) => sum + Number(order.weight || 0), 0);
   const maxWeight = Number(selectedVehicleObj?.max_weight_kg || selectedVehicleObj?.maxWeightKg || 0);
   const isOverweight = selectedVehicleObj && currentWeight > maxWeight;
+  const splitOrder = formData.delivery_orders.length === 1 ? formData.delivery_orders[0] : null;
+  const canCreateSplitPlan = Boolean(isOverweight && splitOrder);
   const isSubmitDisabled = !formData.vehicle_id || !formData.driver_id || !formData.planned_start_at || !formData.planned_end_at || !formData.delivery_orders.length || isOverweight || submitting;
 
   return (
@@ -504,6 +619,66 @@ export default function TripPlanning() {
             ) : (
               <p className="text-xs text-shade-40 italic">Chọn xe để xem tải trọng.</p>
             )}
+            {canCreateSplitPlan && (
+              <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 flex flex-col gap-3">
+                <div>
+                  <p className="text-xs font-bold text-warning-900">DO vuot tai trong 1 xe</p>
+                  <p className="text-[11px] text-warning-800 mt-1">Chia du so luong trong mot lan va cac xe se xuat phat cung nhau.</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {splitRows.map((row, rowIndex) => (
+                    <div key={rowIndex} className="rounded border border-warning-200 bg-white/70 p-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-ink">Xe {rowIndex + 1}</span>
+                        {splitRows.length > 2 && (
+                          <button type="button" className="text-[11px] text-danger-600 font-semibold" onClick={() => removeSplitRow(rowIndex)}>
+                            Xoa
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
+                        value={row.vehicle_id}
+                        onChange={(event) => updateSplitRow(rowIndex, 'vehicle_id', event.target.value)}
+                      >
+                        <option value="">Chon xe</option>
+                        {vehicles.map((vehicle) => (
+                          <option key={vehicle.id} value={vehicle.id}>
+                            {vehicle.plate_number || vehicle.plate || vehicle.license_plate} ({vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
+                        value={row.driver_id}
+                        onChange={(event) => updateSplitRow(rowIndex, 'driver_id', event.target.value)}
+                      >
+                        <option value="">Chon tai xe</option>
+                        {drivers.map((driver) => (
+                          <option key={driver.id} value={driver.id}>{driver.full_name || driver.name}</option>
+                        ))}
+                      </select>
+                      {getOrderItems(splitOrder).map((item) => (
+                        <label key={item.id} className="text-[11px] text-shade-60 flex items-center gap-2">
+                          <span className="flex-1 truncate">{item.product_name || item.sku || `Item ${item.id}`}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={getItemQuantity(item)}
+                            className="w-20 text-input text-xs border border-hairline-light rounded p-1 text-right"
+                            value={row.item_quantities[item.id] ?? 0}
+                            onChange={(event) => updateSplitQuantity(rowIndex, item.id, event.target.value)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="text-xs font-semibold text-ink underline underline-offset-2" onClick={addSplitRow}>
+                  Them xe
+                </button>
+              </div>
+            )}
             <div className="flex-1">
               <span className="text-xs font-semibold text-shade-50 block mb-2">Thứ tự giao hàng</span>
               {!formData.delivery_orders.length ? (
@@ -528,6 +703,11 @@ export default function TripPlanning() {
 
         <div className="flex justify-end gap-3 border-t border-hairline-light pt-4 mt-4">
           <Button variant="outline-light" onClick={() => setShowCreateModal(false)}>Đóng</Button>
+          {canCreateSplitPlan && (
+            <Button variant="outline" loading={submitting} disabled={!formData.planned_start_at || !formData.planned_end_at || submitting} onClick={handleCreateSplitSubmit}>
+              Tạo kế hoạch nhiều xe
+            </Button>
+          )}
           <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>Tạo chuyến xe</Button>
         </div>
       </Modal>

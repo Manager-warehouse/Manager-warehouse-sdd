@@ -618,7 +618,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 request.getAllocations());
         List<ResolvedAllocationSelection> requestedSelections = resolvePickingSelections(order, orderItems,
                 existingAllocations, allocationRequests, actor);
-        validateFifoSelections(order, orderItems, existingAllocations, requestedSelections);
         validateRequestedItemTotals(orderItems, requestedSelections);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -2029,7 +2028,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             if (remainingQty.compareTo(ZERO) > 0) {
                 throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
                         HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Insufficient FIFO inventory to auto-build the picking plan for product "
+                        "Insufficient available inventory to auto-build the picking plan for product "
                                 + item.getProduct().getId());
             }
         }
@@ -2091,48 +2090,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not have enough available quantity");
-        }
-    }
-
-    private void validateFifoSelections(DeliveryOrder order,
-            List<DeliveryOrderItem> items,
-            List<DeliveryOrderItemAllocation> existingAllocations,
-            List<ResolvedAllocationSelection> selections) {
-        Map<Long, Map<Long, BigDecimal>> selectedByItem = selections.stream()
-                .collect(Collectors.groupingBy(selection -> selection.item().getId(),
-                        Collectors.toMap(selection -> selection.inventory().getId(),
-                                ResolvedAllocationSelection::plannedQty, BigDecimal::add)));
-        for (DeliveryOrderItem item : items) {
-            BigDecimal remaining = value(item.getRequestedQty());
-            Map<Long, BigDecimal> selected = selectedByItem.getOrDefault(item.getId(), Map.of());
-            Map<Long, BigDecimal> existingByInventory = existingAllocations.stream()
-                    .filter(allocation -> allocation.getDeliveryOrderItem().getId().equals(item.getId()))
-                    .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(),
-                            DeliveryOrderItemAllocation::getPlannedQty, BigDecimal::add));
-            Map<LocalDate, List<Inventory>> candidatesByDate = inventoryRepository.findFifoRowsForPlanning(
-                    order.getWarehouse().getId(), item.getProduct().getId()).stream()
-                    .collect(Collectors.groupingBy(candidate -> Optional.ofNullable(
-                                    candidate.getBatch().getReceivedDate()).orElse(LocalDate.MAX),
-                            LinkedHashMap::new, Collectors.toList()));
-            for (List<Inventory> sameDateCandidates : candidatesByDate.values()) {
-                BigDecimal availableOnDate = sameDateCandidates.stream()
-                        .map(candidate -> value(candidate.getTotalQty())
-                                .subtract(value(candidate.getReservedQty()))
-                                .add(value(existingByInventory.get(candidate.getId()))))
-                        .reduce(ZERO, this::valueAdd);
-                BigDecimal selectedOnDate = sameDateCandidates.stream()
-                        .map(candidate -> value(selected.get(candidate.getId())))
-                        .reduce(ZERO, this::valueAdd);
-                BigDecimal expectedOnDate = remaining.min(availableOnDate);
-                if (selectedOnDate.compareTo(expectedOnDate) != 0) {
-                    throw new OutboundDeliveryException("FIFO_VIOLATION", HttpStatus.UNPROCESSABLE_ENTITY,
-                            "Picking allocations must consume available inventory in FIFO order");
-                }
-                remaining = remaining.subtract(expectedOnDate);
-                if (remaining.compareTo(ZERO) <= 0) {
-                    break;
-                }
-            }
         }
     }
 

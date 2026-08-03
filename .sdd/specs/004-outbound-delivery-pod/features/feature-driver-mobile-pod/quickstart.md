@@ -13,6 +13,7 @@ The driver mobile trip list is also the shared list for assigned internal transf
 3. Add controller endpoints for:
    - `GET /api/v1/trips/{id}`
    - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence`
+   - `GET /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}`
    - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp`
    - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery`
    - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery`
@@ -55,6 +56,8 @@ Expected result:
 
 ### 1. Upload POD evidence
 
+Configure a persistent local-storage root on the VPS, recommended as `/var/lib/wms/pod-evidence`. The directory must be outside the application release, writable only by the backend operating-system account, retained across redeployments, and included in backups. Do not expose it through `/uploads/**` or a web-server static alias.
+
 Request:
 
 ```http
@@ -75,8 +78,19 @@ Expected result:
 - Validate Delivery Order 101 belongs to the trip and is `IN_TRANSIT`.
 - Validate the current non-terminal attempt exists.
 - Reject non-image files or files above 5MB.
-- Store file URLs on the current attempt only.
+- Store both files beneath `deliveries/{deliveryId}/` using generated names.
+- Store only relative paths and detected metadata on the current attempt; do not persist absolute paths or URLs.
 - Write `UPLOAD_POD` audit.
+
+Authorized order-detail viewers load each image with:
+
+```http
+GET /api/v1/delivery-orders/101/pod-evidence/GOODS
+GET /api/v1/delivery-orders/101/pod-evidence/SIGNED_DOCUMENT
+Authorization: Bearer <jwt>
+```
+
+The backend must resolve the normalized relative path inside the configured root, apply Delivery Order detail authorization, and stream the image bytes without exposing the absolute VPS path.
 
 ### 2. Request OTP after POD exists
 
@@ -92,7 +106,7 @@ POST /api/v1/trips/9001/delivery-orders/101/delivery-otp
 
 Expected result:
 
-- Validate both POD image URLs already exist.
+- Validate both POD relative storage paths already exist.
 - Validate dealer email exists.
 - Generate a 6-digit OTP and send it to dealer email.
 - Store only hash/verifier, expiry, status, attempt count, and recipient email on one OTP row for the current attempt.
@@ -195,9 +209,24 @@ Expected result:
 
 ## Required tests
 
+### Split Delivery Order driver walkthrough
+
+1. Every assigned leg driver calls `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/dealer-arrival` for their own leg.
+2. Handover remains blocked with `SPLIT_DELIVERY_INCOMPLETE` until all legs arrive.
+3. Every assigned leg driver calls `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/handover` for their own leg.
+4. Only the lead driver uploads the one complete POD pair and requests the one shared OTP after all handovers.
+5. Replacing both POD images expires the current usable OTP; the lead driver requests a new code.
+6. `SEND_FAILED` may be retried immediately on the same OTP row.
+7. A failure reported by any leg moves the entire Delivery Order and every leg to `RETURNED`.
+8. OTP success completes the Delivery Order but leaves every driver/vehicle `ON_TRIP`.
+9. Each leg driver independently calls `PUT /api/v1/trips/{tripId}/complete`; only that trip's driver/vehicle becomes `AVAILABLE`.
+
 - Service test: driver cannot access a trip or Delivery Order outside the assigned driver profile.
 - Service/controller test: assigned trip list returns mixed `DELIVERY` and `TRANSFER` summaries with `tripType` labels and hides other drivers' trips.
 - Service test: POD upload rejects missing, oversized, or non-image files.
+- Service test: POD upload writes both files beneath the configured persistent root, stores only relative paths, and cleans up both files when the pair cannot be committed.
+- Service/controller test: authorized completed-order viewers can stream `GOODS` and `SIGNED_DOCUMENT`, while unauthorized users and root-escaping paths are rejected.
+- Service test: missing/unreadable local POD files return `POD_EVIDENCE_NOT_FOUND` without exposing filesystem paths.
 - Service test: OTP request is blocked before both POD images exist.
 - Service test: OTP resend is blocked while active and updates the same row after expiry.
 - Service test: wrong OTP increments `attempt_count` and locks after 3 attempts.
@@ -210,12 +239,14 @@ Expected result:
 - Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
 - Controller integration test: returned goods flow state read, Storekeeper arrival confirmation, count/QC submit/resubmit, Storekeeper accept/reject, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
+- Service/controller tests: split arrival and handover ownership, all-arrived/all-handover gates, whole-DO failure, lead-driver POD/OTP, complete-pair replacement, `SEND_FAILED` retry, and independent split-leg trip completion.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 
 ## Definition of done reminders
 
 - Never store raw OTP in application persistence.
 - Keep all POD, OTP, and returned-goods endpoints documented in OpenAPI.
+- Keep the POD storage root outside the application release and covered by VPS backup/restore procedures; never expose it as a public static directory.
 - Do not change inventory for failed delivery; only successful confirmation decrements virtual `IN_TRANSIT`.
 - Ensure every driver and admin action writes audit logs with before/after context.
 - Keep driver list filters read-only: no inventory, delivery attempt, transfer, trip status, resource, or audit mutation occurs when filtering.

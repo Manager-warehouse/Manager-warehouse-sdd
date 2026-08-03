@@ -2,26 +2,24 @@
 
 <!--
   Sync Impact Report
-  Version change: 1.0.0 -> 1.1.0
+  Version change: 1.1.0 -> 2.0.0
   Modified principles:
-  - Consolidated canonical constitution from .sdd/constitution.md into this Speckit source.
-  - Clarified inventory fields, audit schema, migration lifecycle, and JPA/Lombok rules.
-  Added sections:
-  - Canonical Sources
-  - Migration Lifecycle
-  - Speckit Artifact Gates
-  Removed sections:
-  - Generic placeholder-style constraints
+  - Inventory And Batch Invariants: received-date ordering is presentation/default suggestion only; Storekeeper may select any valid batch.
+  Added sections: none
+  Removed sections: none
   Templates requiring updates:
-  - .specify/templates/plan-template.md: pending in same cleanup
-  - .specify/templates/spec-template.md: pending in same cleanup
-  - .specify/templates/tasks-template.md: pending in same cleanup
+  - .specify/templates/plan-template.md: no update required
+  - .specify/templates/spec-template.md: no update required
+  - .specify/templates/tasks-template.md: no update required
+  Runtime guidance updated:
+  - AGENTS.md
+  - CLAUDE.md
   Follow-up TODOs: none
 -->
 
-**Version**: 1.1.0
+**Version**: 2.0.0
 **Ratified**: 2026-05-29
-**Last Amended**: 2026-06-11
+**Last Amended**: 2026-08-03
 **Status**: Active
 
 This constitution is the canonical rule source for Speckit agents and human
@@ -91,8 +89,11 @@ conflicts use HTTP 409.
   adjustment, or stocktake flows. Services MUST NOT directly patch inventory
   quantities outside those flows.
 - Every inventory update MUST use optimistic locking with `@Version`.
-- FIFO by received date is the default and only batch selection rule for the
-  current household-goods domain.
+- Inventory candidate lists MUST display older received dates before newer
+  dates by default. This ordering is presentation and default-suggestion
+  behavior only; Storekeepers MAY select any valid batch with sufficient
+  available quantity, and services MUST NOT reject a selection solely because
+  an older batch remains available.
 - Products do not track per-unit serial numbers in Sprint 1.
 - Products and batches do not track expiry dates in Sprint 1.
 - Batches do not use A/B/C grade classification; QC-failed goods move to
@@ -177,8 +178,9 @@ A task is not done until:
 - Swagger/OpenAPI is updated for endpoint changes.
 - Error cases use correct HTTP status codes.
 - Warehouse mutations create audit logs.
-- FIFO, negative inventory, reserved quantity, and version conflict paths are
-  tested when touched.
+- Received-date candidate ordering and free valid-batch selection, negative
+  inventory, reserved quantity, and version conflict paths are tested when
+  touched.
 
 ## 11. Git And Review
 

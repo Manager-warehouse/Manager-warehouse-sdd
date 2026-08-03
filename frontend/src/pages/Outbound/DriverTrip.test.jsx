@@ -9,6 +9,9 @@ vi.mock('../../services/outbound.service', () => ({
     getMyTrips: vi.fn(),
     getTrips: vi.fn(),
     getTripById: vi.fn(),
+    getDriverTripById: vi.fn(),
+    confirmSplitDealerArrival: vi.fn(),
+    completeTrip: vi.fn(),
   },
 }));
 
@@ -200,5 +203,65 @@ describe('DriverTrip list filters', () => {
     fireEvent.click(button);
 
     await waitFor(() => expect(interWarehouseTransferService.returnArrive).toHaveBeenCalledWith(500));
+  });
+
+  it('lets a split-leg driver confirm arrival at the dealer', async () => {
+    outboundService.getDriverTripById.mockResolvedValue({
+      ...deliveryTrip,
+      status: 'IN_TRANSIT',
+      delivery_orders: [{
+        do_id: 101,
+        do_number: 'DO-101',
+        dealer_name: 'Dai ly A',
+        delivery_status: 'IN_TRANSIT',
+        split_plan_id: 900,
+        split_leg_id: 901,
+        is_split_lead: false,
+        dealer_arrived_at: null,
+      }],
+    });
+    outboundService.confirmSplitDealerArrival.mockResolvedValue({});
+
+    render(
+      <MemoryRouter initialEntries={['/outbound/driver/trips/1']}>
+        <Routes>
+          <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận đến đại lý' }));
+
+    await waitFor(() => expect(outboundService.confirmSplitDealerArrival)
+      .toHaveBeenCalledWith(900, 901));
+  });
+
+  it('lets each split-leg driver complete only their own returned trip', async () => {
+    outboundService.getDriverTripById.mockResolvedValue({
+      ...deliveryTrip,
+      status: 'IN_TRANSIT',
+      delivery_orders: [{
+        do_id: 101,
+        do_number: 'DO-101',
+        dealer_name: 'Dai ly A',
+        delivery_status: 'COMPLETED',
+        split_plan_id: 900,
+        split_leg_id: 901,
+        is_split_lead: false,
+      }],
+    });
+    outboundService.completeTrip.mockResolvedValue({});
+
+    render(
+      <MemoryRouter initialEntries={['/outbound/driver/trips/1']}>
+        <Routes>
+          <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận xe đã về kho' }));
+
+    await waitFor(() => expect(outboundService.completeTrip).toHaveBeenCalledWith(1));
   });
 });

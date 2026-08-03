@@ -6,7 +6,7 @@
 
 ## Summary
 
-Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped outbound trip, assigns one in-warehouse vehicle and driver, and keeps the trip editable only while it remains `PLANNED`. When the assigned driver confirms departure, the feature must move QC-passed staged stock into virtual `IN_TRANSIT`, release staging reservations, initialize one current delivery attempt per Delivery Order, and transition both trip resources and Delivery Orders into `IN_TRANSIT`. Trip completion then returns the operational trip to `COMPLETED` only after the vehicle comes back and every assigned Delivery Order has reached a terminal outbound result.
+Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped outbound trip, assigns one in-warehouse vehicle and driver, and keeps the trip editable only while it remains `PLANNED`. When one Delivery Order exceeds a single vehicle capacity, Dispatcher can create a coordinated split delivery plan that allocates the full Delivery Order quantity across multiple ready vehicles/drivers in one submission. Split legs share one planned departure time, depart together after every driver is ready, and create one current Delivery attempt for the Delivery Order. Trip completion returns each operational vehicle only after its driver confirms return and the downstream delivery outcome is terminal.
 
 ## Technical Context
 
@@ -14,7 +14,7 @@ Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped out
 
 **Primary Dependencies**: Spring Boot 3.4.5, Spring Data JPA/Hibernate, Jakarta Validation, Spring Security JWT/RBAC, OpenAPI/Swagger.
 
-**Storage**: PostgreSQL 18 with existing `trips`, `trip_delivery_orders`, and `deliveries` tables plus Flyway migration for any missing request/audit support fields and repository indexes.
+**Storage**: PostgreSQL 18 with existing `trips`, `trip_delivery_orders`, and `deliveries` tables plus Flyway migrations for missing trip support and split delivery plan/leg/leg-item tables.
 
 **Testing**: JUnit 5 + Mockito for trip create/update/cancel/depart/complete business rules and inventory movement; Spring controller integration tests for trip endpoints; Jest only if a dedicated dispatcher or driver UI is implemented in the same scope.
 
@@ -26,7 +26,7 @@ Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped out
 
 **Constraints**: Outbound trips in Sprint 1 use `tripType = DELIVERY` only. All Delivery Orders in one trip must share the same warehouse as the Dispatcher, vehicle, and driver. No Delivery Order may belong to more than one active trip. Departure must only dispatch Delivery Orders still in `WAREHOUSE_APPROVED` and with QC-passed staged quantity equal to requested quantity. All inventory/resource changes require optimistic locking, non-negative inventory, and audit logs.
 
-**Scale/Scope**: Sprint 1 outbound dispatch flow for three warehouses, multi-DO planned trips, driver departure, delivery-attempt initialization, and trip completion after downstream delivery outcomes.
+**Scale/Scope**: Sprint 1 outbound dispatch flow for three warehouses, multi-DO planned trips, one-DO multi-vehicle split plans, driver readiness, coordinated departure, delivery-attempt initialization, and trip completion after downstream delivery outcomes.
 
 ## Constitution Check
 
@@ -36,7 +36,7 @@ Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped out
 |-----------|--------|-------|
 | Layered Architecture | PASS | Trip controller should stay thin, service owns dispatch workflow, repositories remain persistence-only. |
 | Inventory Integrity | PASS | Departure must move staging to `IN_TRANSIT` in one transaction with non-negative and version-safe updates. |
-| FIFO Batch Selection | PASS | This feature consumes already approved and staged outbound quantities; it does not change FIFO selection policy. |
+| Batch Candidate Ordering | PASS | This feature consumes already approved and staged quantities and does not constrain Storekeeper batch selection. |
 | QC Gate & Quarantine | PASS | Departure requires QC-passed staged stock only; failed goods remain quarantined and are out of scope for dispatch movement. |
 | In-Transit Tracking | PASS | Trip departure is the boundary that moves goods into virtual `IN_TRANSIT` and initializes delivery attempts. |
 | Auth & RBAC | PASS | Dispatcher and driver mutations both require role plus warehouse or assignment scope. |
@@ -90,7 +90,9 @@ backend/
     |   |-- repository/VehicleRepository.java
     |   |-- repository/DriverRepository.java
     |   |-- service/TripService.java
-    |   `-- service/impl/TripServiceImpl.java
+    |   |-- service/order_fulfillment/SplitDeliveryPlanService.java
+    |   |-- service/impl/TripServiceImpl.java
+    |   `-- service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java
     `-- test/java/com/wms/
         |-- controller/TripControllerTest.java
         `-- service/TripServiceImplTest.java
@@ -112,7 +114,7 @@ See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contrac
 |-----------|--------|-------|
 | Layered Architecture | PASS | Contracts and data model map cleanly to Controller -> Service -> Repository -> Entity. |
 | Inventory Integrity | PASS | Departure design keeps staging decrement, reservation release, and `IN_TRANSIT` increment in one version-safe transaction. |
-| FIFO Batch Selection | PASS | Design consumes pre-approved staged stock only and does not weaken earlier FIFO planning rules. |
+| Batch Candidate Ordering | PASS | Design consumes pre-approved staged stock only and does not introduce a received-date selection constraint. |
 | QC Gate & Quarantine | PASS | Dispatch contract blocks departure unless requested quantity is fully covered by QC-passed staged stock. |
 | In-Transit Tracking | PASS | Delivery attempts are created at departure and trip completion does not prematurely receive returned goods back to regular stock. |
 | Auth & RBAC | PASS | Dispatcher endpoints remain warehouse-scoped and driver endpoints remain assignment-scoped. |
