@@ -13,6 +13,7 @@ Nguyên tắc chính:
 - Phần hàng đúng số gửi được nhập kho bình thường.
 - Phần thiếu/thừa phải tạo hồ sơ để CEO chốt trách nhiệm.
 - Hàng thừa được cất theo count vật lý của công nhân, đồng thời ghi hồ sơ chênh lệch để chốt trách nhiệm.
+- Hàng lỗi QC chỉ vào quarantine khi count khớp số gửi; nếu count lệch thì không nhập QC lỗi ở bước đó, hệ thống chỉ cất phần hợp lệ theo count và đẩy phần lệch vào hồ sơ chênh lệch.
 - Chỉ CEO được xem và xử lý hồ sơ chênh lệch.
 
 ---
@@ -128,6 +129,28 @@ if (failQty.signum() > 0) {
 `failQty` là phần hàng nhận được nhưng lỗi QC.
 
 Hàng lỗi QC không vào kệ thường, mà vào khu quarantine để xử lý theo luồng hàng lỗi.
+
+### Tác động tồn kho của hàng lỗi QC
+
+Khi count khớp số gửi và thủ kho ghi nhận có QC lỗi:
+
+| Bước | Tác động tồn |
+|---|---|
+| Final receive | Trừ số lượng đã xuất khỏi kho ảo `IN_TRANSIT` |
+| QC đạt | Cộng vào kệ thường kho nhận theo putaway plan |
+| QC lỗi | Cộng vào kệ quarantine kho nhận, không cộng vào tồn khả dụng |
+| Hồ sơ quarantine | Tạo `QuarantineRecord` với `originType = INTERNAL_TRANSFER`, gắn `transfer` và `transferItem` |
+| Màn Quarantine | Gom nhiều record cùng `TRF + dòng hàng + SKU + lý do lỗi` thành một dòng tổng |
+| Tiêu hủy | Trừ khỏi tồn quarantine theo các `quarantine_record_ids`; không cộng/trừ thêm kho nguồn |
+
+Ví dụ kho nguồn gửi 500, kho đích count đúng 500, QC đạt 400, QC lỗi 100:
+
+- Khi depart: kho nguồn đã bị trừ 500 và `IN_TRANSIT` được cộng 500.
+- Khi final receive: `IN_TRANSIT` bị trừ 500.
+- Kho đích được cộng 400 vào kệ thường.
+- Kho đích được cộng 100 vào quarantine.
+- Màn detail hiển thị `QC đạt/lỗi: 400 / 100`.
+- Màn quarantine hiển thị một dòng `Lỗi: 100`, dù dữ liệu gốc có thể được tách nhiều batch/kệ.
 
 ---
 
