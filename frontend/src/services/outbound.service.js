@@ -470,6 +470,7 @@ const normalizeTripStop = (stop = {}) => {
       delivered_at: value(attempt, 'deliveredAt', 'delivered_at'),
     } : null,
     split_plan_id: value(stop, 'splitPlanId', 'split_plan_id'),
+    lead_driver_id: value(stop, 'leadDriverId', 'lead_driver_id'),
     split_leg_id: value(stop, 'splitLegId', 'split_leg_id'),
     split_plan_status: value(stop, 'splitPlanStatus', 'split_plan_status'),
     split_leg_status: value(stop, 'splitLegStatus', 'split_leg_status'),

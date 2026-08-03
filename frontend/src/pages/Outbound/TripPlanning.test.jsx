@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSplitPlanPayload, getSplitAllocationItems } from './TripPlanning';
+import { buildSplitPlanPayload, getSplitAllocationItems, getSplitFleetAssignments } from './TripPlanning';
 
 describe('TripPlanning split allocation', () => {
   it('keeps QC-passed quantities separated by delivery item and batch', () => {
@@ -57,5 +57,25 @@ describe('TripPlanning split allocation', () => {
 
     expect(payload.lead_driver_id).toBe(3);
     expect(payload.legs.map((leg) => leg.driver_id)).toEqual([3, 2]);
+  });
+
+  it('groups every vehicle and driver belonging to the same split plan', () => {
+    const trips = [{
+      id: 101,
+      driver_id: 2,
+      delivery_orders: [{ split_plan_id: 77, is_split_lead: false }],
+    }, {
+      id: 102,
+      driver_id: 3,
+      delivery_orders: [{ split_plan_id: 77, is_split_lead: true }],
+    }, {
+      id: 103,
+      driver_id: 4,
+      delivery_orders: [{ split_plan_id: 88, is_split_lead: true }],
+    }];
+
+    const assignments = getSplitFleetAssignments(trips[0], trips);
+
+    expect(assignments.map((trip) => trip.id)).toEqual([102, 101]);
   });
 });
