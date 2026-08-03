@@ -27,6 +27,9 @@ const DealerDebtInvoice = () => {
   const [dealers, setDealers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentReceipts, setPaymentReceipts] = useState([]);
+  // Fully paid invoices default to hidden so the list doesn't accumulate settled
+  // history forever; accountants can still reveal them for reference/audit.
+  const [showPaidInvoices, setShowPaidInvoices] = useState(false);
 
   // Modal States - Create Payment Receipt & OCR
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
@@ -45,6 +48,7 @@ const DealerDebtInvoice = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrFileName, setOcrFileName] = useState('');
   const [ocrConfidence, setOcrConfidence] = useState(null);
+  const [ocrDealerMatched, setOcrDealerMatched] = useState(true);
   const [ocrResetKey, setOcrResetKey] = useState(0);
   const ocrLowConfidence = ocrConfidence !== null && ocrConfidence < OCR_LOW_CONFIDENCE_THRESHOLD;
 
@@ -102,6 +106,7 @@ const DealerDebtInvoice = () => {
     });
     setOcrFileName('');
     setOcrConfidence(null);
+    setOcrDealerMatched(true);
     setOcrResetKey(prev => prev + 1);
     setShowCreatePaymentModal(true);
   };
@@ -134,6 +139,7 @@ const DealerDebtInvoice = () => {
     });
     setOcrFileName('');
     setOcrConfidence(null);
+    setOcrDealerMatched(true);
     setOcrResetKey(prev => prev + 1);
     setShowCreatePaymentModal(true);
   };
@@ -191,7 +197,8 @@ const DealerDebtInvoice = () => {
     setOcrConfidence(null);
     try {
       const result = await financeService.scanPaymentReceiptOcr(file);
-      const matchedDealerId = result.dealer_id || result.dealerId ? String(result.dealer_id || result.dealerId) : paymentFormData.dealerId;
+      const ocrMatchedDealerId = result.dealer_id || result.dealerId;
+      const matchedDealerId = ocrMatchedDealerId ? String(ocrMatchedDealerId) : paymentFormData.dealerId;
 
       let matchedInvoiceId = '';
       if (matchedDealerId) {
@@ -212,10 +219,20 @@ const DealerDebtInvoice = () => {
         notes: result.notes || prev.notes
       }));
       setOcrConfidence(result.confidence_score ?? result.confidenceScore ?? null);
+      setOcrDealerMatched(Boolean(ocrMatchedDealerId));
 
       const confidencePercent = Math.round((result.confidence_score || result.confidenceScore || 0) * 100);
       if ((result.confidence_score ?? result.confidenceScore ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
-        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ số tiền thu.`, 'warning');
+        // Low confidence here has one concrete cause today: OCR read the amount/date
+        // fine but couldn't match the payer to a dealer by name/code in the receipt
+        // text (fixed 0.60 fallback in TesseractOcrServiceImpl.matchDealer). Name it
+        // instead of showing an unexplained percentage.
+        addToast(
+          ocrMatchedDealerId
+            ? `Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ số tiền thu.`
+            : `Không nhận diện được Đại lý từ nội dung hóa đơn (độ tin cậy ${confidencePercent}%). Vui lòng chọn đại lý thủ công.`,
+          'warning'
+        );
       } else {
         addToast(`Quét OCR hóa đơn thành công! Độ chính xác: ${confidencePercent}%`, 'success');
       }
@@ -261,6 +278,9 @@ const DealerDebtInvoice = () => {
     String(inv.dealer_id || inv.dealerId) === String(paymentFormData.dealerId) &&
     inv.status !== 'PAID'
   );
+
+  const paidInvoiceCount = invoices.filter(inv => inv.status === 'PAID').length;
+  const visibleInvoices = showPaidInvoices ? invoices : invoices.filter(inv => inv.status !== 'PAID');
 
   return (
     <div className="flex flex-col gap-6">
@@ -333,6 +353,17 @@ const DealerDebtInvoice = () => {
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
                   Sổ Hóa đơn Bán hàng & Dư nợ Phải thu Đại lý
                 </span>
+                {paidInvoiceCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPaidInvoices(prev => !prev)}
+                    className="text-[10px] font-semibold uppercase tracking-wider text-shade-50 hover:text-ink transition-colors"
+                  >
+                    {showPaidInvoices
+                      ? 'Ẩn hóa đơn đã thu đủ'
+                      : `Hiện hóa đơn đã thu đủ (${paidInvoiceCount})`}
+                  </button>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -350,14 +381,16 @@ const DealerDebtInvoice = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
-                    {invoices.length === 0 ? (
+                    {visibleInvoices.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="p-8 text-center text-shade-40 italic">
-                          Chưa có hóa đơn bán hàng nào trong hệ thống.
+                          {invoices.length === 0
+                            ? 'Chưa có hóa đơn bán hàng nào trong hệ thống.'
+                            : 'Không còn hóa đơn nào chưa thu đủ.'}
                         </td>
                       </tr>
                     ) : (
-                      invoices.map(inv => (
+                      visibleInvoices.map(inv => (
                         <tr key={inv.id} className="hover:bg-canvas-cream/50">
                           <td className="p-4 font-bold text-ink">{inv.invoice_number}</td>
                           <td className="p-4 font-semibold text-shade-70">{inv.do_number}</td>
@@ -499,7 +532,9 @@ const DealerDebtInvoice = () => {
                 <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span className="text-[10px] text-amber-800 font-medium leading-snug">
-                    Độ tin cậy OCR ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin thu trước khi lưu.
+                    {ocrDealerMatched
+                      ? `Độ tin cậy OCR (${Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin thu trước khi lưu.`
+                      : `Không nhận diện được Đại lý từ nội dung hóa đơn (${Math.round(ocrConfidence * 100)}%) — OCR chỉ đọc được số tiền/ngày. Vui lòng chọn đại lý thủ công trước khi lưu.`}
                   </span>
                 </div>
               )}
