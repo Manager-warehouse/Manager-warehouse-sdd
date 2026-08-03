@@ -150,6 +150,11 @@ class DiscrepancyIncidentServiceTest {
     }
 
     @Test
+    void destinationCountErrorStatus_isLongerThanLegacyColumnWidth() {
+        assertThat("RESOLVED_DESTINATION_COUNT_ERROR").hasSize(32);
+    }
+
+    @Test
     void resolveIncident_rejectsAlreadyResolvedIncident() {
         User ceo = user(20L, UserRole.CEO, "CEO");
         incident.setStatus("RESOLVED_ACCEPTED");

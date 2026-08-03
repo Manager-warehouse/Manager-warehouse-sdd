@@ -49,7 +49,7 @@ public class DiscrepancyIncident {
     @Column(name = "quantity", nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;
 
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(name = "status", nullable = false, length = 40)
     private String status; // 'OPEN', 'RESOLVED_ACCEPTED', 'RESOLVED_RETURNED'
 
     @Column(name = "resolution_note", columnDefinition = "TEXT")
