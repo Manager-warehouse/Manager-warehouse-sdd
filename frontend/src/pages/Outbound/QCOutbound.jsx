@@ -15,6 +15,8 @@ const isEffectiveStaging = (location) => (
   location?.is_staging === true || location?.parent_is_staging === true
 );
 
+const roundQuantity = (quantity) => Math.round((Number(quantity) + Number.EPSILON) * 100) / 100;
+
 const buildAllocationRows = (order, locations) => {
   const stagingLocations = locations.filter((location) => !isEffectiveQuarantine(location) && isEffectiveStaging(location));
   const quarantineLocations = locations.filter(isEffectiveQuarantine);
@@ -38,7 +40,7 @@ const buildAllocationRows = (order, locations) => {
           sku: item.sku,
           planned_qty: plannedQty,
           picked_qty: plannedQty,
-          result: 'PASSED',
+          qc_fail_qty: 0,
           reason: '',
           staging_location_id: defaultStagingId,
           quarantine_location_id: defaultQuarantineId,
@@ -92,13 +94,26 @@ export default function QCOutbound() {
       return;
     }
 
-    const invalidQty = qcRows.some((row) => Number(row.picked_qty) < 0 || Number(row.picked_qty) > Number(row.planned_qty));
+    const invalidQty = qcRows.some((row) => (
+      !Number.isFinite(Number(row.picked_qty))
+      || Number(row.picked_qty) !== Number(row.planned_qty)
+    ));
     if (invalidQty) {
-      addToast('Số lượng đã lấy phải nằm trong mức phân bổ đã lập.', 'error');
+      addToast('Số lượng thực lấy phải bằng số lượng kế hoạch của từng dòng phân bổ.', 'error');
       return;
     }
 
-    const missingFailReason = qcRows.some((row) => row.result === 'FAILED' && !row.reason.trim());
+    const invalidFailQty = qcRows.some((row) => (
+      !Number.isFinite(Number(row.qc_fail_qty))
+      || Number(row.qc_fail_qty) < 0
+      || Number(row.qc_fail_qty) > Number(row.picked_qty)
+    ));
+    if (invalidFailQty) {
+      addToast('Số lượng không đạt phải từ 0 đến số lượng thực lấy.', 'error');
+      return;
+    }
+
+    const missingFailReason = qcRows.some((row) => Number(row.qc_fail_qty) > 0 && !row.reason.trim());
     if (missingFailReason) {
       addToast('Vui lòng nhập lý do cho các dòng không đạt kiểm định.', 'error');
       return;
@@ -110,7 +125,7 @@ export default function QCOutbound() {
       return;
     }
 
-    const missingQuarantineLocation = qcRows.some((row) => row.result === 'FAILED' && !row.quarantine_location_id);
+    const missingQuarantineLocation = qcRows.some((row) => Number(row.qc_fail_qty) > 0 && !row.quarantine_location_id);
     if (missingQuarantineLocation) {
       addToast('Vui lòng chọn vị trí cách ly cho các dòng không đạt kiểm định.', 'error');
       return;
@@ -128,7 +143,9 @@ export default function QCOutbound() {
     }
   };
 
-  const failCount = qcRows.filter((row) => row.result === 'FAILED').length;
+  const failedRows = qcRows.filter((row) => Number(row.qc_fail_qty) > 0);
+  const failCount = failedRows.length;
+  const totalFailQty = failedRows.reduce((total, row) => total + Number(row.qc_fail_qty), 0);
   const stagingOptions = locations.filter((location) => !isEffectiveQuarantine(location) && isEffectiveStaging(location));
   const quarantineOptions = locations.filter(isEffectiveQuarantine);
 
@@ -168,7 +185,7 @@ export default function QCOutbound() {
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-danger-600 shrink-0" />
           <p className="text-sm text-danger-700 font-medium">
-            <span className="font-bold">{failCount}</span> dòng phân bổ đang được đánh dấu không đạt kiểm định.
+            <span className="font-bold">{totalFailQty}</span> sản phẩm không đạt trên {failCount} dòng phân bổ.
             Nhập đầy đủ lý do và vị trí cách ly.
           </p>
         </div>
@@ -189,11 +206,13 @@ export default function QCOutbound() {
         ) : (
           <div className="divide-y divide-hairline-light">
             {qcRows.map((row) => {
-              const isFailed = row.result === 'FAILED';
+              const qcFailQty = Number(row.qc_fail_qty) || 0;
+              const qcPassQty = Math.max(0, roundQuantity(Number(row.picked_qty) - qcFailQty));
+              const hasQcFailure = qcFailQty > 0;
               return (
-                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-danger-50/30' : 'bg-canvas-light'}`}>
+                <div key={row.id} className={`p-6 transition-colors ${hasQcFailure ? 'bg-danger-50/30' : 'bg-canvas-light'}`}>
                   <div className="flex flex-col gap-4">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div>
                       <div>
                         <h4 className="text-sm font-bold text-ink">{row.product_name}</h4>
                         <p className="text-xs text-shade-40 mt-0.5 font-mono">SKU: {row.sku || '-'}</p>
@@ -206,85 +225,61 @@ export default function QCOutbound() {
                           </p>
                         )}
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => updateRow(row.id, 'result', 'PASSED')}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
-                            !isFailed
-                              ? 'bg-success-50 border-success-300 text-success-900'
-                              : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
-                          }`}
-                        >
-                          Đạt kiểm định
-                        </button>
-                        <button
-                          onClick={() => updateRow(row.id, 'result', 'FAILED')}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
-                            isFailed
-                              ? 'bg-danger-50 border-danger-300 text-danger-700'
-                              : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
-                          }`}
-                        >
-                          Không đạt kiểm định
-                        </button>
-                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-shade-60 mb-1.5">SL kế hoạch</label>
-                        <input disabled value={row.planned_qty} className="w-full text-input bg-canvas-cream text-xs" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-shade-60 mb-1.5">SL thực lấy</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={row.planned_qty}
-                          value={row.picked_qty}
-                          onChange={(event) => updateRow(row.id, 'picked_qty', Number(event.target.value))}
-                          className="w-full text-input text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-shade-60 mb-1.5">Vị trí trung chuyển *</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                      <Input label="SL kế hoạch" type="number" value={row.planned_qty} disabled />
+                      <Input
+                        label="SL thực lấy"
+                        type="number"
+                        min="0"
+                        max={row.planned_qty}
+                        step="0.01"
+                        value={row.picked_qty}
+                        onChange={(event) => updateRow(row.id, 'picked_qty', event.target.value)}
+                      />
+                      <Input label="SL đạt kiểm định" type="number" value={qcPassQty} disabled />
+                      <Input
+                        label="SL không đạt"
+                        type="number"
+                        min="0"
+                        max={row.picked_qty}
+                        step="0.01"
+                        value={row.qc_fail_qty}
+                        onChange={(event) => updateRow(row.id, 'qc_fail_qty', event.target.value)}
+                        error={qcFailQty > Number(row.picked_qty) ? 'Không được vượt SL thực lấy' : undefined}
+                      />
+                    </div>
+
+                    <Input
+                      label="Vị trí trung chuyển *"
+                      type="select"
+                      value={row.staging_location_id}
+                      onChange={(event) => updateRow(row.id, 'staging_location_id', event.target.value)}
+                      options={[
+                        { value: '', label: '-- Chọn vị trí trung chuyển --' },
+                        ...stagingOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                      ]}
+                    />
+
+                    {hasQcFailure && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
+                          label="Lý do không đạt kiểm định *"
+                          value={row.reason}
+                          onChange={(event) => updateRow(row.id, 'reason', event.target.value)}
+                          placeholder="Móp méo, trầy xước, sai mã..."
+                        />
+                        <Input
+                          label="Vị trí cách ly *"
                           type="select"
-                          value={row.staging_location_id}
-                          onChange={(event) => updateRow(row.id, 'staging_location_id', event.target.value)}
+                          value={row.quarantine_location_id}
+                          onChange={(event) => updateRow(row.id, 'quarantine_location_id', event.target.value)}
                           options={[
-                            { value: '', label: '-- Chọn vị trí trung chuyển --' },
-                            ...stagingOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                            { value: '', label: '-- Chọn vị trí cách ly --' },
+                            ...quarantineOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
                           ]}
                         />
-                      </div>
-                    </div>
-
-                    {isFailed && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Lý do không đạt kiểm định *</label>
-                          <input
-                            type="text"
-                            value={row.reason}
-                            onChange={(event) => updateRow(row.id, 'reason', event.target.value)}
-                            placeholder="Móp méo, trầy xước, sai mã..."
-                            className="w-full text-input text-xs border-danger-300 focus:border-danger-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Vị trí cách ly *</label>
-                          <Input
-                            type="select"
-                            value={row.quarantine_location_id}
-                            onChange={(event) => updateRow(row.id, 'quarantine_location_id', event.target.value)}
-                            options={[
-                              { value: '', label: '-- Chọn vị trí cách ly --' },
-                              ...quarantineOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
-                            ]}
-                          />
-                        </div>
                       </div>
                     )}
                   </div>

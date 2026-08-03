@@ -425,8 +425,16 @@ public class GlobalExceptionHandler {
                 || contains(message, "do_number")) {
             code = "DELIVERY_ORDER_NUMBER_CONFLICT";
             userMessage = "Số đơn xuất kho đã tồn tại, vui lòng thử tạo lại";
-        } else if (contains(message, "warehouse_product_reservations")
-                || (contains(message, "warehouse_id") && contains(message, "product_id"))) {
+        } else if (contains(message, "inventories_warehouse_id_product_id_batch_id_location_id_key")
+                || (contains(message, "inventories") && contains(message, "batch_id")
+                    && contains(message, "location_id"))) {
+            code = "INVENTORY_ROW_CONFLICT";
+            userMessage = "Dòng tồn kho vừa được tạo hoặc thay đổi, vui lòng tải lại và thử lại";
+        } else if (contains(message, "adjustments_adjustment_number_key")
+                || (contains(message, "adjustments") && contains(message, "adjustment_number"))) {
+            code = "ADJUSTMENT_NUMBER_CONFLICT";
+            userMessage = "Mã phiếu điều chỉnh bị trùng, vui lòng thử lại";
+        } else if (contains(message, "warehouse_product_reservations")) {
             code = "WAREHOUSE_PRODUCT_RESERVATION_CONFLICT";
             userMessage = "Tồn giữ chỗ của sản phẩm trong kho vừa được thay đổi, vui lòng tải lại và thử lại";
         }

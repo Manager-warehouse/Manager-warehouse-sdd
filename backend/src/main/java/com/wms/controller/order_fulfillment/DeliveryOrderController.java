@@ -174,8 +174,8 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid pick/QC payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Warehouse staff is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order, allocation, or location not found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Inventory version conflict or idempotency conflict", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Pick/QC business validation failed", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Inventory version/row, adjustment number, or idempotency conflict", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Pick/QC validation, location state, or bin capacity failed", content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickQcResult(@PathVariable Long id,
                                                                @Valid @RequestBody DeliveryOrderPickQcResultRequest request) {
