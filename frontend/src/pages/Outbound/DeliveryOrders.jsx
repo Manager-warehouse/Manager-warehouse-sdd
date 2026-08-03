@@ -473,10 +473,7 @@ export default function DeliveryOrders() {
 
   const renderDoActions = (order) => {
     const canPlannerChange = hasRole(ROLES.PLANNER) && order.status === 'NEW';
-    const canCancel = canPlannerChange || (
-      hasRole(ROLES.WAREHOUSE_MANAGER)
-      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status)
-    );
+    const canCancel = canPlannerChange;
     const canOpenPicking = hasRole(ROLES.STOREKEEPER)
       && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
     const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)

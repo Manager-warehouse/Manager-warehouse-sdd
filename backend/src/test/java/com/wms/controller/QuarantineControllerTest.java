@@ -115,7 +115,7 @@ class QuarantineControllerTest {
                 .id(200L)
                 .productSku("SKU-PA-001")
                 .productName("Device A")
-                .qcFailedQty(5)
+                .qcFailedQty(BigDecimal.valueOf(5))
                 .qcFailureReason("Cracked")
                 .receiptNumber("RCV-001")
                 .supplierId(30L)

@@ -70,6 +70,7 @@ import com.wms.dto.request.*;
 import com.wms.dto.response.*;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.*;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.warehouse_transfer.impl.TransferRequestServiceImpl;
 import com.wms.service.warehouse_transfer.impl.InterWarehouseTransferReceivingService;
@@ -104,6 +105,7 @@ class InterWarehouseTransferFlowE2ETest {
     @Mock private QuarantineRecordRepository quarantineRecordRepository;
     @Mock private DamageReportRepository damageReportRepository;
     @Mock private ProductRepository productRepository;
+    @Mock private VehicleRepository vehicleRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private DiscrepancyIncidentRepository discrepancyIncidentRepository;
     @Mock private DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
@@ -292,6 +294,7 @@ class InterWarehouseTransferFlowE2ETest {
                 inventoryRepository,
                 transferRepository,
                 assignmentRepository,
+                vehicleRepository,
                 mockTransferService,
                 auditUtil
         );

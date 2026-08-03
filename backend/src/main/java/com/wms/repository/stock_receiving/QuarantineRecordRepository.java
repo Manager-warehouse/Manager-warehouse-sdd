@@ -1,5 +1,4 @@
-package com.wms.repository;
-
+package com.wms.repository.stock_receiving;
 
 import com.wms.entity.stock_receiving.QuarantineRecord;
 import java.util.List;

@@ -104,4 +104,22 @@ public class DisposalController {
         DisposalResponse response = disposalService.approveDisposal(adjustmentId, actor);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(
+            summary = "Từ chối yêu cầu tiêu hủy hàng cách ly",
+            description = "Hủy bỏ yêu cầu tiêu hủy đang chờ duyệt. Sản phẩm sẽ được đưa trở lại danh sách cách ly để xử lý xuất trả NCC hoặc phân loại lại."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Từ chối yêu cầu thành công"),
+            @ApiResponse(responseCode = "400", description = "Thông tin không hợp lệ"),
+            @ApiResponse(responseCode = "403", description = "Vai trò không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy adjustment")
+    })
+    @PutMapping("/disposal/{adjustmentId}/reject")
+    public ResponseEntity<DisposalResponse> rejectDisposal(
+            @Parameter(description = "ID của adjustment tiêu hủy cần từ chối") @PathVariable Long adjustmentId) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        DisposalResponse response = disposalService.rejectDisposal(adjustmentId, actor);
+        return ResponseEntity.ok(response);
+    }
 }

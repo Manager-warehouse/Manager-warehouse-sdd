@@ -27,6 +27,7 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.TransferRequestItemRepository;
 import com.wms.repository.TransferRequestRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
@@ -70,6 +71,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     private final InventoryRepository inventoryRepository;
     private final InterWarehouseTransferRepository interWarehouseTransferRepository;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    private final VehicleRepository vehicleRepository;
     private final InterWarehouseTransferService transferService;
     private final PartnerAuditUtil auditUtil;
 
@@ -107,6 +109,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
         ensureNeededByDateIsNotPast(request.neededByDate());
         ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        ensureRequestCanFitAnyFleetVehicle(request.items());
         ensureNoOpenDuplicateRequest(request.sourceWarehouseId(), request.destinationWarehouseId(),
                 request.neededByDate(), null);
 
@@ -149,6 +152,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
         ensureNeededByDateIsNotPast(request.neededByDate());
         ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        ensureRequestCanFitAnyFleetVehicle(request.items());
         ensureNoOpenDuplicateRequest(request.sourceWarehouseId(), request.destinationWarehouseId(),
                 request.neededByDate(), id);
 
@@ -526,6 +530,36 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                     .requestedQty(line.requestedQty())
                     .build();
             currentItems.add(item);
+        }
+    }
+
+    private void ensureRequestCanFitAnyFleetVehicle(List<TransferRequestItemRequest> items) {
+        // Chặn ngay từ lúc kho đích tạo/sửa yêu cầu nếu không xe active nào trong đội xe chở nổi đơn này.
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+        for (TransferRequestItemRequest line : items) {
+            Product product = productRepository.findById(line.productId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.productId()));
+            BigDecimal qty = line.requestedQty() != null ? line.requestedQty() : BigDecimal.ZERO;
+            BigDecimal weight = product.getWeightKg() != null ? product.getWeightKg() : BigDecimal.ZERO;
+            BigDecimal volume = product.getVolumeM3() != null ? product.getVolumeM3() : BigDecimal.ZERO;
+            totalWeight = totalWeight.add(qty.multiply(weight));
+            totalVolume = totalVolume.add(qty.multiply(volume));
+        }
+
+        if (totalWeight.signum() == 0 && totalVolume.signum() == 0) {
+            return;
+        }
+        BigDecimal requestedWeight = totalWeight;
+        BigDecimal requestedVolume = totalVolume;
+        boolean anyVehicleCanCarry = vehicleRepository.findByIsActive(true).stream()
+                .anyMatch(vehicle -> {
+                    boolean weightOk = vehicle.getMaxWeightKg() == null || requestedWeight.compareTo(vehicle.getMaxWeightKg()) <= 0;
+                    boolean volumeOk = vehicle.getMaxVolumeM3() == null || requestedVolume.compareTo(vehicle.getMaxVolumeM3()) <= 0;
+                    return weightOk && volumeOk;
+                });
+        if (!anyVehicleCanCarry) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET");
         }
     }
 

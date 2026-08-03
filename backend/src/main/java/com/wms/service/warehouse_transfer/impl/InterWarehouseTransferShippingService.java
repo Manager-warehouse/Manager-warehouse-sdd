@@ -3,8 +3,12 @@ import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.ReceivingHandoverRequest;
+import com.wms.dto.request.SourceLoadPickRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidateResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
+import com.wms.dto.response.SourceLoadPickItemResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.access_control.UserWarehouseAssignment;
 import com.wms.entity.driver_management.Driver;
@@ -38,8 +42,12 @@ import com.wms.repository.driver_management.DriverRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -82,7 +90,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: lấy phiếu và chỉ cho gán xe khi phiếu đã được duyệt, tức là kho nguồn đã giữ hàng cho phiếu này.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 
@@ -110,20 +118,18 @@ public class InterWarehouseTransferShippingService {
         ensureVehicleBelongsToSourceWarehouse(transfer, vehicle);
         ensureDriverBelongsToSourceWarehouse(transfer, driver);
 
-        // Bước 5: tính tổng cân nặng chuyến = số lượng dự kiến chuyển * cân nặng mỗi sản phẩm.
-        // Hệ thống hiện chỉ dùng cân nặng để kiểm xe có chở nổi hay không; thể tích để 0 theo model Trip hiện tại.
-        BigDecimal totalWeight = BigDecimal.ZERO;
-        BigDecimal totalVolume = BigDecimal.ZERO;
-        for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
-            BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-            totalWeight = totalWeight.add(qty.multiply(weight));
-        }
+        // Bước 5: tính tổng tải chuyến = số lượng dự kiến chuyển * cân nặng/thể tích mỗi sản phẩm.
+        TransferLoad load = calculateTransferLoad(transfer);
+        BigDecimal totalWeight = load.weightKg();
+        BigDecimal totalVolume = load.volumeM3();
 
         // T033: Reject TRIP_CAPACITY_EXCEEDED when weight exceeds capacity
         // Validate: tổng trọng lượng hàng điều chuyển không được vượt tải trọng tối đa của xe.
         if (vehicle.getMaxWeightKg() != null && totalWeight.compareTo(vehicle.getMaxWeightKg()) > 0) {
-            throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
+            throw new BusinessRuleViolationException("VEHICLE_CANNOT_CARRY_TRANSFER_LOAD");
+        }
+        if (vehicle.getMaxVolumeM3() != null && totalVolume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
+            throw new BusinessRuleViolationException("VEHICLE_CANNOT_CARRY_TRANSFER_LOAD");
         }
 
         Map<String, Object> before = helper.snapshot(transfer);
@@ -172,13 +178,52 @@ public class InterWarehouseTransferShippingService {
     }
 
     @Transactional
+    public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
+        // Công nhân xem các kệ đang có tồn của đúng SKU để chọn kệ lấy hàng thực tế.
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUIRED_DATE_EXPIRED");
+        }
+        helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+        ensureSingleTransferTrip(transfer);
+
+        List<SourceLoadPickItemResponse> items = helper.items(transfer).stream()
+                .map(item -> {
+                    List<InterWarehouseTransferAllocation> allocations = allocationRepository.findByTransferItemId(item.getId());
+                    Map<Long, BigDecimal> reservedByThisTransfer = allocations.stream()
+                            .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(),
+                                    InterWarehouseTransferAllocation::getAllocatedQty, BigDecimal::add));
+                    Map<Long, Inventory> candidatesByInventoryId = new LinkedHashMap<>();
+                    allocations.forEach(allocation -> candidatesByInventoryId.put(
+                            allocation.getInventory().getId(), allocation.getInventory()));
+                    inventoryRepository.findPickCandidates(transfer.getSourceWarehouse().getId(), item.getProduct().getId())
+                            .forEach(inventory -> candidatesByInventoryId.putIfAbsent(inventory.getId(), inventory));
+                    List<SourceLoadPickCandidateResponse> candidates = candidatesByInventoryId.values().stream()
+                            .map(inventory -> toSourcePickCandidate(inventory,
+                                    reservedByThisTransfer.getOrDefault(inventory.getId(), BigDecimal.ZERO)))
+                            .filter(candidate -> candidate.availableQty().compareTo(BigDecimal.ZERO) > 0)
+                            .toList();
+                    return new SourceLoadPickItemResponse(
+                            item.getId(),
+                            item.getProduct().getId(),
+                            item.getProduct().getSku(),
+                            item.getProduct().getName(),
+                            item.getPlannedQty(),
+                            candidates);
+                })
+                .toList();
+        return new SourceLoadPickCandidatesResponse(transfer.getId(), items);
+    }
+
+    @Transactional
     public InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor) {
         // HÀM CHÍNH: công nhân kho nguồn báo số lượng thực tế đã xếp lên xe.
         // Công nhân kho nguồn nhập số lượng thực tế đã xếp lên xe. Nếu lệch số lượng dự kiến thì bắt xếp lại/giải trình.
         // Bước 1: phiếu phải APPROVED và đã có trip điều chuyển trước khi công nhân báo số lượng xếp.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -209,6 +254,7 @@ public class InterWarehouseTransferShippingService {
             if (row.loadedQty().compareTo(item.getPlannedQty()) != 0) {
                 throw new BusinessRuleViolationException("SOURCE_LOAD_QTY_MUST_MATCH_PLAN");
             }
+            replaceSourcePickAllocations(item, row.picks());
             // Nếu báo cáo lại sau khi xếp lại, số lượng đã chốt gửi cũ bị xóa để thủ kho QC/chốt lại từ đầu.
             item.setLoadedQty(row.loadedQty());
             item.setLoadedReportedBy(actor);
@@ -246,7 +292,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ chốt gửi khi phiếu đã duyệt, đúng kho nguồn, đã có chuyến xe và đã báo cáo xếp đủ.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -295,7 +341,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: QC xuất chỉ chạy sau khi đã báo cáo xếp đủ và phiếu đang ở trạng thái đã duyệt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -327,7 +373,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ được bàn giao khi đã xếp đủ, không còn yêu cầu xếp lại và QC xuất đã đạt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -358,7 +404,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: chỉ tài xế được gán mới được bấm rời kho và mọi bước xuất kho phải hoàn tất.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
-        if (autoCancelIfDeadlineExpiredBeforeDeparture(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
         ensureAssignedDriver(transfer, actor);
@@ -393,42 +439,6 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_DEPART, before, helper.snapshot(saved));
         return helper.toResponse(saved);
-    }
-
-    private boolean autoCancelIfDeadlineExpiredBeforeDeparture(InterWarehouseTransfer transfer, User actor) {
-        // HÀM HỖ TRỢ: tự hủy phiếu nếu quá ngày cần hàng trước khi xe rời kho.
-        // Ngày cần hàng là deadline cứng: quá deadline mà xe chưa rời kho thì phiếu bị hủy và trả lại hàng đang giữ chỗ.
-        if (!helper.isPastRequiredArrivalDate(transfer)) {
-            return false;
-        }
-        Map<String, Object> before = helper.snapshot(transfer);
-        helper.releaseReservations(transfer);
-        for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            item.setSentQty(null);
-            transferItemRepository.save(item);
-        }
-        transfer.setStatus(InterWarehouseTransferStatus.CANCELLED);
-        transfer.setRejectionReason("TRANSFER_REQUIRED_DATE_EXPIRED");
-        transfer.setUpdatedAt(OffsetDateTime.now());
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_CANCEL, before, helper.snapshot(saved));
-        return true;
-    }
-
-    private boolean autoForceReturnIfDeadlineMissedInTransit(InterWarehouseTransfer transfer, User actor) {
-        // HÀM HỖ TRỢ: quá hạn khi đang vận chuyển thì chuyển phiếu sang nhánh quay đầu.
-        // Khi hàng đã lên xe thì không được cancel mất dấu hàng; quá deadline bắt buộc chuyển sang nhánh quay đầu về kho nguồn.
-        if (transfer.isReturned() || !helper.isPastRequiredArrivalDate(transfer)) {
-            return false;
-        }
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturned(true);
-        transfer.setReturnRequested(false);
-        transfer.setReturnReason("TRANSFER_REQUIRED_DATE_EXPIRED");
-        transfer.setUpdatedAt(OffsetDateTime.now());
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
-        return true;
     }
 
     private void validateTripSchedule(InterWarehouseTransferTripAssignRequest request) {
@@ -544,6 +554,122 @@ public class InterWarehouseTransferShippingService {
         }
     }
 
+    private SourceLoadPickCandidateResponse toSourcePickCandidate(Inventory inventory, BigDecimal reservedByThisTransfer) {
+        WarehouseLocation location = inventory.getLocation();
+        BigDecimal availableForThisTransfer = inventory.getTotalQty()
+                .subtract(inventory.getReservedQty())
+                .add(reservedByThisTransfer);
+        return new SourceLoadPickCandidateResponse(
+                inventory.getId(),
+                location.getId(),
+                location.getCode(),
+                inventory.getBatch().getId(),
+                inventory.getBatch().getBatchCode(),
+                availableForThisTransfer);
+    }
+
+    private void replaceSourcePickAllocations(InterWarehouseTransferItem item, List<SourceLoadPickRequest> picks) {
+        // Công nhân được chọn kệ thực tế có tồn SKU; hệ thống đổi reservation sang đúng kệ đã lấy.
+        if (picks == null || picks.isEmpty()) {
+            throw new BusinessRuleViolationException("SOURCE_PICK_ROWS_REQUIRED");
+        }
+        List<InterWarehouseTransferAllocation> currentAllocations = allocationRepository.findByTransferItemId(item.getId());
+        if (currentAllocations.isEmpty()) {
+            throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+        }
+        Map<Long, BigDecimal> currentReservedByInventory = currentAllocations.stream()
+                .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(),
+                        InterWarehouseTransferAllocation::getAllocatedQty, BigDecimal::add));
+
+        Set<Long> seenInventoryIds = new HashSet<>();
+        BigDecimal totalPicked = BigDecimal.ZERO;
+        Map<Long, BigDecimal> pickedByInventory = new LinkedHashMap<>();
+        Map<Long, Inventory> selectedInventories = new LinkedHashMap<>();
+        for (SourceLoadPickRequest pick : picks) {
+            if (!seenInventoryIds.add(pick.inventoryId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_SOURCE_PICK_LOCATION");
+            }
+            if (pick.quantity().stripTrailingZeros().scale() > 0) {
+                throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
+            }
+            Inventory inventory = inventoryRepository.findByIdForUpdate(pick.inventoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + pick.inventoryId()));
+            validatePickInventoryBelongsToSourceItem(item, inventory, pick);
+            BigDecimal availableForThisTransfer = inventory.getTotalQty()
+                    .subtract(inventory.getReservedQty())
+                    .add(currentReservedByInventory.getOrDefault(inventory.getId(), BigDecimal.ZERO));
+            if (!Objects.equals(inventory.getLocation().getId(), pick.locationId())) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_LOCATION_INVALID");
+            }
+            if (pick.quantity().compareTo(availableForThisTransfer) > 0) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_QTY_EXCEEDS_AVAILABLE");
+            }
+            pickedByInventory.put(pick.inventoryId(), pick.quantity());
+            selectedInventories.put(pick.inventoryId(), inventory);
+            totalPicked = totalPicked.add(pick.quantity());
+        }
+        if (totalPicked.compareTo(item.getPlannedQty()) != 0) {
+            throw new BusinessRuleViolationException("SOURCE_PICK_QTY_MUST_MATCH_PLAN");
+        }
+        releaseCurrentSourceReservations(currentAllocations);
+        allocationRepository.deleteByTransferItemId(item.getId());
+        for (Map.Entry<Long, BigDecimal> picked : pickedByInventory.entrySet()) {
+            Inventory inventory = selectedInventories.get(picked.getKey());
+            inventory.setReservedQty(inventory.getReservedQty().add(picked.getValue()));
+            if (inventory.getReservedQty().compareTo(inventory.getTotalQty()) > 0) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_QTY_EXCEEDS_AVAILABLE");
+            }
+            inventory.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(inventory);
+            allocationRepository.save(InterWarehouseTransferAllocation.builder()
+                    .transferItem(item)
+                    .inventory(inventory)
+                    .allocatedQty(picked.getValue())
+                    .build());
+        }
+    }
+
+    private void validatePickInventoryBelongsToSourceItem(InterWarehouseTransferItem item, Inventory inventory,
+            SourceLoadPickRequest pick) {
+        if (!Objects.equals(inventory.getProduct().getId(), item.getProduct().getId())
+                || !Objects.equals(inventory.getWarehouse().getId(), item.getTransfer().getSourceWarehouse().getId())
+                || !Objects.equals(inventory.getLocation().getId(), pick.locationId())
+                || Boolean.FALSE.equals(inventory.getLocation().getIsActive())
+                || Boolean.TRUE.equals(inventory.getLocation().getIsQuarantine())
+                || Boolean.TRUE.equals(inventory.getLocation().getIsStaging())
+                || Boolean.TRUE.equals(inventory.getLocation().getIsLocked())) {
+            throw new BusinessRuleViolationException("SOURCE_PICK_LOCATION_INVALID");
+        }
+    }
+
+    private void releaseCurrentSourceReservations(List<InterWarehouseTransferAllocation> allocations) {
+        for (InterWarehouseTransferAllocation allocation : allocations) {
+            Inventory inventory = inventoryRepository.findByIdForUpdate(allocation.getInventory().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + allocation.getInventory().getId()));
+            inventory.setReservedQty(inventory.getReservedQty().subtract(allocation.getAllocatedQty()));
+            if (inventory.getReservedQty().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessRuleViolationException("INVENTORY_INVARIANT_VIOLATED: Reserved quantity cannot be negative");
+            }
+            inventory.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(inventory);
+        }
+    }
+
+    private TransferLoad calculateTransferLoad(InterWarehouseTransfer transfer) {
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
+            BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
+            BigDecimal volume = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
+            totalWeight = totalWeight.add(qty.multiply(weight));
+            totalVolume = totalVolume.add(qty.multiply(volume));
+        }
+        return new TransferLoad(totalWeight, totalVolume);
+    }
+
+    private record TransferLoad(BigDecimal weightKg, BigDecimal volumeM3) {}
+
     private void moveSourceToTransit(InterWarehouseTransfer transfer) {
         // HÀM HỖ TRỢ: chuyển tồn thật từ kho nguồn sang kho ảo đang vận chuyển.
         // Ghi nhận tồn khi xe rời kho: giảm tồn kho nguồn và cộng đúng lô hàng sang kho ảo "đang vận chuyển".
@@ -579,7 +705,7 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         ensureAssignedDriver(transfer, actor);
-        if (autoForceReturnIfDeadlineMissedInTransit(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 
@@ -599,7 +725,7 @@ public class InterWarehouseTransferShippingService {
         // Bước 1: xác định kho được phép bàn giao. Nếu xe quay đầu thì kho nhận lại chính là kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        if (autoForceReturnIfDeadlineMissedInTransit(transfer, actor)) {
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
             return helper.toResponse(transfer);
         }
 

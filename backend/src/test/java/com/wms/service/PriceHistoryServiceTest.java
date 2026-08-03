@@ -76,7 +76,9 @@ import com.wms.repository.NotificationRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import org.springframework.security.access.AccessDeniedException;
 import com.wms.service.price_management.impl.PriceHistoryServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -116,6 +118,7 @@ class PriceHistoryServiceTest {
     @Mock NotificationRepository notificationRepository;
     @Mock PartnerAuditUtil auditUtil;
     @Mock AccountingPeriodService accountingPeriodService;
+    @Mock UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     PriceHistoryServiceImpl service;
 
@@ -128,12 +131,13 @@ class PriceHistoryServiceTest {
         service = new PriceHistoryServiceImpl(
                 priceHistoryRepository, productRepository,
                 warehouseRepository, userRepository, notificationRepository, auditUtil,
-                accountingPeriodService);
+                accountingPeriodService, userWarehouseAssignmentRepository);
 
         actor = new User();
         actor.setId(1L);
         actor.setFullName("Kế toán viên A");
         actor.setRole(UserRole.ACCOUNTANT);
+        lenient().when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L));
 
         product = new Product();
         product.setId(10L);
@@ -230,6 +234,23 @@ class PriceHistoryServiceTest {
         assertThatThrownBy(() -> service.create(req, actor))
                 .isInstanceOf(PriceHistoryException.class)
                 .hasMessageContaining("PENDING");
+    }
+
+    @Test
+    void create_accountantOutsideAssignedWarehouse_throws() {
+        // Accountant is only assigned to warehouse 1L; a request for warehouse 2L
+        // (e.g. a different accountant's kho) must be rejected, not silently allowed.
+        PriceHistoryCreateRequest req = buildCreateRequest(LocalDate.of(2026, 7, 1));
+        req.setWarehouseId(2L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(otherWarehouse));
+
+        assertThatThrownBy(() -> service.create(req, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(priceHistoryRepository, never()).saveAndFlush(any());
     }
 
     // ── cancel ────────────────────────────────────────────────────────────────

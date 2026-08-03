@@ -1,10 +1,12 @@
 package com.wms.service.stock_receiving;
+
 import com.wms.dto.request.ReceiptRtvConfirmRequest;
 import com.wms.dto.request.ReceiptRtvCreateRequest;
 import com.wms.dto.response.QuarantineItemResponse;
 import com.wms.dto.response.RtvActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.DebitNote;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_control.Inventory;
@@ -24,18 +26,21 @@ import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DebitNoteRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.PriceHistoryRepository;
-import com.wms.repository.QuarantineRecordRepository;
-import com.wms.repository.ReceiptItemRepository;
-import com.wms.repository.ReceiptRepository;
 import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,7 +119,7 @@ public class QuarantineRtvService {
     public RtvActionResponse createRtv(Long receiptId,
                                         ReceiptRtvCreateRequest request,
                                         User actor) {
-        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CREATE");
         receiptValidationService.assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
@@ -377,9 +382,13 @@ public class QuarantineRtvService {
 
         List<ReceiptItem> failedItems = receiptItemRepository.findQuarantineItemsByWarehouseId(warehouseId);
         List<QuarantineRecord> quarantineRecords = quarantineRecordRepository
-                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO);
+                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO)
+                .stream()
+                .filter(qr -> !adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                        "QUARANTINE_RECORD", qr.getId(), com.wms.enums.stock_control.AdjustmentType.DISPOSAL))
+                .collect(java.util.stream.Collectors.toList());
 
-        List<QuarantineItemResponse> responses = new java.util.ArrayList<>();
+        List<QuarantineItemResponse> responses = new ArrayList<>();
 
         // Map Receipt QC failed items
         for (ReceiptItem item : failedItems) {
@@ -395,7 +404,7 @@ public class QuarantineRtvService {
                     .id(item.getId())
                     .productSku(item.getProduct().getSku())
                     .productName(item.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
+                    .qcFailedQty(failedQty)
                     .qcFailureReason(item.getQcFailureReason())
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
@@ -409,31 +418,86 @@ public class QuarantineRtvService {
                     .build());
         }
 
-        // Map Quarantine Records (such as internal transfers)
+        Map<QuarantineGroupKey, List<QuarantineRecord>> groupedRecords = new LinkedHashMap<>();
         for (QuarantineRecord qr : quarantineRecords) {
-            BigDecimal unitCost = quarantineRecordUnitCost(qr);
+            groupedRecords.computeIfAbsent(quarantineGroupKey(qr), key -> new ArrayList<>()).add(qr);
+        }
 
-            BigDecimal failedQty = qr.getRemainingQuantity();
-            BigDecimal totalValue = failedQty.multiply(unitCost);
-
-            responses.add(QuarantineItemResponse.builder()
-                    .id(qr.getId())
-                    .productSku(qr.getProduct().getSku())
-                    .productName(qr.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
-                    .qcFailureReason(qr.getReason())
-                    .receiptNumber(qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
-                    .supplierId(null)
-                    .totalValue(totalValue)
-                    .unit(qr.getProduct().getUnit() != null ? qr.getProduct().getUnit() : "cái")
-                    .receiptId(null)
-                    .receiptVersion(0)
-                    .originType(qr.getOriginType())
-                    .quarantineRecordId(qr.getId())
-                    .build());
+        for (List<QuarantineRecord> group : groupedRecords.values()) {
+            responses.add(toQuarantineRecordResponse(group));
         }
 
         return responses;
+    }
+
+    private QuarantineItemResponse toQuarantineRecordResponse(List<QuarantineRecord> records) {
+        QuarantineRecord first = records.get(0);
+        DeliveryOrder deliveryOrder = first.getDeliveryOrder();
+        BigDecimal failedQty = records.stream()
+                .map(QuarantineRecord::getRemainingQuantity)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalValue = records.stream()
+                .map(qr -> {
+                    BigDecimal qty = qr.getRemainingQuantity() != null ? qr.getRemainingQuantity() : BigDecimal.ZERO;
+                    return qty.multiply(quarantineRecordUnitCost(qr));
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<Long> recordIds = records.stream()
+                .map(QuarantineRecord::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        return QuarantineItemResponse.builder()
+                .id(first.getId())
+                .productSku(first.getProduct().getSku())
+                .productName(first.getProduct().getName())
+                .qcFailedQty(failedQty)
+                .qcFailureReason(first.getReason())
+                .receiptNumber(deliveryOrder != null
+                        ? deliveryOrder.getDoNumber()
+                        : first.getTransfer() != null ? first.getTransfer().getTransferNumber() : "N/A")
+                .supplierId(null)
+                .dealerId(deliveryOrder != null && deliveryOrder.getDealer() != null
+                        ? deliveryOrder.getDealer().getId() : null)
+                .dealerName(deliveryOrder != null && deliveryOrder.getDealer() != null
+                        ? deliveryOrder.getDealer().getName() : null)
+                .totalValue(totalValue)
+                .unit(first.getProduct().getUnit() != null ? first.getProduct().getUnit() : "cái")
+                .receiptId(null)
+                .receiptVersion(0)
+                .originType(first.getOriginType())
+                .quarantineRecordId(first.getId())
+                .quarantineRecordIds(recordIds)
+                .build();
+    }
+
+    private QuarantineGroupKey quarantineGroupKey(QuarantineRecord qr) {
+        Long transferId = qr.getTransfer() != null ? qr.getTransfer().getId() : null;
+        Long transferItemId = qr.getTransferItem() != null ? qr.getTransferItem().getId() : null;
+        Long deliveryOrderId = qr.getDeliveryOrder() != null ? qr.getDeliveryOrder().getId() : null;
+        Long deliveryOrderItemId = qr.getDeliveryOrderItem() != null ? qr.getDeliveryOrderItem().getId() : null;
+        Long fallbackRecordId = transferId == null && deliveryOrderId == null ? qr.getId() : null;
+        return new QuarantineGroupKey(
+                qr.getOriginType(),
+                qr.getProduct() != null ? qr.getProduct().getId() : null,
+                qr.getReason(),
+                transferId,
+                transferItemId,
+                deliveryOrderId,
+                deliveryOrderItemId,
+                fallbackRecordId);
+    }
+
+    private record QuarantineGroupKey(
+            String originType,
+            Long productId,
+            String reason,
+            Long transferId,
+            Long transferItemId,
+            Long deliveryOrderId,
+            Long deliveryOrderItemId,
+            Long fallbackRecordId) {
     }
 
     private BigDecimal quarantineRecordUnitCost(QuarantineRecord qr) {

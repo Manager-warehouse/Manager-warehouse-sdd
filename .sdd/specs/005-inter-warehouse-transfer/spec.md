@@ -86,6 +86,7 @@ flowchart TD
 - Ngày cần hàng `needed_by_date` không được ở quá khứ.
 - Số lượng yêu cầu phải là số nguyên dương; không cho trùng SKU trong cùng yêu cầu.
 - Khi submit hoặc trưởng kho nguồn approve, hệ thống phải kiểm tra lại tồn khả dụng tại kho nguồn.
+- Khi tạo hoặc sửa `TRQ DRAFT`, hệ thống phải tính tổng tải theo `requestedQty * weight/volume` và chặn ngay nếu không có xe active nào trong đội xe chở được toàn bộ yêu cầu.
 - `TRQ` chỉ được sửa hoặc hủy mềm khi còn `DRAFT`.
 - Trưởng kho nguồn có thể duyệt hoặc từ chối `TRQ`; từ chối bắt buộc có lý do.
 - Khi trưởng kho nguồn duyệt `TRQ`, hệ thống phải giữ hàng trong kho nguồn theo FIFO, chỉ lấy tồn khả dụng ở vị trí active, không quarantine; nếu không đủ hàng thì không reserve một phần và không approve.
@@ -126,7 +127,9 @@ flowchart TD
 ### 4.5. Xếp hàng, QC xuất và rời kho
 
 - Công nhân kho nguồn phải báo cáo `loaded_qty` cho mọi dòng trước khi thủ kho QC xuất.
-- `loaded_qty` phải là số nguyên và phải khớp `planned_qty`; nếu lệch phải có `reworkReason`.
+- Trước khi báo xếp, công nhân phải xem danh sách kệ/bin đã được giữ hàng, thấy số lượng còn phải lấy ở từng kệ, chọn đúng kệ và nhập số lượng lấy từ từng kệ.
+- Tổng số lượng lấy theo kệ của mỗi dòng phải đúng `planned_qty`; nếu thiếu, thừa, chọn kệ không thuộc allocation đã giữ hoặc lấy vượt allocation thì không được gửi cho thủ kho.
+- `loaded_qty` được tính từ tổng số lượng lấy theo kệ, phải là số nguyên và phải khớp `planned_qty`.
 - QC xuất chỉ được thực hiện sau khi đã có báo cáo xếp hàng.
 - Nếu QC xuất fail, hệ thống bật cờ cần rework và khóa các bước ship, handover, depart cho tới khi xếp lại và QC pass.
 - QC xuất và bàn giao tải hàng phải có ảnh bằng chứng; action nghiệp vụ chỉ lưu `photoRef`, không gửi raw base64.
@@ -322,6 +325,7 @@ flowchart TD
 | `ONLY_APPROVED_CAN_BE_CONVERTED` | Chỉ `TRQ APPROVED` mới được convert |
 | `TRANSFER_REQUEST_ALREADY_CONVERTED` | Yêu cầu đã được convert thành phiếu điều chuyển |
 | `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` | Kho nguồn không đủ tồn khả dụng cho yêu cầu |
+| `TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET` | Yêu cầu điều chuyển quá lớn, không xe active nào trong đội xe chở được |
 | `INSUFFICIENT_AVAILABLE_STOCK` | Kho nguồn không đủ tồn khả dụng khi duyệt/giữ hàng |
 | `INVALID_TRANSFER_STATUS` | Trạng thái phiếu không hợp lệ cho thao tác hiện tại |
 | `TRANSFER_CANCEL_NOT_ALLOWED` | Không được hủy phiếu ở trạng thái hiện tại |
@@ -335,10 +339,15 @@ flowchart TD
 | `DRIVER_LICENSE_EXPIRED` | Tài xế không có GPLX hợp lệ hoặc đã hết hạn |
 | `VEHICLE_SCHEDULE_OVERLAP` | Xe trùng lịch chuyến khác |
 | `DRIVER_SCHEDULE_OVERLAP` | Tài xế trùng lịch chuyến khác |
-| `TRIP_CAPACITY_EXCEEDED` | Hàng vượt tải trọng/thể tích xe |
+| `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD` | Xe được chọn không thể chứa tổng tải điều chuyển |
 | `TRANSFER_TRIP_REQUIRED` | Phiếu chưa có chuyến xe điều chuyển |
 | `ASSIGNED_DRIVER_REQUIRED` | Người thao tác không phải tài xế được gán |
 | `SOURCE_LOAD_REPORT_REQUIRED` | Chưa có báo cáo xếp hàng |
+| `SOURCE_PICK_ROWS_REQUIRED` | Công nhân chưa chọn kệ/bin để lấy hàng |
+| `SOURCE_PICK_LOCATION_NOT_RESERVED` | Kệ/bin được chọn không thuộc allocation đã giữ |
+| `SOURCE_PICK_QTY_EXCEEDS_AVAILABLE` | Số lượng lấy vượt số lượng đã giữ ở kệ/bin |
+| `SOURCE_PICK_QTY_MUST_MATCH_PLAN` | Tổng số lượng lấy theo kệ không khớp kế hoạch |
+| `SOURCE_PICK_QTY_MUST_MATCH_RESERVED_BIN` | Số lượng lấy từng kệ không khớp allocation đã giữ |
 | `SOURCE_LOAD_REWORK_REQUIRED` | Đang cần xếp/kiểm lại |
 | `SOURCE_LOAD_REWORK_REASON_REQUIRED` | Lệch số lượng xếp nhưng thiếu lý do |
 | `OUTBOUND_QC_REQUIRED` | Chưa QC xuất |

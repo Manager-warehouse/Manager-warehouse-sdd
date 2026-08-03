@@ -24,6 +24,7 @@ import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.NotificationRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.billing_payment.AccountingPeriodService;
@@ -76,6 +77,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     private final NotificationRepository notificationRepository;
     private final PartnerAuditUtil auditUtil;
     private final AccountingPeriodService accountingPeriodService;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     public PriceHistoryServiceImpl(PriceHistoryRepository priceHistoryRepository,
                                    ProductRepository productRepository,
@@ -83,7 +85,8 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                                    UserRepository userRepository,
                                    NotificationRepository notificationRepository,
                                    PartnerAuditUtil auditUtil,
-                                   AccountingPeriodService accountingPeriodService) {
+                                   AccountingPeriodService accountingPeriodService,
+                                   UserWarehouseAssignmentRepository userWarehouseAssignmentRepository) {
         this.priceHistoryRepository = priceHistoryRepository;
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
@@ -91,6 +94,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         this.notificationRepository = notificationRepository;
         this.auditUtil = auditUtil;
         this.accountingPeriodService = accountingPeriodService;
+        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
     }
 
     @Override
@@ -98,6 +102,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse create(PriceHistoryCreateRequest req, User actor) {
         Product product = requireProduct(req.getProductId());
         Warehouse warehouse = requireWarehouse(req.getWarehouseId());
+        enforceWarehouseScope(actor, warehouse.getId());
         checkSellingAboveCost(req.getCostPrice(), req.getSellingPrice());
         accountingPeriodService.validateDateInOpenPeriod(req.getEffectiveDate());
         checkNoConflictingActive(product.getId(), warehouse.getId(), req.getEffectiveDate(), null);
@@ -196,6 +201,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     @Transactional(readOnly = true)
     public PriceHistoryResponse getById(Long id, User actor) {
         PriceHistory ph = require(id);
+        enforceWarehouseScope(actor, ph.getWarehouse().getId());
         PreviousApprovedRef prev = buildPreviousApproved(ph);
         return toResponse(ph, prev);
     }
@@ -203,11 +209,25 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     @Override
     @Transactional(readOnly = true)
     public List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status,
-            LocalDate effectiveDateFrom, LocalDate effectiveDateTo) {
+            LocalDate effectiveDateFrom, LocalDate effectiveDateTo, User actor) {
+        // ACCOUNTANT is restricted to their own assigned warehouse(s); an explicit
+        // warehouseId outside that set is rejected rather than silently ignored so a
+        // caller can't probe another warehouse's pricing by guessing IDs.
+        List<Long> scopedWarehouseIds = null;
+        if (actor != null && actor.getRole() == UserRole.ACCOUNTANT) {
+            List<Long> assigned = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (warehouseId != null && !assigned.contains(warehouseId)) {
+                throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
+            }
+            scopedWarehouseIds = assigned;
+        }
+        List<Long> finalScopedWarehouseIds = scopedWarehouseIds;
+
         Specification<PriceHistory> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (productId != null) predicates.add(cb.equal(root.get("product").get("id"), productId));
             if (warehouseId != null) predicates.add(cb.equal(root.get("warehouse").get("id"), warehouseId));
+            else if (finalScopedWarehouseIds != null) predicates.add(root.get("warehouse").get("id").in(finalScopedWarehouseIds));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             if (effectiveDateFrom != null) predicates.add(cb.greaterThanOrEqualTo(root.get("effectiveDate"), effectiveDateFrom));
             if (effectiveDateTo != null) predicates.add(cb.lessThanOrEqualTo(root.get("effectiveDate"), effectiveDateTo));
@@ -354,6 +374,15 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
             return priceHistoryRepository.saveAndFlush(ph);
         } catch (DataIntegrityViolationException e) {
             throw PriceHistoryException.overlappingDate();
+        }
+    }
+
+    /** ACCOUNTANT can only view/create prices for warehouse(s) they're assigned to; other roles are unrestricted. */
+    private void enforceWarehouseScope(User actor, Long warehouseId) {
+        if (actor == null || actor.getRole() != UserRole.ACCOUNTANT) return;
+        List<Long> assigned = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+        if (!assigned.contains(warehouseId)) {
+            throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
         }
     }
 

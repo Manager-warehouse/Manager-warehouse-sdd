@@ -308,7 +308,13 @@ public class TransferServiceIT {
         trf = transferService.recordSourceLoadReport(
                 trf.id(),
                 new SourceLoadReportRequest(List.of(
-                        new SourceLoadReportItemRequest(trf.items().get(0).id(), new BigDecimal("30.00"))
+                        new SourceLoadReportItemRequest(
+                                trf.items().get(0).id(),
+                                new BigDecimal("30.00"),
+                                List.of(new SourceLoadPickRequest(
+                                        srcInventory.getId(),
+                                        srcLoc.getId(),
+                                        new BigDecimal("30.00"))))
                 ), null),
                 storekeeper
         );
@@ -447,7 +453,13 @@ public class TransferServiceIT {
         );
         trf = transferService.assignTrip(trf.id(), tripReq, planner);
         trf = transferService.recordSourceLoadReport(trf.id(), new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(trf.items().get(0).id(), new BigDecimal("20.00"))), null), storekeeper);
+                new SourceLoadReportItemRequest(
+                        trf.items().get(0).id(),
+                        new BigDecimal("20.00"),
+                        List.of(new SourceLoadPickRequest(
+                                srcInventory.getId(),
+                                srcLoc.getId(),
+                                new BigDecimal("20.00"))))), null), storekeeper);
         trf = transferService.recordOutboundQc(trf.id(), new OutboundQcRequest(true, "QC OK", "photo.jpg"), storekeeper);
         trf = transferService.loadHandover(trf.id(), new LoadHandoverRequest("handover.jpg"), storekeeper);
         trf = transferService.shipTransfer(trf.id(), storekeeper);
@@ -470,4 +482,3 @@ public class TransferServiceIT {
         assertThat(snapshotItem.unitVolumeSnapshot()).isEqualByComparingTo(new BigDecimal("0.02000"));
     }
 }
-

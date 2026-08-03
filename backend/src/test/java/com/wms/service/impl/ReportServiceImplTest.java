@@ -72,7 +72,7 @@ import com.wms.repository.DeliveryRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
-import com.wms.repository.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.repository.TripRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;

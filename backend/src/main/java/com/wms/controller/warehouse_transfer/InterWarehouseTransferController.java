@@ -15,6 +15,7 @@ import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.warehouse_location.Warehouse;
@@ -110,6 +111,13 @@ public class InterWarehouseTransferController {
     public InterWarehouseTransferResponse assignTrip(@PathVariable Long id,
                                                      @Valid @RequestBody InterWarehouseTransferTripAssignRequest request) {
         return transferService.assignTrip(id, request, currentUser());
+    }
+
+    @GetMapping("/{id}/source-load-pick-candidates")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF','STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "List reserved source bins available for source worker picking")
+    public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(@PathVariable Long id) {
+        return transferService.getSourceLoadPickCandidates(id, currentUser());
     }
 
     @PostMapping("/{id}/source-load-report")

@@ -28,6 +28,7 @@ Luồng này là bước tiền xử lý của transfer. Nó không thay thế c
 - `neededByDate` không được ở quá khứ.
 - Một product chỉ được xuất hiện một lần trong request.
 - Số lượng request phải là số nguyên dương.
+- Khi tạo hoặc sửa `TRQ DRAFT`, hệ thống phải tính tổng tải theo `requestedQty * product.weightKg/product.volumeM3`; nếu không có xe active nào trong đội xe chở được toàn bộ yêu cầu thì chặn ngay từ đầu.
 - Khi submit/approve/convert, số lượng request không được vượt tồn khả dụng hiện tại của kho nguồn.
 - Khi trưởng kho nguồn approve, hệ thống giữ hàng FIFO ngay; nếu không đủ toàn bộ số lượng thì fail và không tạo partial reservation.
 - Khi sửa `DRAFT`, hệ thống load header và item cũ vào form, lưu qua `PUT /api/v1/transfer-requests/{id}` và ghi audit.
@@ -105,6 +106,7 @@ Luồng này là bước tiền xử lý của transfer. Nó không thay thế c
 - `PRODUCT_INACTIVE` (HTTP 422): Product inactive hoặc không được điều chuyển.
 - `TRANSFER_REQUEST_REASON_REQUIRED` (HTTP 400): Thiếu lý do nghiệp vụ hoặc lý do thiếu hàng bắt buộc.
 - `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` (HTTP 422): Số lượng request vượt tồn khả dụng nguồn.
+- `TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET` (HTTP 422): Đơn điều chuyển quá lớn, không xe active nào trong đội xe chở được.
 - `TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED` (HTTP 409): Trưởng kho nguồn approve/reject ngoài status `SUBMITTED`.
 - `ONLY_DRAFT_CAN_BE_UPDATED` (HTTP 409): Sửa request không còn `DRAFT`.
 - `ONLY_DRAFT_CAN_BE_CANCELLED` (HTTP 409): Hủy request không còn `DRAFT`.
@@ -118,6 +120,7 @@ Luồng này là bước tiền xử lý của transfer. Nó không thay thế c
 - **Trưởng kho yêu cầu hàng từ kho khác**: HP chỉ còn 5 chảo, HCM còn 120; Trưởng kho HP tạo request 50 chảo từ HCM, hệ thống tạo `DRAFT` và audit `TRANSFER_REQUEST_CREATE`.
 - **Chặn ngày cần hàng quá khứ**: `neededByDate` trước ngày nghiệp vụ backend bị reject với `NEEDED_BY_DATE_MUST_NOT_BE_PAST`.
 - **Chặn request vượt tồn nguồn**: Nếu HN chỉ còn 49 khả dụng mà request 50, hệ thống reject và không gửi duyệt.
+- **Chặn request vượt đội xe**: Nếu tổng tải yêu cầu lớn hơn mọi xe active, hệ thống reject ngay khi tạo/sửa `DRAFT`, không tạo `TRQ`.
 - **Submit trưởng kho nguồn**: Request `DRAFT` hợp lệ chuyển `SUBMITTED`, ghi `submittedAt`, route tới trưởng kho nguồn và audit `TRANSFER_REQUEST_SUBMIT`.
 - **Sửa `DRAFT`**: Bấm `Sua`, sửa header/item, lưu lại, giữ `DRAFT` và ghi audit update.
 - **Xóa `DRAFT`**: Bấm `Xoa`, confirm, hệ thống set `CANCELLED`, giữ lịch sử và chặn submit/edit/convert.

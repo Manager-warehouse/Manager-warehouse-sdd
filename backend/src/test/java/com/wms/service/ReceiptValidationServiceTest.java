@@ -68,7 +68,7 @@ import static org.mockito.Mockito.when;
 import com.wms.entity.access_control.User;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.ForbiddenReceiptWarehouseException;
-import com.wms.repository.ReceiptRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

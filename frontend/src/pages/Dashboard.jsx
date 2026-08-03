@@ -555,7 +555,7 @@ const Dashboard = () => {
               min="1"
               max={selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 9999 : 1}
               value={requestedQty}
-              onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => setRequestedQty(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 1))}
               required
             />
 

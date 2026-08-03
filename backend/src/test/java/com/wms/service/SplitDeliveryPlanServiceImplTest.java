@@ -104,6 +104,7 @@ class SplitDeliveryPlanServiceImplTest {
     private Vehicle vehicle1;
     private Vehicle vehicle2;
     private List<SplitDeliveryLeg> savedLegs;
+    private List<SplitDeliveryLegItem> savedLegItems;
     private long legSequence;
 
     @BeforeEach
@@ -130,6 +131,7 @@ class SplitDeliveryPlanServiceImplTest {
         vehicle1 = vehicle(201L, warehouse, VehicleStatus.AVAILABLE, "100.00", "20.00");
         vehicle2 = vehicle(202L, warehouse, VehicleStatus.AVAILABLE, "100.00", "20.00");
         savedLegs = new ArrayList<>();
+        savedLegItems = new ArrayList<>();
         legSequence = 1L;
         baseCreateStubs();
     }
@@ -144,6 +146,36 @@ class SplitDeliveryPlanServiceImplTest {
         assertThat(savedLegs).hasSize(2);
         verify(auditLogService).log(eq(dispatcher), any(), eq("SPLIT_DELIVERY_PLAN"), anyLong(), any(), eq(20L),
                 any(), any());
+    }
+
+    @Test
+    void createPlan_acceptsAndPersistsAllocationAcrossMultipleQcPassedBatches() {
+        item.setBatch(null);
+        Batch secondBatch = Batch.builder().id(602L).batchNumber("B-2").batchCode("B-2").product(product)
+                .warehouse(warehouse).receivedDate(LocalDate.now()).quantity(new BigDecimal("40.00")).build();
+        when(outboundQcRecordRepository.findPassedRecordsByDeliveryOrderIdIn(List.of(100L)))
+                .thenReturn(List.of(qcRecord(batch, new BigDecimal("60.00")),
+                        qcRecord(secondBatch, new BigDecimal("40.00"))));
+        SplitDeliveryPlanCreateRequest request = createRequest(
+                new BigDecimal("60.00"), new BigDecimal("40.00"), 301L);
+        request.getLegs().get(1).getItems().get(0).setBatchId(602L);
+
+        service.createPlan(request, dispatcher);
+
+        assertThat(savedLegItems).extracting(legItem -> legItem.getBatch().getId())
+                .containsExactlyInAnyOrder(601L, 602L);
+    }
+
+    @Test
+    void createPlan_rejectsBatchWithoutQcPassedQuantity() {
+        item.setBatch(null);
+        SplitDeliveryPlanCreateRequest request = createRequest(
+                new BigDecimal("60.00"), new BigDecimal("40.00"), 301L);
+        request.getLegs().get(1).getItems().get(0).setBatchId(999L);
+
+        assertThatThrownBy(() -> service.createPlan(request, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("SPLIT_DELIVERY_PLAN_INVALID");
     }
 
     @Test
@@ -351,6 +383,8 @@ class SplitDeliveryPlanServiceImplTest {
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(outboundQcRecordRepository.findPassedRecordsByDeliveryOrderIdIn(List.of(100L)))
+                .thenReturn(List.of(qcRecord(batch, new BigDecimal("100.00"))));
         when(vehicleRepository.findWithWarehouseById(201L)).thenReturn(Optional.of(vehicle1));
         when(vehicleRepository.findWithWarehouseById(202L)).thenReturn(Optional.of(vehicle2));
         when(driverRepository.findWithWarehouseAndUserById(301L)).thenReturn(Optional.of(driver1));
@@ -376,6 +410,11 @@ class SplitDeliveryPlanServiceImplTest {
             }
             savedLegs.add(leg);
             return leg;
+        });
+        when(splitLegItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<SplitDeliveryLegItem> entities = invocation.getArgument(0);
+            savedLegItems.addAll(entities);
+            return entities;
         });
         when(splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L)).thenAnswer(invocation -> savedLegs);
     }
@@ -438,12 +477,17 @@ class SplitDeliveryPlanServiceImplTest {
     }
 
     private OutboundQcRecord qcRecord(WarehouseLocation staging) {
+        OutboundQcRecord record = qcRecord(batch, new BigDecimal("100.00"));
+        record.setStagingLocation(staging);
+        return record;
+    }
+
+    private OutboundQcRecord qcRecord(Batch sourceBatch, BigDecimal qcPassQty) {
         OutboundQcRecord record = new OutboundQcRecord();
         record.setDeliveryOrder(order);
         record.setDeliveryOrderItem(item);
-        record.setBatch(batch);
-        record.setStagingLocation(staging);
-        record.setQcPassQty(new BigDecimal("100.00"));
+        record.setBatch(sourceBatch);
+        record.setQcPassQty(qcPassQty);
         return record;
     }
 

@@ -20,6 +20,7 @@ import com.wms.entity.order_fulfillment.SplitDeliveryLegItem;
 import com.wms.entity.order_fulfillment.SplitDeliveryPlan;
 import com.wms.entity.order_fulfillment.Trip;
 import com.wms.entity.order_fulfillment.TripDeliveryOrder;
+import com.wms.entity.stock_control.Batch;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
@@ -138,7 +139,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         validateNoStandardTripAssignment(order.getId(), null);
         validateSchedule(request.getPlannedStartAt(), request.getPlannedEndAt());
         Map<Long, DeliveryOrderItem> items = loadItems(order);
-        Allocation allocation = validateAllocation(request.getLegs(), items);
+        Allocation allocation = validateAllocation(request.getLegs(), items, order.getId());
         Driver leadDriver = validateLeadDriver(request.getLeadDriverId(), request.getLegs(), order.getWarehouse().getId(),
                 null);
         OffsetDateTime now = OffsetDateTime.now();
@@ -174,7 +175,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         if (request.getLegs() != null) {
             cancelCurrentLegTrips(currentLegs, actor);
             Map<Long, DeliveryOrderItem> items = loadItems(plan.getDeliveryOrder());
-            Allocation allocation = validateAllocation(request.getLegs(), items);
+            Allocation allocation = validateAllocation(request.getLegs(), items, plan.getDeliveryOrder().getId());
             LocalDateTime plannedStartAt = request.getPlannedStartAt() == null
                     ? plan.getPlannedStartAt()
                     : request.getPlannedStartAt();
@@ -355,7 +356,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                     .createdAt(now)
                     .updatedAt(now)
                     .build());
-            saveLegItems(leg, row, items);
+            saveLegItems(leg, row, items, allocation);
         }
     }
 
@@ -390,7 +391,8 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         return saved;
     }
 
-    private void saveLegItems(SplitDeliveryLeg leg, SplitDeliveryLegRequest row, Map<Long, DeliveryOrderItem> items) {
+    private void saveLegItems(SplitDeliveryLeg leg, SplitDeliveryLegRequest row, Map<Long, DeliveryOrderItem> items,
+            Allocation allocation) {
         List<SplitDeliveryLegItem> entities = row.getItems().stream()
                 .map(item -> {
                     DeliveryOrderItem source = items.get(item.getDoItemId());
@@ -399,7 +401,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                             .splitLeg(leg)
                             .deliveryOrderItem(source)
                             .product(source.getProduct())
-                            .batch(source.getBatch())
+                            .batch(allocation.batchFor(item))
                             .quantity(quantity)
                             .weightKg(value(source.getProduct().getWeightKg()).multiply(quantity))
                             .volumeM3(value(source.getProduct().getVolumeM3()).multiply(quantity))
@@ -518,27 +520,49 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                 Map.of("splitPlanId", plan.getId(), "deliveryOrderId", plan.getDeliveryOrder().getId()));
     }
 
-    private Allocation validateAllocation(List<SplitDeliveryLegRequest> legs, Map<Long, DeliveryOrderItem> items) {
-        Map<Long, BigDecimal> totals = new LinkedHashMap<>();
+    private Allocation validateAllocation(List<SplitDeliveryLegRequest> legs, Map<Long, DeliveryOrderItem> items,
+            Long deliveryOrderId) {
+        List<OutboundQcRecord> qcRecords = outboundQcRecordRepository
+                .findPassedRecordsByDeliveryOrderIdIn(List.of(deliveryOrderId));
+        Map<ItemBatchKey, BigDecimal> approvedByBatch = new LinkedHashMap<>();
+        Map<ItemBatchKey, Batch> batches = new LinkedHashMap<>();
+        for (OutboundQcRecord record : qcRecords) {
+            ItemBatchKey key = new ItemBatchKey(record.getDeliveryOrderItem().getId(), record.getBatch().getId());
+            if (items.containsKey(key.doItemId())) {
+                approvedByBatch.merge(key, value(record.getQcPassQty()), BigDecimal::add);
+                batches.put(key, record.getBatch());
+            }
+        }
+
+        Map<Long, BigDecimal> totalsByItem = new LinkedHashMap<>();
+        Map<ItemBatchKey, BigDecimal> totalsByBatch = new LinkedHashMap<>();
         for (SplitDeliveryLegRequest leg : legs) {
             for (SplitDeliveryLegItemRequest item : leg.getItems()) {
                 DeliveryOrderItem source = items.get(item.getDoItemId());
+                ItemBatchKey key = new ItemBatchKey(item.getDoItemId(), item.getBatchId());
                 if (source == null || !Objects.equals(source.getProduct().getId(), item.getProductId())
-                        || source.getBatch() == null || !Objects.equals(source.getBatch().getId(), item.getBatchId())) {
+                        || !approvedByBatch.containsKey(key)) {
                     throw rule("SPLIT_DELIVERY_PLAN_INVALID", "Split item does not match the Delivery Order item");
                 }
-                totals.merge(item.getDoItemId(), value(item.getQuantity()), BigDecimal::add);
+                BigDecimal quantity = value(item.getQuantity());
+                totalsByItem.merge(item.getDoItemId(), quantity, BigDecimal::add);
+                totalsByBatch.merge(key, quantity, BigDecimal::add);
             }
         }
         for (DeliveryOrderItem item : items.values()) {
             if (value(item.getQcPassQty()).compareTo(value(item.getRequestedQty())) != 0) {
                 throw rule("STAGED_QC_PASS_QTY_INSUFFICIENT", "QC-passed quantity must fully cover requested quantity");
             }
-            if (value(item.getQcPassQty()).compareTo(value(totals.get(item.getId()))) != 0) {
+            if (value(item.getQcPassQty()).compareTo(value(totalsByItem.get(item.getId()))) != 0) {
                 throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split plan must allocate 100% of approved quantity");
             }
         }
-        return new Allocation(totals);
+        for (Map.Entry<ItemBatchKey, BigDecimal> entry : approvedByBatch.entrySet()) {
+            if (entry.getValue().compareTo(value(totalsByBatch.get(entry.getKey()))) != 0) {
+                throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split plan must allocate 100% of each QC-passed batch");
+            }
+        }
+        return new Allocation(batches);
     }
 
     private Capacity calculateLegCapacity(SplitDeliveryLegRequest leg, Map<Long, DeliveryOrderItem> items) {
@@ -926,6 +950,12 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
     private record Capacity(BigDecimal weight, BigDecimal volume) {
     }
 
-    private record Allocation(Map<Long, BigDecimal> totalsByItem) {
+    private record ItemBatchKey(Long doItemId, Long batchId) {
+    }
+
+    private record Allocation(Map<ItemBatchKey, Batch> batches) {
+        private Batch batchFor(SplitDeliveryLegItemRequest item) {
+            return batches.get(new ItemBatchKey(item.getDoItemId(), item.getBatchId()));
+        }
     }
 }

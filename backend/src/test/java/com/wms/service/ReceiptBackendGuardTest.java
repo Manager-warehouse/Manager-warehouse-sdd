@@ -75,8 +75,8 @@ import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.BatchRepository;
 import com.wms.repository.DebitNoteRepository;
 import com.wms.repository.InventoryRepository;
-import com.wms.repository.ReceiptItemRepository;
-import com.wms.repository.ReceiptRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,7 +122,7 @@ class ReceiptBackendGuardTest {
     @Mock
     private com.wms.service.billing_payment.SupplierBillingNotificationService supplierBillingNotificationService;
     @Mock
-    private com.wms.repository.QuarantineRecordRepository quarantineRecordRepository;
+    private com.wms.repository.stock_receiving.QuarantineRecordRepository quarantineRecordRepository;
     @Mock
     private com.wms.repository.PriceHistoryRepository priceHistoryRepository;
     @Mock

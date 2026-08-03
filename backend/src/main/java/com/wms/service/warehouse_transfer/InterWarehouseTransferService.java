@@ -15,6 +15,7 @@ import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.access_control.User;
 import java.util.List;
@@ -31,6 +32,7 @@ public interface InterWarehouseTransferService {
     InterWarehouseTransferResponse approveTransfer(Long id, User actor);
     InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor);
     InterWarehouseTransferResponse assignTrip(Long id, InterWarehouseTransferTripAssignRequest request, User actor);
+    SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor);
     InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor);
     InterWarehouseTransferResponse shipTransfer(Long id, User actor);
     InterWarehouseTransferResponse unshipTransfer(Long id, User actor);

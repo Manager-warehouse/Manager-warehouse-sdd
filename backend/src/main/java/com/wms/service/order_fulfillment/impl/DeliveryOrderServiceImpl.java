@@ -78,8 +78,8 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
-import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.ReturnedDeliveryFlowRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
@@ -109,6 +109,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -697,6 +698,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     "INVENTORY_ROW_INVALID", "Source inventory does not have enough reserved quantity"));
             sourceInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(sourceInventory);
+            removeLocationOccupancy(sourceInventory.getLocation(), item.getProduct(), row.getPickedQty(), now);
 
             WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false,
                     "staging");
@@ -712,6 +714,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 stagingInventory.setTotalQty(value(stagingInventory.getTotalQty()).add(row.getQcPassQty()));
                 stagingInventory.setReservedQty(value(stagingInventory.getReservedQty()).add(row.getQcPassQty()));
                 stagingInventory.setUpdatedAt(now);
+                addLocationOccupancy(stagingLocation, item.getProduct(), row.getQcPassQty(), now);
                 saveInventoryWithConflictHandling(stagingInventory);
             }
 
@@ -724,7 +727,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         allocation.getBatch(),
                         quarantineLocation, sourceInventory, true, now);
                 quarantineInventory.setTotalQty(value(quarantineInventory.getTotalQty()).add(row.getQcFailQty()));
+                quarantineInventory.setReservedQty(ZERO);
                 quarantineInventory.setUpdatedAt(now);
+                addLocationOccupancy(quarantineLocation, item.getProduct(), row.getQcFailQty(), now);
                 saveInventoryWithConflictHandling(quarantineInventory);
 
                 quarantineRecord = new QuarantineRecord();
@@ -2507,8 +2512,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         "Total picked quantity must equal the active planned quantity for each delivery order item");
             }
             BigDecimal cumulativePass = value(item.getQcPassQty()).add(value(passByItemId.get(item.getId())));
-            if (cumulativePass.compareTo(value(item.getRequestedQty())) > 0
-                    && cumulativePass.subtract(value(item.getRequestedQty())).compareTo(BigDecimal.ONE) > 0) {
+            if (cumulativePass.compareTo(value(item.getRequestedQty())) > 0) {
                 throw new OutboundDeliveryException("PICK_QC_RESULT_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
                         "Cumulative QC-passed quantity cannot exceed requested quantity");
@@ -2524,18 +2528,21 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (location == null) {
             throw new ResourceNotFoundException("Warehouse location not found with id: " + locationId);
         }
+        entityManager.lock(location, LockModeType.PESSIMISTIC_WRITE);
         if (!location.getWarehouse().getId().equals(order.getWarehouse().getId())
-                || !Boolean.TRUE.equals(location.getIsActive())
-                || Boolean.TRUE.equals(location.getIsLocked())
                 || location.getType() != LocationType.BIN) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Invalid " + label + " location for the delivery order warehouse");
         }
+        requireOperationalLocation(location, label);
         if (quarantineRequired != isEffectiveQuarantine(location)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Location does not match the required " + label + " rules");
+        }
+        if (quarantineRequired && isEffectiveStaging(location)) {
+            throw locationError(label, "INVALID", "Quarantine location cannot also be a staging location");
         }
         if (location.getParent() != null
                 && !location.getParent().getWarehouse().getId().equals(order.getWarehouse().getId())) {
@@ -2544,6 +2551,52 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     "Location zone does not belong to the delivery order warehouse");
         }
         return location;
+    }
+
+    private void requireOperationalLocation(WarehouseLocation location, String label) {
+        WarehouseLocation parent = location.getParent();
+        if (!Boolean.TRUE.equals(location.getIsActive())
+                || (parent != null && !Boolean.TRUE.equals(parent.getIsActive()))) {
+            throw locationError(label, "INACTIVE", "Selected " + label + " location is inactive");
+        }
+        if (Boolean.TRUE.equals(location.getIsLocked())
+                || (parent != null && Boolean.TRUE.equals(parent.getIsLocked()))) {
+            throw locationError(label, "LOCKED", "Selected " + label + " location is locked");
+        }
+    }
+
+    private OutboundDeliveryException locationError(String label, String suffix, String message) {
+        return new OutboundDeliveryException(label.toUpperCase(java.util.Locale.ROOT) + "_LOCATION_" + suffix,
+                HttpStatus.UNPROCESSABLE_ENTITY, message);
+    }
+
+    private void addLocationOccupancy(WarehouseLocation location, Product product, BigDecimal quantity,
+            OffsetDateTime now) {
+        BigDecimal newWeight = value(location.getCurrentWeightKg())
+                .add(value(product.getWeightKg()).multiply(value(quantity)));
+        BigDecimal newVolume = value(location.getCurrentVolumeM3())
+                .add(value(product.getVolumeM3()).multiply(value(quantity)));
+        if ((location.getCapacityKg() != null && newWeight.compareTo(location.getCapacityKg()) > 0)
+                || (location.getCapacityM3() != null && newVolume.compareTo(location.getCapacityM3()) > 0)) {
+            throw new OutboundDeliveryException("BIN_CAPACITY_EXCEEDED", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Location " + location.getCode() + " does not have enough capacity");
+        }
+        location.setCurrentWeightKg(newWeight);
+        location.setCurrentVolumeM3(newVolume);
+        location.setUpdatedAt(now);
+    }
+
+    private void removeLocationOccupancy(WarehouseLocation location, Product product, BigDecimal quantity,
+            OffsetDateTime now) {
+        location.setCurrentWeightKg(nonNegative(value(location.getCurrentWeightKg())
+                .subtract(value(product.getWeightKg()).multiply(value(quantity)))));
+        location.setCurrentVolumeM3(nonNegative(value(location.getCurrentVolumeM3())
+                .subtract(value(product.getVolumeM3()).multiply(value(quantity)))));
+        location.setUpdatedAt(now);
+    }
+
+    private BigDecimal nonNegative(BigDecimal quantity) {
+        return quantity.compareTo(ZERO) < 0 ? ZERO : quantity;
     }
 
     private Inventory loadOrCreateInventoryRow(DeliveryOrder order,
@@ -2614,7 +2667,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private String generateAdjustmentNumber() {
-        return "ADJ-QC-" + System.currentTimeMillis();
+        return "ADJ-QC-" + UUID.randomUUID();
     }
 
     private void refreshItemSummaries(List<DeliveryOrderItem> items, List<DeliveryOrderItemAllocation> allocations) {
@@ -2664,6 +2717,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_VERSION_CONFLICT",
                     HttpStatus.CONFLICT,
                     "Inventory row was updated by another transaction");
+        } catch (DataIntegrityViolationException ex) {
+            throw new OutboundDeliveryException("INVENTORY_ROW_CONFLICT",
+                    HttpStatus.CONFLICT,
+                    "Inventory row was created or changed by another transaction");
         }
     }
 
