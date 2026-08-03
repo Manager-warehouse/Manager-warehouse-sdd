@@ -82,6 +82,11 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
 - `notes` (TEXT)
+- `is_active` (BOOLEAN, NOT NULL, DEFAULT TRUE)
+- `rejected_by` (BIGINT, FK→users)
+- `rejected_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
+- `inventory_moved_at` (TIMESTAMPTZ) -- null while Staff result is pending; set after Storekeeper approval moves inventory
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 
@@ -185,7 +190,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `CHECK(picked_qty >= 0)`
 - `CHECK(qc_pass_qty >= 0)`
 - `CHECK(qc_fail_qty >= 0)`
-- `UNIQUE(allocation_id)`
+- Partial unique index on `allocation_id` where `is_active = TRUE`
 
 ### delivery_order_warehouse_approvals
 
@@ -326,22 +331,22 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Warehouse staff SHALL record picked/QC results while the Delivery Order is `WAITING_PICKING`; the system SHALL NOT use a `PICKING` status.
 - Warehouse staff picking/QC result SHALL be submitted exactly once for the complete currently planned allocation set; partial submission is not allowed.
 - When a Delivery Order returns to `WAITING_PICKING` due to replacement planning, warehouse staff picking/QC result SHALL include only replacement allocations or allocations that are still `PLANNED` and do not yet have QC records; previously QC-passed allocations already in outbound staging SHALL NOT be submitted again.
-- Warehouse staff picking/QC result SHALL move QC-passed quantity from the planned batch/bin/location/zone to an outbound staging location inside the same warehouse by decreasing source inventory `total_qty` and `reserved_qty`, then increasing staging inventory `total_qty` and `reserved_qty` for the same product/batch; all affected inventory rows SHALL pass version checks.
-- Outbound QC fail SHALL move failed quantity from the planned batch/bin/location/zone to quarantine by decreasing source inventory `total_qty` and `reserved_qty`, increasing quarantine inventory `total_qty` with `reserved_qty = 0`, creating a quarantine record, creating a `QC_FAIL_OUTBOUND` inventory adjustment with negative quantity against regular source inventory and references to the Delivery Order/allocation/QC/quarantine records, removing failed quantity from concrete reservation, and keeping failed quantity out of available regular inventory.
+- Warehouse staff picking/QC result SHALL persist the complete QC result and selected staging/quarantine destinations, keep source inventory `total_qty` and `reserved_qty` unchanged, and move the Delivery Order to `QC_PENDING_APPROVAL` without creating quarantine or adjustment records.
+- Storekeeper quality approval SHALL atomically move QC-passed quantity from reserved source inventory to reserved outbound staging and QC-failed quantity from reserved source inventory to quarantine, create linked quarantine and approved `QC_FAIL_OUTBOUND` adjustment records, preserve version/non-negative/capacity invariants, and set `outbound_qc_records.inventory_moved_at`.
 - Pick/QC submissions SHALL be duplicate-safe: each allocation may have at most one successful QC record per pick/QC cycle; a retry with the same idempotency key and exact same payload SHALL return the previous successful result without applying inventory movement again, while duplicate submissions without a matching idempotency key SHALL be rejected.
 - Replacement picking SHALL update the Delivery Order item plan, create replacement history, move the Delivery Order back to `WAITING_PICKING`, and require the replacement goods to go through warehouse staff picking and QC again.
 - Warehouse manager rejection SHALL require returned quantity to equal all QC-passed goods in outbound staging, move QC-passed goods back to their original batch/bin/location/zone, increase available regular inventory, release reservations for returned goods, create `PICKED_GOODS_RETURN_TO_BIN` audit entries, keep failed goods in quarantine, and end the Delivery Order as `REJECTED`.
 - Outbound trip creation SHALL set `trip_type = 'DELIVERY'` and require at least one selected Delivery Order.
 - Trip creation SHALL require all selected Delivery Orders to be `WAREHOUSE_APPROVED`, belong to the same warehouse, not be assigned to another active trip, and fit within the selected vehicle weight capacity.
 - Trip creation/update SHALL validate volume only when the selected vehicle has `max_volume_m3` configured; if `max_volume_m3` is null, backend SHALL skip volume validation and validate weight only.
-- When one `WAREHOUSE_APPROVED` Delivery Order exceeds one vehicle capacity, Dispatcher MAY create one active split delivery plan that assigns the whole Delivery Order quantity across two or more ready vehicles/drivers in one request.
+- When one `WAREHOUSE_APPROVED` Delivery Order exceeds one vehicle capacity, Dispatcher MAY create one active split delivery plan that assigns the whole Delivery Order quantity across two or more vehicles/drivers in one request.
 - Split delivery planning SHALL require full item allocation, unique vehicle/driver/stop order per leg, same warehouse scope, per-leg capacity validation, and a lead driver that belongs to one of the split legs.
-- Split delivery departure SHALL require every assigned split driver to confirm readiness first; only the lead driver may confirm coordinated departure, and all split leg trips SHALL move to `IN_TRANSIT` together in one transaction.
+- Split delivery departure SHALL be confirmed only by the lead driver for the whole split plan, and all split leg trips SHALL move to `IN_TRANSIT` together in one transaction.
 - If any split vehicle or driver becomes unavailable before departure, Dispatcher MAY update the planned split delivery plan with a ready replacement. If no valid replacement is available, the system SHALL return a wait-for-ready-resource business error and SHALL NOT depart a partial split plan.
-- Every active split leg driver SHALL confirm arrival at the dealer before handover can begin. Every active split leg SHALL then confirm handover before the lead driver can upload the shared POD evidence or request the Delivery Order OTP.
+- Only the lead driver SHALL confirm whole-convoy arrival at the dealer and whole-Delivery-Order handover before the lead driver can upload the shared POD evidence or request the Delivery Order OTP.
 - A split Delivery Order SHALL use one complete POD evidence pair and one OTP owned by its lead driver. Replacing POD evidence SHALL replace the complete pair and expire any unverified `PENDING`, `ACTIVE`, or `SEND_FAILED` OTP for that delivery attempt; a `LOCKED` OTP SHALL remain locked.
-- If any split leg reports delivery failure, the whole split Delivery Order SHALL fail and enter the returned-goods flow; partial successful delivery of the same Delivery Order is not supported.
-- OTP verification SHALL confirm the Delivery Order once and SHALL NOT automatically release all split vehicles or drivers. Each assigned driver SHALL complete their own split-leg trip through the existing trip completion flow after returning.
+- If the lead driver reports split delivery failure, the whole split Delivery Order SHALL fail and enter the returned-goods flow; partial successful delivery of the same Delivery Order is not supported.
+- OTP verification SHALL confirm the Delivery Order once and SHALL NOT automatically release all split vehicles or drivers. The lead driver SHALL later complete the whole split convoy return to release all linked split-leg trips, vehicles, and drivers together.
 - Dispatcher trip creation/update SHALL require Dispatcher, vehicle, and driver to belong to the trip warehouse; vehicle and driver SHALL be `AVAILABLE` and not assigned to another active trip.
 - Planned trips MAY be updated for vehicle, driver, planned date, notes, Delivery Order list, and stop order; when `deliveryOrders[]` is provided, it SHALL be treated as the final revised Delivery Order list and SHALL replace the existing list. Adding/removing Delivery Orders SHALL re-run same-warehouse, active-trip, status, vehicle/driver availability, and capacity validations against the final revised list. Active-trip validation SHALL ignore the current trip being updated and reject only assignments belonging to another active trip. The final revised list SHALL contain at least one Delivery Order; to remove every Delivery Order, Dispatcher SHALL cancel the trip instead.
 - Planned trips MAY be cancelled with a reason. Updates and cancellation SHALL be rejected after departure. Cancellation SHALL keep historical `vehicle_id` and `driver_id` on the trip record, but vehicle/driver SHALL no longer be treated as actively assigned to that cancelled trip.
@@ -377,7 +382,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Warehouse staff QC result payload SHALL validate `staging_location_id` belongs to an outbound staging zone in the Delivery Order warehouse and `quarantine_location_id` belongs to a quarantine zone in the same warehouse when QC fail exists; if the warehouse has exactly one default location of the required zone type, the backend MAY resolve the missing location automatically.
 - Warehouse staff QC result SHALL move the Delivery Order to `QC_PENDING_APPROVAL` even when QC-passed quantity is lower than requested quantity, so Storekeeper can review the fail result and plan replacement goods.
 - If QC fail requires replacement, Storekeeper replacement planning from `QC_PENDING_APPROVAL` SHALL move the Delivery Order back to `WAITING_PICKING`; after replacement goods are picked and QC-passed, the Delivery Order SHALL move again to `QC_PENDING_APPROVAL`.
-- Storekeeper quality approval SHALL accept optional `notes`, create `DELIVERY_ORDER_QC_APPROVE` audit with before/after state, and move the Delivery Order to `QC_COMPLETED` only when all requested quantities have QC-passed goods available after any required replacements.
+- Storekeeper quality approval SHALL accept optional `notes`, create `DELIVERY_ORDER_QC_APPROVE` audit with before/after state, and move the Delivery Order to `QC_COMPLETED` only when submitted QC-passed quantities cover every requested quantity after any required replacements.
 - Warehouse manager approval SHALL accept optional `notes`, create `DELIVERY_ORDER_WAREHOUSE_APPROVE` audit with before/after state, and move the Delivery Order to `WAREHOUSE_APPROVED`, making it eligible for dispatcher trip planning.
 - Dispatcher trip planning SHALL only group Delivery Orders from the same warehouse, SHALL require the Dispatcher, vehicle, and driver to belong to that warehouse, SHALL prevent assigning a Delivery Order to more than one active trip, and SHALL validate vehicle capacity before creating or updating a trip.
 - Dispatcher MAY update or cancel a trip only while the trip is `PLANNED`; updates MAY add/remove Delivery Orders by submitting the final revised Delivery Order list and SHALL re-run all trip validations while ignoring the current trip for active-trip checks. Cancellation keeps Delivery Orders in `WAREHOUSE_APPROVED`, keeps historical vehicle/driver references, and releases vehicle/driver from active assignment.

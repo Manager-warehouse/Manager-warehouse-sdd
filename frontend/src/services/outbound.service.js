@@ -352,6 +352,7 @@ const normalizeDeliveryStatus = (status, attempt) => {
 const normalizeAllocation = (allocation = {}) => {
   const qcPassQty = Number(value(allocation, 'qcPassQty', 'qc_pass_qty', 0));
   const qcFailQty = Number(value(allocation, 'qcFailQty', 'qc_fail_qty', 0));
+  const explicitQcCompleted = allocation.qcCompleted ?? allocation.qc_completed;
 
   return {
     allocation_id: value(allocation, 'allocationId', 'allocation_id'),
@@ -366,8 +367,12 @@ const normalizeAllocation = (allocation = {}) => {
     picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
     qc_pass_qty: qcPassQty,
     qc_fail_qty: qcFailQty,
+    qc_fail_reason: value(allocation, 'qcFailReason', 'qc_fail_reason', ''),
     staging_location_id: value(allocation, 'stagingLocationId', 'staging_location_id'),
-    qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)) || qcPassQty + qcFailQty > 0,
+    quarantine_location_id: value(allocation, 'quarantineLocationId', 'quarantine_location_id'),
+    qc_completed: explicitQcCompleted === undefined
+      ? qcPassQty + qcFailQty > 0
+      : Boolean(explicitQcCompleted),
     replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
   };
 };
@@ -376,6 +381,8 @@ const normalizeDoItem = (item = {}) => ({
   id: value(item, 'id', 'id'),
   do_id: value(item, 'deliveryOrderId', 'do_id'),
   product_id: value(item, 'productId', 'product_id'),
+  batch_id: value(item, 'batchId', 'batch_id'),
+  batch_code: value(item, 'batchCode', 'batch_code'),
   product_name: value(item, 'productName', 'product_name', `Sản phẩm #${value(item, 'productId', 'product_id', '')}`),
   sku: value(item, 'sku', 'sku', ''),
   requested_qty: Number(value(item, 'requestedQty', 'requested_qty', 0)),
@@ -438,6 +445,8 @@ const normalizeReturnedGoodsFlow = (flow = {}) => ({
     quality_pass_qty: Number(value(item, 'qualityPassQty', 'quality_pass_qty', 0)),
     quality_fail_qty: Number(value(item, 'qualityFailQty', 'quality_fail_qty', 0)),
     quality_failure_reason: value(item, 'qualityFailureReason', 'quality_failure_reason', value(item, 'qualityReason', 'quality_reason', '')),
+    shortage_qty: Number(value(item, 'shortageQty', 'shortage_qty', 0)),
+    shortage_reason: value(item, 'shortageReason', 'shortage_reason', ''),
     destination_location_id: value(item, 'destinationLocationId', 'destination_location_id'),
     failed_destination_location_id: value(item, 'failedDestinationLocationId', 'failed_destination_location_id'),
     planned_qty: Number(value(item, 'plannedQty', 'planned_qty', 0)),
@@ -468,6 +477,7 @@ const normalizeTripStop = (stop = {}) => {
       delivered_at: value(attempt, 'deliveredAt', 'delivered_at'),
     } : null,
     split_plan_id: value(stop, 'splitPlanId', 'split_plan_id'),
+    lead_driver_id: value(stop, 'leadDriverId', 'lead_driver_id'),
     split_leg_id: value(stop, 'splitLegId', 'split_leg_id'),
     split_plan_status: value(stop, 'splitPlanStatus', 'split_plan_status'),
     split_leg_status: value(stop, 'splitLegStatus', 'split_leg_status'),
@@ -711,7 +721,11 @@ const buildMockPickingCandidates = (order) => order.items.reduce((accumulator, i
 const buildPickQcPayload = (qcRows = []) => {
   const results = qcRows.map((row) => {
     const pickedQty = Number(row.picked_qty ?? row.planned_qty ?? 0);
-    const isFailed = row.result === 'FAILED';
+    const hasExplicitFailQty = row.qc_fail_qty !== undefined || row.qcFailQty !== undefined;
+    const qcFailQty = hasExplicitFailQty
+      ? Number(row.qc_fail_qty ?? row.qcFailQty)
+      : row.result === 'FAILED' ? pickedQty : 0;
+    const qcPassQty = Math.round((pickedQty - qcFailQty + Number.EPSILON) * 100) / 100;
     return {
       doItemId: Number(row.do_item_id),
       allocationId: Number(row.allocation_id),
@@ -719,11 +733,13 @@ const buildPickQcPayload = (qcRows = []) => {
       locationId: Number(row.location_id),
       zoneId: Number(row.zone_id),
       pickedQty,
-      qcPassQty: isFailed ? 0 : pickedQty,
-      qcFailQty: isFailed ? pickedQty : 0,
-      qcFailReason: isFailed ? row.reason || null : null,
+      qcPassQty,
+      qcFailQty,
+      qcFailReason: qcFailQty > 0 ? row.reason || null : null,
       stagingLocationId: row.staging_location_id ? Number(row.staging_location_id) : null,
-      quarantineLocationId: row.quarantine_location_id ? Number(row.quarantine_location_id) : null,
+      quarantineLocationId: qcFailQty > 0 && row.quarantine_location_id
+        ? Number(row.quarantine_location_id)
+        : null,
       notes: row.notes || '',
     };
   });
@@ -1145,17 +1161,18 @@ export const outboundService = {
         const idx = items.findIndex((item) => item.id === itemId);
         if (idx !== -1) {
           const pickedQty = rows.reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
-          const qcFailQty = rows
-            .filter((row) => row.result === 'FAILED')
-            .reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
+          const qcFailQty = rows.reduce((sum, row) => {
+            const failedQty = row.qc_fail_qty ?? row.qcFailQty;
+            return sum + Number(failedQty ?? (row.result === 'FAILED' ? row.picked_qty : 0));
+          }, 0);
           const qcPassQty = pickedQty - qcFailQty;
 
           items[idx].picked_qty = pickedQty;
           items[idx].issued_qty = pickedQty;
           items[idx].qc_pass_qty = qcPassQty;
           items[idx].qc_fail_qty = qcFailQty;
-          items[idx].qc_result = rows.some((row) => row.result === 'FAILED') ? 'FAILED' : 'PASSED';
-          items[idx].qc_failure_reason = rows.find((row) => row.result === 'FAILED')?.reason || null;
+          items[idx].qc_result = qcFailQty > 0 ? 'FAILED' : 'PASSED';
+          items[idx].qc_failure_reason = rows.find((row) => Number(row.qc_fail_qty ?? row.qcFailQty ?? 0) > 0)?.reason || null;
           items[idx].allocations = (items[idx].allocations || []).map((allocation) => {
             const matchedRow = rows.find((row) => Number(row.allocation_id) === Number(allocation.allocation_id));
             return matchedRow
@@ -1264,6 +1281,8 @@ export const outboundService = {
           quality_pass_qty: Number(item.quality_pass_qty || 0),
           quality_fail_qty: Number(item.quality_fail_qty || 0),
           quality_failure_reason: item.quality_failure_reason || '',
+          shortage_qty: Number(item.shortage_qty || 0),
+          shortage_reason: item.shortage_reason || '',
         })),
       };
     }
@@ -1277,6 +1296,7 @@ export const outboundService = {
         qualityPassQty: Number(item.quality_pass_qty || 0),
         qualityFailQty: Number(item.quality_fail_qty || 0),
         qualityFailureReason: item.quality_failure_reason || null,
+        shortageReason: item.shortage_reason || null,
       })),
     });
     return normalizeReturnedGoodsFlow(response.data);
@@ -1329,9 +1349,13 @@ export const outboundService = {
       items: data.items.map((item) => ({
         doItemId: item.do_item_id,
         batchId: item.batch_id,
-        destinationLocationId: item.destination_location_id,
+        destinationLocationId: Number(item.planned_qty || 0) > 0
+          ? Number(item.destination_location_id)
+          : null,
         plannedQty: Number(item.planned_qty || 0),
-        failedDestinationLocationId: item.failed_destination_location_id,
+        failedDestinationLocationId: Number(item.failed_planned_qty || 0) > 0
+          ? Number(item.failed_destination_location_id)
+          : null,
         failedPlannedQty: Number(item.failed_planned_qty || 0),
       })),
     });
@@ -1461,35 +1485,34 @@ export const outboundService = {
     return response.data;
   },
 
-  confirmSplitDriverReadiness: async (planId) => {
-    const response = await apiClient.put(`/split-delivery-plans/${planId}/driver-readiness`);
-    return response.data;
-  },
-
   departSplitDeliveryPlan: async (planId) => {
     const response = await apiClient.put(`/split-delivery-plans/${planId}/depart`);
     return response.data;
   },
 
-  confirmSplitDealerArrival: async (planId, legId) => {
-    const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/dealer-arrival`,
-    );
+  confirmSplitDealerArrival: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/dealer-arrival`);
     return response.data;
   },
 
-  confirmSplitHandover: async (planId, legId) => {
-    const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/handover`,
-    );
+  confirmSplitHandover: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/handover`);
     return response.data;
   },
 
-  failSplitDeliveryLeg: async (planId, legId, failureReason) => {
+  failSplitDelivery: async (planId, failureReason) => {
     const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/fail-delivery`,
+      `/split-delivery-plans/${planId}/fail-delivery`,
       { failureReason },
     );
+    return response.data;
+  },
+
+  completeSplitDeliveryPlan: async (planId, { returnedAt, notes } = {}) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/complete`, {
+      returnedAt: returnedAt || new Date().toISOString(),
+      notes: notes || '',
+    });
     return response.data;
   },
 

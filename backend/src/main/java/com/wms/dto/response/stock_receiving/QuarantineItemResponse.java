@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -27,7 +28,7 @@ public class QuarantineItemResponse {
     private String productName;
 
     @JsonProperty("qc_failed_qty")
-    private Integer qcFailedQty;
+    private BigDecimal qcFailedQty;
 
     @JsonProperty("qc_failure_reason")
     private String qcFailureReason;
@@ -62,4 +63,7 @@ public class QuarantineItemResponse {
 
     @JsonProperty("quarantine_record_id")
     private Long quarantineRecordId;
+
+    @JsonProperty("quarantine_record_ids")
+    private List<Long> quarantineRecordIds;
 }

@@ -15,6 +15,7 @@ import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
@@ -66,6 +67,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
         List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
                 .filter(transfer -> helper.canViewTransfer(actor, actorWarehouseIds, transfer))
+                .peek(transfer -> helper.normalizeExpiredTransfer(transfer, actor))
                 .map(transfer -> helper.toResponseEager(transfer))
                 .toList();
     }
@@ -79,6 +81,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
         if (!helper.canViewTransfer(actor, transfer)) {
             throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
         }
+        helper.normalizeExpiredTransfer(transfer, actor);
         return helper.toResponse(transfer);
     }
 
@@ -128,6 +131,12 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
             User actor) {
         // Điều phối viên gán chuyến xe điều chuyển riêng; service vận chuyển kiểm lịch, tải trọng, xe và tài xế.
         return shippingService.assignTrip(id, request, actor);
+    }
+
+    @Override
+    public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
+        // Công nhân xem các kệ/bin còn tồn của SKU để chọn đúng vị trí khi bốc hàng.
+        return shippingService.getSourceLoadPickCandidates(id, actor);
     }
 
     @Override

@@ -413,29 +413,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /api/v1/split-delivery-plans/{id}/driver-readiness:
-    put:
-      summary: Confirm readiness for the authenticated driver's split leg
-      operationId: confirmSplitDriverReadiness
-      tags:
-        - Split Delivery Plans
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/SplitPlanId"
-      responses:
-        "200":
-          description: Driver readiness accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SplitDeliveryPlanResponse"
-        "403":
-          description: Driver is not assigned to this split plan
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/split-delivery-plans/{id}/depart:
     put:
       summary: Lead driver departs all split legs together
@@ -460,7 +437,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Drivers are not all ready or a vehicle/driver is no longer available
+          description: Split plan is not ready to depart or a vehicle/driver is no longer available
           content:
             application/json:
               schema:

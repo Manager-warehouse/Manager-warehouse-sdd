@@ -86,6 +86,7 @@ flowchart TD
 - Ngày cần hàng `needed_by_date` không được ở quá khứ.
 - Số lượng yêu cầu phải là số nguyên dương; không cho trùng SKU trong cùng yêu cầu.
 - Khi submit hoặc trưởng kho nguồn approve, hệ thống phải kiểm tra lại tồn khả dụng tại kho nguồn.
+- Khi tạo hoặc sửa `TRQ DRAFT`, hệ thống phải tính tổng tải theo `requestedQty * weight/volume` và chặn ngay nếu không có xe active nào trong đội xe chở được toàn bộ yêu cầu.
 - `TRQ` chỉ được sửa hoặc hủy mềm khi còn `DRAFT`.
 - Trưởng kho nguồn có thể duyệt hoặc từ chối `TRQ`; từ chối bắt buộc có lý do.
 - Khi trưởng kho nguồn duyệt `TRQ`, hệ thống phải giữ hàng trong kho nguồn theo FIFO, chỉ lấy tồn khả dụng ở vị trí active, không quarantine; nếu không đủ hàng thì không reserve một phần và không approve.
@@ -126,7 +127,9 @@ flowchart TD
 ### 4.5. Xếp hàng, QC xuất và rời kho
 
 - Công nhân kho nguồn phải báo cáo `loaded_qty` cho mọi dòng trước khi thủ kho QC xuất.
-- `loaded_qty` phải là số nguyên và phải khớp `planned_qty`; nếu lệch phải có `reworkReason`.
+- Trước khi báo xếp, công nhân phải xem danh sách kệ/bin đã được giữ hàng, thấy số lượng còn phải lấy ở từng kệ, chọn đúng kệ và nhập số lượng lấy từ từng kệ.
+- Tổng số lượng lấy theo kệ của mỗi dòng phải đúng `planned_qty`; nếu thiếu, thừa, chọn kệ không thuộc allocation đã giữ hoặc lấy vượt allocation thì không được gửi cho thủ kho.
+- `loaded_qty` được tính từ tổng số lượng lấy theo kệ, phải là số nguyên và phải khớp `planned_qty`.
 - QC xuất chỉ được thực hiện sau khi đã có báo cáo xếp hàng.
 - Nếu QC xuất fail, hệ thống bật cờ cần rework và khóa các bước ship, handover, depart cho tới khi xếp lại và QC pass.
 - QC xuất và bàn giao tải hàng phải có ảnh bằng chứng; action nghiệp vụ chỉ lưu `photoRef`, không gửi raw base64.
@@ -153,6 +156,8 @@ flowchart TD
 - Khi final receive, hệ thống trừ hàng khỏi `IN_TRANSIT`.
 - Hàng QC đạt được cộng vào vị trí thường của kho nhận.
 - Hàng QC fail được cộng vào quarantine bin, tạo `QuarantineRecord` với origin `INTERNAL_TRANSFER`.
+- Nếu một dòng lỗi điều chuyển bị tách nhiều batch/kệ quarantine, API quarantine phải gom theo cùng `TRF + transfer item + SKU + lý do lỗi` để màn Quarantine hiển thị tổng đúng, ví dụ `10 + 90 = 100`.
+- Khi gửi yêu cầu tiêu hủy từ dòng quarantine đã gom, hệ thống phải xử lý toàn bộ `quarantine_record_ids` trong nhóm, không chỉ record đầu tiên.
 - Nếu thiếu hàng, hệ thống tạo `TRANSFER_DISCREPANCY` adjustment và `DiscrepancyIncident OPEN`.
 - Nếu nhận thừa, hệ thống tạo incident `OVER_RECEIPT` và hold entry; không được âm thầm bỏ qua.
 - Nếu có chênh lệch nhận hoặc putaway, phải có `discrepancy_reason`.
@@ -194,8 +199,9 @@ flowchart TD
 
 - Thiếu hàng không tạo tồn quarantine vì hàng không tồn tại vật lý.
 - Thiếu hàng tạo `TRANSFER_DISCREPANCY` adjustment và `DiscrepancyIncident OPEN`.
-- Incident có thể được CEO, ACCOUNTANT_MANAGER hoặc WAREHOUSE_MANAGER có phạm vi kho liên quan resolve bằng trạng thái trách nhiệm được phê duyệt.
-- Resolve incident chỉ ghi nhận kết luận/audit, không tự sửa tồn kho. Nếu cần sửa tồn, phải đi qua workflow adjustment riêng.
+- Chỉ CEO được xem và chốt hồ sơ chênh lệch điều chuyển trong Sprint 1.
+- Nếu CEO kết luận hàng thừa do lỗi kho nguồn, hệ thống trừ thêm tồn khả dụng kho nguồn và không cộng kho đích lần hai vì phần thừa đã được cất khi final receive.
+- Nếu CEO kết luận kho đích đếm sai, hệ thống trừ ngược phần hold đã cất khỏi kho đích theo hồ sơ `discrepancy_hold_entries`.
 
 ## 6. Mô Hình Dữ Liệu Chính
 
@@ -322,6 +328,7 @@ flowchart TD
 | `ONLY_APPROVED_CAN_BE_CONVERTED` | Chỉ `TRQ APPROVED` mới được convert |
 | `TRANSFER_REQUEST_ALREADY_CONVERTED` | Yêu cầu đã được convert thành phiếu điều chuyển |
 | `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` | Kho nguồn không đủ tồn khả dụng cho yêu cầu |
+| `TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET` | Yêu cầu điều chuyển quá lớn, không xe active nào trong đội xe chở được |
 | `INSUFFICIENT_AVAILABLE_STOCK` | Kho nguồn không đủ tồn khả dụng khi duyệt/giữ hàng |
 | `INVALID_TRANSFER_STATUS` | Trạng thái phiếu không hợp lệ cho thao tác hiện tại |
 | `TRANSFER_CANCEL_NOT_ALLOWED` | Không được hủy phiếu ở trạng thái hiện tại |
@@ -335,10 +342,15 @@ flowchart TD
 | `DRIVER_LICENSE_EXPIRED` | Tài xế không có GPLX hợp lệ hoặc đã hết hạn |
 | `VEHICLE_SCHEDULE_OVERLAP` | Xe trùng lịch chuyến khác |
 | `DRIVER_SCHEDULE_OVERLAP` | Tài xế trùng lịch chuyến khác |
-| `TRIP_CAPACITY_EXCEEDED` | Hàng vượt tải trọng/thể tích xe |
+| `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD` | Xe được chọn không thể chứa tổng tải điều chuyển |
 | `TRANSFER_TRIP_REQUIRED` | Phiếu chưa có chuyến xe điều chuyển |
 | `ASSIGNED_DRIVER_REQUIRED` | Người thao tác không phải tài xế được gán |
 | `SOURCE_LOAD_REPORT_REQUIRED` | Chưa có báo cáo xếp hàng |
+| `SOURCE_PICK_ROWS_REQUIRED` | Công nhân chưa chọn kệ/bin để lấy hàng |
+| `SOURCE_PICK_LOCATION_NOT_RESERVED` | Kệ/bin được chọn không thuộc allocation đã giữ |
+| `SOURCE_PICK_QTY_EXCEEDS_AVAILABLE` | Số lượng lấy vượt số lượng đã giữ ở kệ/bin |
+| `SOURCE_PICK_QTY_MUST_MATCH_PLAN` | Tổng số lượng lấy theo kệ không khớp kế hoạch |
+| `SOURCE_PICK_QTY_MUST_MATCH_RESERVED_BIN` | Số lượng lấy từng kệ không khớp allocation đã giữ |
 | `SOURCE_LOAD_REWORK_REQUIRED` | Đang cần xếp/kiểm lại |
 | `SOURCE_LOAD_REWORK_REASON_REQUIRED` | Lệch số lượng xếp nhưng thiếu lý do |
 | `OUTBOUND_QC_REQUIRED` | Chưa QC xuất |
@@ -364,7 +376,7 @@ flowchart TD
 | `DUPLICATE_PUTAWAY_LOCATION` | Trùng vị trí trong kế hoạch putaway |
 | `PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED` | Số lượng putaway vượt số QC đạt |
 | `DISCREPANCY_REASON_REQUIRED` | Có chênh lệch nhưng thiếu lý do |
-| `TRANSFER_TRIP_OVERDUE` | Chuyến điều chuyển đã quá hạn |
+| `TRANSFER_REQUIRED_DATE_EXPIRED` | Phiếu điều chuyển đã quá ngày cần hàng; trước `IN_TRANSIT` thì cancel/release reservation, đang `IN_TRANSIT` thì đánh dấu quay đầu |
 | `RETURN_REASON_REQUIRED` | Quay đầu xe thiếu lý do |
 | `TRANSFER_NOT_RETURNED_LEG` | Thao tác return leg khi phiếu chưa được duyệt quay đầu |
 | `RETURN_DEPART_REQUIRED` | Chưa có mốc xe rời kho để quay đầu |
@@ -457,12 +469,12 @@ Các action chính:
 ## 12. Ghi Chú Triển Khai Sprint 1
 
 - `is_returned = true` làm scope nhận hàng chuyển từ kho đích về kho nguồn.
-- Return to Source do quản lý kho có scope, CEO hoặc Admin xử lý; Planner không được khởi tạo.
-- Sai SKU phải có báo cáo của thủ kho kho đích và quyết định của trưởng kho đích.
+- Return to Source chỉ dùng cho phiếu `IN_TRANSIT` đã quá hạn; Planner không được khởi tạo.
+- Sai SKU không còn mở nhánh quay đầu; kho đích xử lý qua count/QC/chênh lệch/quarantine theo trạng thái vật lý.
 - Validate lịch trip chạy ngay tại assign time.
 - `QUARANTINE_LOCATION_NOT_CONFIGURED` được validate sớm ở receive check, không đợi final receive.
 - UI hiển thị gợi ý quarantine tự động khi nhập `qcFailedQty > 0`.
-- Response có thể tính `tripOverdue`; GET/list/detail không được mutate trạng thái, tồn kho hoặc audit.
+- Response có thể tính `tripOverdue`. Transfer list/detail của module điều chuyển có thể normalize hạn trước khi trả response: trước `IN_TRANSIT` thì cancel/release reservation, còn `IN_TRANSIT` thì đánh dấu quay đầu. Danh sách chuyến tài xế dùng chung chỉ đọc và không được mutate transfer/trip/inventory/audit.
 - Migration đã apply không được sửa/xóa/rename. Sửa schema phải dùng migration additive tiếp theo.
 - Endpoint thực thi dùng `/api/v1/inter-warehouse-transfers`; endpoint yêu cầu dùng `/api/v1/transfer-requests`.
 - Resolve discrepancy incident chỉ ghi nhận kết luận trách nhiệm, không tự động điều chỉnh tồn kho.

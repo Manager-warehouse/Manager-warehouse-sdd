@@ -54,8 +54,8 @@
 
 **Alternatives considered**: Incremental partial assignment was deferred because it creates unclear intermediate reservation, readiness, and customer-communication states.
 
-## Decision: All split legs depart together after every driver is ready
+## Decision: All split legs depart together when the lead driver confirms
 
-**Rationale**: A split delivery represents one customer Delivery Order. Coordinated departure avoids one vehicle leaving with only part of the order while another vehicle is unavailable. If a vehicle breaks or becomes unavailable before departure, Dispatcher can revise the plan to a ready replacement. If no replacement is available, the workflow must surface a wait-for-ready-vehicle error instead of dispatching partially.
+**Rationale**: A split delivery represents one customer Delivery Order. Coordinated departure avoids one vehicle leaving with only part of the order while another vehicle is unavailable. The lead driver is accountable for confirming the whole convoy departure, so support drivers do not need separate mobile readiness actions. If a vehicle breaks or becomes unavailable before departure, Dispatcher can revise the plan to a ready replacement. If no replacement is available, the workflow must surface a wait-for-ready-vehicle error instead of dispatching partially.
 
 **Alternatives considered**: Independent leg departure was rejected because it conflicts with the clarified requirement that all vehicles must leave together.

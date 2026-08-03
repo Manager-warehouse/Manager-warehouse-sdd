@@ -65,6 +65,7 @@ const SupplierInvoices = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrFileName, setOcrFileName] = useState('');
   const [ocrConfidence, setOcrConfidence] = useState(null);
+  const [ocrSupplierMatched, setOcrSupplierMatched] = useState(true);
   const [ocrResetKey, setOcrResetKey] = useState(0);
   const ocrLowConfidence = ocrConfidence !== null && ocrConfidence < OCR_LOW_CONFIDENCE_THRESHOLD;
 
@@ -120,10 +121,10 @@ const SupplierInvoices = () => {
     setSelectedNotification(notif);
     setInvoiceFormData({
       receiptId: notif.receipt_id || notif.receiptId,
-      // Left blank rather than pre-filled with a fake-but-plausible value - the accountant
-      // must type the real number off the supplier's paper/PDF invoice (see placeholder hint
-      // on the input below), not accidentally submit a random VAT-XXXXXX string.
-      supplierInvoiceNumber: '',
+      // Auto-generated placeholder so the accountant isn't required to hand-type this -
+      // still editable, and should be overwritten with the supplier's real number when
+      // it differs (e.g. for external audit trail matching).
+      supplierInvoiceNumber: `VAT-${Math.floor(100000 + Math.random() * 900000)}`,
       documentDate: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
       // Pre-fill with the system estimate; the Accountant edits this against the
@@ -173,6 +174,7 @@ const SupplierInvoices = () => {
     });
     setOcrFileName('');
     setOcrConfidence(null);
+    setOcrSupplierMatched(true);
     setOcrResetKey(prev => prev + 1);
     setShowCreatePaymentModal(true);
   };
@@ -205,6 +207,7 @@ const SupplierInvoices = () => {
     });
     setOcrFileName('');
     setOcrConfidence(null);
+    setOcrSupplierMatched(true);
     setOcrResetKey(prev => prev + 1);
     setShowCreatePaymentModal(true);
   };
@@ -264,7 +267,8 @@ const SupplierInvoices = () => {
     setOcrConfidence(null);
     try {
       const result = await financeService.scanSupplierPaymentOcr(file);
-      const matchedSuppId = result.supplierId ? String(result.supplierId) : paymentFormData.supplierId;
+      const ocrMatchedSupplierId = result.supplierId;
+      const matchedSuppId = ocrMatchedSupplierId ? String(ocrMatchedSupplierId) : paymentFormData.supplierId;
 
       let matchedInvoiceId = result.supplierInvoiceId ? String(result.supplierInvoiceId) : '';
       if (!matchedInvoiceId && matchedSuppId) {
@@ -285,10 +289,20 @@ const SupplierInvoices = () => {
         notes: result.notes || prev.notes
       }));
       setOcrConfidence(result.confidenceScore ?? null);
+      setOcrSupplierMatched(Boolean(ocrMatchedSupplierId));
 
       const confidencePercent = Math.round((result.confidenceScore || 0) * 100);
       if ((result.confidenceScore ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
-        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ trước khi lưu.`, 'warning');
+        // Low confidence here has one concrete cause today: OCR read the amount fine
+        // but couldn't match the payee to a supplier by name/code in the UNC text
+        // (fixed 0.60 fallback in SupplierPaymentServiceImpl.matchSupplier). Name it
+        // instead of showing an unexplained percentage.
+        addToast(
+          ocrMatchedSupplierId
+            ? `Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ trước khi lưu.`
+            : `Không nhận diện được Nhà cung cấp từ nội dung ủy nhiệm chi (độ tin cậy ${confidencePercent}%). Vui lòng chọn NCC thủ công.`,
+          'warning'
+        );
       } else {
         addToast(`Quét OCR ủy nhiệm chi thành công! Độ chính xác: ${confidencePercent}%`, 'success');
       }
@@ -463,7 +477,7 @@ const SupplierInvoices = () => {
                         <tr key={notif.id} className="hover:bg-canvas-cream/50">
                           <td className="p-4 font-bold text-ink">{notif.receiptOrderNumber || notif.receipt_number}</td>
                           <td className="p-4 font-medium text-ink">{notif.supplierName || notif.supplier_name}</td>
-                          <td className="p-4 text-shade-60">Kho #{notif.warehouseId || notif.warehouse_id}</td>
+                          <td className="p-4 text-shade-60">{notif.warehouseName || notif.warehouse_name || `Kho #${notif.warehouseId || notif.warehouse_id}`}</td>
                           <td className="p-4 text-shade-60">
                             {(notif.completedAt || notif.completed_at) ? formatDate(notif.completedAt || notif.completed_at) : 'Mới hoàn tất'}
                           </td>
@@ -779,7 +793,9 @@ const SupplierInvoices = () => {
                 <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span className="text-[10px] text-amber-800 font-medium leading-snug">
-                    Độ tin cậy OCR ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin chi trước khi lưu.
+                    {ocrSupplierMatched
+                      ? `Độ tin cậy OCR (${Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin chi trước khi lưu.`
+                      : `Không nhận diện được Nhà cung cấp từ nội dung ủy nhiệm chi (${Math.round(ocrConfidence * 100)}%) — OCR chỉ đọc được số tiền. Vui lòng chọn NCC thủ công trước khi lưu.`}
                   </span>
                 </div>
               )}

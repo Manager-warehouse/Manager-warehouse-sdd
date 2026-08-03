@@ -419,6 +419,8 @@ export default function PriceListManagement() {
 
       {showImport && (
         <ImportModal
+          warehouseId={warehouseId}
+          warehouseName={activeWarehouse?.name}
           onClose={() => setShowImport(false)}
           onDone={() => { setShowImport(false); fetchEntries(); }}
         />
@@ -427,6 +429,7 @@ export default function PriceListManagement() {
       {historyTarget && (
         <PriceHistoryModal
           product={historyTarget}
+          warehouseId={warehouseId}
           onClose={() => setHistoryTarget(null)}
         />
       )}
@@ -579,17 +582,22 @@ function PriceEntryModal({ entry, replaceSource, createSource, warehouseId, ware
 
 // ── ImportModal ────────────────────────────────────────────────────────────
 
-function ImportModal({ onClose, onDone }) {
+function ImportModal({ warehouseId, warehouseName, onClose, onDone }) {
   const { addToast } = useUiStore();
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // Off by default: without it, each row's warehouse_code column decides the target
+  // warehouse (needed for bulk multi-warehouse files). Checking this overrides every
+  // row to the currently active warehouse - e.g. when re-importing a file exported
+  // from another warehouse to clone its prices here.
+  const [applyToCurrentWarehouse, setApplyToCurrentWarehouse] = useState(false);
 
   const handleUpload = async () => {
     if (!file) { addToast('Vui lòng chọn file .xlsx', 'error'); return; }
     setSubmitting(true);
     try {
-      const res = await pricingService.importExcel(file);
+      const res = await pricingService.importExcel(file, applyToCurrentWarehouse ? warehouseId : undefined);
       setResult(res);
       if (res.failed_count === 0) {
         addToast(`Import thành công ${res.created_count} bản giá`, 'success');
@@ -635,6 +643,17 @@ function ImportModal({ onClose, onDone }) {
                   <span className="text-sm">{file ? file.name : 'Nhấn để chọn file .xlsx'}</span>
                 </label>
               </div>
+              <label className="flex items-start gap-2 text-xs text-shade-60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyToCurrentWarehouse}
+                  onChange={e => setApplyToCurrentWarehouse(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Áp dụng cho kho hiện tại (<span className="font-semibold text-ink">{warehouseName ?? '—'}</span>)
+                </span>
+              </label>
             </>
           ) : (
             <>

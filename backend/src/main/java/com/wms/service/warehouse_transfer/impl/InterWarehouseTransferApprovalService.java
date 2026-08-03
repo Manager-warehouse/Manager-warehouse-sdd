@@ -35,6 +35,9 @@ public class InterWarehouseTransferApprovalService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+        if (helper.normalizeExpiredTransfer(transfer, actor)) {
+            return helper.toResponse(transfer);
+        }
         Map<String, Object> before = helper.snapshot(transfer);
 
         helper.allocateReservations(transfer);

@@ -70,6 +70,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.mockito.ArgumentCaptor;
+
 import com.wms.dto.request.DeliveryOrderAllocationRequest;
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
@@ -1346,6 +1348,36 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderReplacementPlan_translatesInventoryRowConflict() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, bin2,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
+        when(inventoryRepository.save(any(Inventory.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate inventory row"));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVENTORY_ROW_CONFLICT");
+    }
+
+    @Test
     void saveDeliveryOrderReplacementPlan_reservesReplacementInventoryAndMovesStatus() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -1471,7 +1503,7 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
-    void saveDeliveryOrderPickQcResult_movesInventoryAndStatus() {
+    void saveDeliveryOrderPickQcResult_recordsResultWithoutMovingInventory() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
         item.setPlannedQty(new BigDecimal("10.00"));
@@ -1485,6 +1517,13 @@ class DeliveryOrderServiceImplTest {
         WarehouseLocation quarantineZone = zone(91L, warehouse);
         quarantineZone.setIsQuarantine(true);
         WarehouseLocation quarantineBin = bin(990L, warehouse, quarantineZone);
+        product.setVolumeM3(new BigDecimal("0.50"));
+        inventory.getLocation().setCurrentWeightKg(new BigDecimal("15.00"));
+        inventory.getLocation().setCurrentVolumeM3(new BigDecimal("7.50"));
+        stagingBin.setCurrentWeightKg(ZERO);
+        stagingBin.setCurrentVolumeM3(ZERO);
+        quarantineBin.setCurrentWeightKg(ZERO);
+        quarantineBin.setCurrentVolumeM3(ZERO);
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
@@ -1494,15 +1533,6 @@ class DeliveryOrderServiceImplTest {
         when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L))).thenReturn(List.of());
         when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(stagingBin);
         when(entityManager.find(WarehouseLocation.class, 990L)).thenReturn(quarantineBin);
-        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 880L)).thenReturn(Optional.empty());
-        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 990L)).thenReturn(Optional.empty());
-        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(quarantineRecordRepository.save(any(QuarantineRecord.class))).thenAnswer(invocation -> {
-            QuarantineRecord record = invocation.getArgument(0);
-            record.setId(700L);
-            return record;
-        });
-        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(outboundQcRecordRepository.save(any(OutboundQcRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1511,10 +1541,72 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrderResponse response = service.saveDeliveryOrderPickQcResult(100L, pickQcResultRequest(), warehouseStaff);
 
         assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.QC_PENDING_APPROVAL);
-        assertThat(inventory.getTotalQty()).isEqualByComparingTo("5.00");
-        assertThat(inventory.getReservedQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("15.00");
+        assertThat(inventory.getReservedQty()).isEqualByComparingTo("10.00");
         assertThat(item.getQcPassQty()).isEqualByComparingTo("8.00");
         assertThat(item.getQcFailQty()).isEqualByComparingTo("2.00");
+        assertThat(inventory.getLocation().getCurrentWeightKg()).isEqualByComparingTo("15.00");
+        assertThat(stagingBin.getCurrentWeightKg()).isZero();
+        assertThat(quarantineBin.getCurrentWeightKg()).isZero();
+        verify(inventoryRepository, never()).save(any(Inventory.class));
+        verify(quarantineRecordRepository, never()).save(any(QuarantineRecord.class));
+        verify(adjustmentRepository, never()).save(any(Adjustment.class));
+        ArgumentCaptor<OutboundQcRecord> qcCaptor = ArgumentCaptor.forClass(OutboundQcRecord.class);
+        verify(outboundQcRecordRepository).save(qcCaptor.capture());
+        assertThat(qcCaptor.getValue().getInventoryMovedAt()).isNull();
+    }
+
+    @Test
+    void saveDeliveryOrderPickQcResult_rejectsCumulativePassAboveRequestedQuantity() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcPassQty(new BigDecimal("9.50"));
+        item.setPlannedQty(BigDecimal.ONE);
+        inventory.setReservedQty(BigDecimal.ONE);
+        DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
+                BigDecimal.ONE, ZERO, true);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(allocation));
+        when(outboundQcRecordRepository.findByDeliveryOrderIdAndIdempotencyKey(100L, "qc-100")).thenReturn(List.of());
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L))).thenReturn(List.of());
+
+        DeliveryOrderPickQcResultRequest request = pickQcResultRequest();
+        DeliveryOrderPickQcRowRequest row = request.getResults().get(0);
+        row.setPickedQty(BigDecimal.ONE);
+        row.setQcPassQty(BigDecimal.ONE);
+        row.setQcFailQty(ZERO);
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickQcResult(100L, request, warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("PICK_QC_RESULT_INVALID");
+    }
+
+    @Test
+    void saveDeliveryOrderPickQcResult_rejectsInactiveQuarantineZone() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+        WarehouseLocation stagingZone = zone(92L, warehouse);
+        stagingZone.setIsStaging(true);
+        WarehouseLocation stagingBin = bin(880L, warehouse, stagingZone);
+        WarehouseLocation quarantineZone = zone(91L, warehouse);
+        quarantineZone.setIsQuarantine(true);
+        quarantineZone.setIsActive(false);
+        WarehouseLocation quarantineBin = bin(990L, warehouse, quarantineZone);
+
+        stubPickQcFlow(order, item, allocation, stagingBin, quarantineBin);
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickQcResult(100L, pickQcResultRequest(), warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("QUARANTINE_LOCATION_INACTIVE");
     }
 
     @Test
@@ -1681,8 +1773,6 @@ class DeliveryOrderServiceImplTest {
         when(outboundQcRecordRepository.findByDeliveryOrderIdAndIdempotencyKey(100L, "qc-100")).thenReturn(List.of());
         when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L, 901L))).thenReturn(List.of(oldRow));
         when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(stagingBin);
-        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 72L, 880L)).thenReturn(Optional.empty());
-        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(outboundQcRecordRepository.save(any(OutboundQcRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -1724,6 +1814,96 @@ class DeliveryOrderServiceImplTest {
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("QC_REPLACEMENT_REQUIRED");
+    }
+
+    @Test
+    void approveDeliveryOrderQuality_movesApprovedPassAndFailInventory() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPickedQty(new BigDecimal("12.00"));
+        item.setQcPassQty(new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        inventory.setTotalQty(new BigDecimal("15.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation original = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("10.00"), false);
+
+        WarehouseLocation sourceZone2 = zone(32L, warehouse);
+        WarehouseLocation sourceBin2 = bin(802L, warehouse, sourceZone2);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch, sourceBin2,
+                new BigDecimal("2.00"), new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation replacement = allocation(901L, item, replacementInventory, sourceZone2,
+                new BigDecimal("2.00"), new BigDecimal("2.00"), true);
+
+        WarehouseLocation stagingZone = zone(92L, warehouse);
+        stagingZone.setIsStaging(true);
+        WarehouseLocation stagingBin = bin(880L, warehouse, stagingZone);
+        stagingBin.setCurrentWeightKg(ZERO);
+        WarehouseLocation quarantineZone = zone(91L, warehouse);
+        quarantineZone.setIsQuarantine(true);
+        WarehouseLocation quarantineBin = bin(990L, warehouse, quarantineZone);
+        quarantineBin.setCurrentWeightKg(ZERO);
+        product.setWeightKg(BigDecimal.ONE);
+        Inventory stagingInventory = inventory(700L, warehouse, product, batch, stagingBin, ZERO, ZERO);
+        Inventory quarantineInventory = inventory(701L, warehouse, product, batch, quarantineBin, ZERO, ZERO);
+
+        OutboundQcRecord originalQc = failedQcRecord(original, new BigDecimal("2.00"));
+        originalQc.setId(600L);
+        originalQc.setPickedQty(new BigDecimal("10.00"));
+        originalQc.setQcPassQty(new BigDecimal("8.00"));
+        originalQc.setStagingLocation(stagingBin);
+        originalQc.setQuarantineLocation(quarantineBin);
+        originalQc.setQcFailReason("Mop meo");
+        originalQc.setIsActive(true);
+        OutboundQcRecord replacementQc = failedQcRecord(replacement, ZERO);
+        replacementQc.setId(601L);
+        replacementQc.setStagingLocation(stagingBin);
+        replacementQc.setIsActive(true);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L))
+                .thenReturn(List.of(original, replacement));
+        when(outboundQcRecordRepository.findByDeliveryOrderIdAndIsActiveTrue(100L))
+                .thenReturn(List.of(originalQc, replacementQc));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L, 901L)))
+                .thenReturn(List.of(originalQc, replacementQc));
+        when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(stagingBin);
+        when(entityManager.find(WarehouseLocation.class, 990L)).thenReturn(quarantineBin);
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 880L))
+                .thenReturn(Optional.of(stagingInventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 990L))
+                .thenReturn(Optional.of(quarantineInventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(quarantineRecordRepository.save(any(QuarantineRecord.class))).thenAnswer(invocation -> {
+            QuarantineRecord record = invocation.getArgument(0);
+            record.setId(710L);
+            return record;
+        });
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(outboundQcRecordRepository.save(any(OutboundQcRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderResponse response = service.approveDeliveryOrderQuality(
+                100L, new DeliveryOrderQualityApprovalRequest(), storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.QC_COMPLETED);
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("5.00");
+        assertThat(inventory.getReservedQty()).isZero();
+        assertThat(replacementInventory.getTotalQty()).isZero();
+        assertThat(replacementInventory.getReservedQty()).isZero();
+        assertThat(stagingInventory.getTotalQty()).isEqualByComparingTo("10.00");
+        assertThat(stagingInventory.getReservedQty()).isEqualByComparingTo("10.00");
+        assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("2.00");
+        assertThat(originalQc.getInventoryMovedAt()).isNotNull();
+        assertThat(replacementQc.getInventoryMovedAt()).isNotNull();
+        assertThat(originalQc.getQuarantineRecord()).isNotNull();
+        ArgumentCaptor<Adjustment> adjustmentCaptor = ArgumentCaptor.forClass(Adjustment.class);
+        verify(adjustmentRepository).save(adjustmentCaptor.capture());
+        assertThat(adjustmentCaptor.getValue().getApprovedBy()).isEqualTo(storekeeper);
+        assertThat(adjustmentCaptor.getValue().getQuantityAdjustment()).isEqualByComparingTo("-2.00");
     }
 
     @Test
@@ -1868,6 +2048,56 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void submitReturnedGoodsCountQc_requiresShortageReasonAndRejectsOverReceipt() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("7.00"), new BigDecimal("7.00"), ZERO, null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_SHORTAGE_REASON_REQUIRED");
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("9.00"), new BigDecimal("9.00"), ZERO, null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_QTY_EXCEEDS_EXPECTED");
+    }
+
+    @Test
+    void submitReturnedGoodsCountQc_derivesShortageFromActualReceivedQuantity() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+        ReturnedGoodsCountQcRequest request = returnedCountQcRequest(
+                new BigDecimal("7.00"), new BigDecimal("7.00"), ZERO, null);
+        request.getItems().get(0).setShortageReason("One carton was missing from the vehicle");
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.submitReturnedGoodsCountQc(100L, request, warehouseStaff);
+
+        assertThat(response.getItems().get(0).getActualQty()).isEqualByComparingTo("7.00");
+        assertThat(response.getItems().get(0).getShortageQty()).isEqualByComparingTo("1.00");
+        assertThat(response.getItems().get(0).getShortageReason())
+                .isEqualTo("One carton was missing from the vehicle");
+    }
+
+    @Test
     void approveReturnedGoods_rejectsWithReasonAndBlocksPutawayPlanning() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
@@ -1993,6 +2223,43 @@ class DeliveryOrderServiceImplTest {
         assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
         assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
         assertThat(flow.getItems().get(0).getPutawayCompletedQty()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
+    void completeReturnedGoodsPutaway_reconcilesApprovedShortageFromTransit() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, bin);
+        flow.setApprovedByStorekeeper(storekeeper);
+        flow.getItems().get(0).setShortageQty(new BigDecimal("2.00"));
+        flow.getItems().get(0).setShortageReason("Two units missing on vehicle return");
+        Inventory transitInventory = inventory(900L, warehouse(99L, "INTRANSIT"), product, batch, bin,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(inventoryRepository.findTransitRowForDeliveryConfirmation(30L, 71L))
+                .thenReturn(Optional.of(transitInventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 801L))
+                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.completeReturnedGoodsPutaway(100L, new ReturnedGoodsPutawayCompleteRequest(), warehouseStaff);
+
+        ArgumentCaptor<Adjustment> adjustmentCaptor = ArgumentCaptor.forClass(Adjustment.class);
+        verify(adjustmentRepository).save(adjustmentCaptor.capture());
+        Adjustment adjustment = adjustmentCaptor.getValue();
+        assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
+        assertThat(adjustment.getType()).isEqualTo(AdjustmentType.RETURN_SHORTAGE);
+        assertThat(adjustment.getQuantityAdjustment()).isEqualByComparingTo("-2.00");
+        assertThat(adjustment.getReason()).isEqualTo("Two units missing on vehicle return");
+        assertThat(adjustment.getApprovedBy()).isEqualTo(storekeeper);
     }
 
     @Test
@@ -2346,6 +2613,22 @@ class DeliveryOrderServiceImplTest {
         bin.setIsStaging(false);
         bin.setIsLocked(false);
         return bin;
+    }
+
+    private void stubPickQcFlow(DeliveryOrder order, DeliveryOrderItem item,
+            DeliveryOrderItemAllocation allocation, WarehouseLocation stagingBin,
+            WarehouseLocation quarantineBin) {
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(order.getId())).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(warehouseStaff.getId()))
+                .thenReturn(List.of(order.getWarehouse().getId()));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(order.getId())).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(order.getId()))
+                .thenReturn(List.of(allocation));
+        when(outboundQcRecordRepository.findByDeliveryOrderIdAndIdempotencyKey(order.getId(), "qc-100"))
+                .thenReturn(List.of());
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(allocation.getId()))).thenReturn(List.of());
+        when(entityManager.find(WarehouseLocation.class, stagingBin.getId())).thenReturn(stagingBin);
+        when(entityManager.find(WarehouseLocation.class, quarantineBin.getId())).thenReturn(quarantineBin);
     }
 
     private Batch batch(Long id, Product product, Warehouse warehouse) {

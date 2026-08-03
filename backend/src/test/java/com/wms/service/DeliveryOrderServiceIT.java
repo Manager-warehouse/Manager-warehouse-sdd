@@ -337,8 +337,16 @@ public class DeliveryOrderServiceIT {
         DeliveryOrderQualityApprovalRequest qualityApproveReq = new DeliveryOrderQualityApprovalRequest();
         doResp = deliveryOrderService.approveDeliveryOrderQuality(doResp.getId(), qualityApproveReq, storekeeper);
         assertThat(doResp.getStatus()).isEqualTo(DeliveryOrderStatus.QC_COMPLETED);
+        assertThat(inventoryRepository.findById(inventory.getId()).orElseThrow().getTotalQty())
+                .isEqualByComparingTo("40.00");
+        assertThat(inventoryRepository.findById(inventory.getId()).orElseThrow().getReservedQty())
+                .isZero();
+        assertThat(inventoryRepository.findAll().stream()
+                .filter(row -> row.getLocation().getId().equals(stagingLoc.getId()))
+                .findFirst().orElseThrow().getTotalQty())
+                .isEqualByComparingTo("10.00");
 
-        // 5. Warehouse Release Approval (status becomes WAREHOUSE_APPROVED)
+        // 7. Warehouse Release Approval (status becomes WAREHOUSE_APPROVED)
         DeliveryOrderWarehouseApprovalRequest releaseReq = new DeliveryOrderWarehouseApprovalRequest();
         releaseReq.setNotes("Approved for delivery");
         doResp = deliveryOrderService.approveDeliveryOrderWarehouseRelease(doResp.getId(), releaseReq, manager);

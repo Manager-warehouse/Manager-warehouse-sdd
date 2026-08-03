@@ -53,6 +53,7 @@ import com.wms.controller.warehouse_transfer.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -405,6 +406,18 @@ class DeliveryOrderControllerTest {
                         .content(pickQcResultJson()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("QC_PENDING_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_rejectsQuantityWithMoreThanTwoDecimalPlaces() throws Exception {
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson().replace("\"qcFailQty\": 2", "\"qcFailQty\": 2.123")))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(deliveryOrderService);
     }
 
     @Test
@@ -784,7 +797,9 @@ class DeliveryOrderControllerTest {
                       "doItemId": 200,
                       "batchId": 71,
                       "destinationLocationId": 801,
-                      "plannedQty": 8
+                      "plannedQty": 8,
+                      "failedDestinationLocationId": null,
+                      "failedPlannedQty": 0
                     }
                   ]
                 }

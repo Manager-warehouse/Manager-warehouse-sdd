@@ -260,9 +260,6 @@ export default function DriverTrip() {
       if (isTransfer(trip)) {
         // Với TRF, depart chỉ hợp lệ sau khi kho nguồn ship, QC đạt và đã bàn giao hàng lên xe.
         await interWarehouseTransferService.departTransfer(getTransferId(trip));
-      } else if (splitStop && !splitStop.readiness_confirmed_at) {
-        await outboundService.confirmSplitDriverReadiness(splitStop.split_plan_id);
-        successMessage = "Đã xác nhận tài xế và xe sẵn sàng";
       } else if (splitStop) {
         await outboundService.departSplitDeliveryPlan(splitStop.split_plan_id);
         successMessage = "Tất cả xe trong kế hoạch đã xuất phát";
@@ -295,15 +292,13 @@ export default function DriverTrip() {
       if (action === "ARRIVAL") {
         await outboundService.confirmSplitDealerArrival(
           doItem.split_plan_id,
-          doItem.split_leg_id,
         );
-        addToast("Đã xác nhận xe đến đại lý", "success");
+        addToast("Đã xác nhận toàn bộ đoàn xe đến đại lý", "success");
       } else {
         await outboundService.confirmSplitHandover(
           doItem.split_plan_id,
-          doItem.split_leg_id,
         );
-        addToast("Đã xác nhận bàn giao hàng", "success");
+        addToast("Đã xác nhận bàn giao toàn bộ đơn hàng", "success");
       }
       fetchTrip(trip.id);
     } catch (error) {
@@ -316,7 +311,12 @@ export default function DriverTrip() {
   const handleCompleteTrip = async () => {
     setSubmitting(true);
     try {
-      await outboundService.completeTrip(trip.id);
+      const splitStop = trip.delivery_orders?.find((item) => item.split_plan_id);
+      if (splitStop) {
+        await outboundService.completeSplitDeliveryPlan(splitStop.split_plan_id);
+      } else {
+        await outboundService.completeTrip(trip.id);
+      }
       addToast("Đã xác nhận xe về kho hoàn thành chuyến xe!", "success");
       fetchTrip(trip.id);
     } catch (error) {
@@ -434,9 +434,8 @@ export default function DriverTrip() {
     setSubmitting(true);
     try {
       if (activeDO.split_plan_id) {
-        await outboundService.failSplitDeliveryLeg(
+        await outboundService.failSplitDelivery(
           activeDO.split_plan_id,
-          activeDO.split_leg_id,
           failureReason.trim(),
         );
       } else {
@@ -735,15 +734,11 @@ export default function DriverTrip() {
             </div>
           )}
 
-          {trip.status === "PLANNED" && (
+          {trip.status === "PLANNED" && (!splitStop || splitStop.is_split_lead) && (
             <>
               <button
                 onClick={handleDepart}
-                disabled={
-                  submitting ||
-                  !transferLoaded ||
-                  (splitStop?.readiness_confirmed_at && !splitStop?.is_split_lead)
-                }
+                disabled={submitting || !transferLoaded}
                 className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
@@ -751,13 +746,7 @@ export default function DriverTrip() {
                 ) : (
                   <Play className="w-4 h-4" />
                 )}
-                {!transferLoaded
-                  ? "Chờ xếp hàng"
-                  : splitStop && !splitStop.readiness_confirmed_at
-                    ? "Xác nhận sẵn sàng"
-                    : splitStop && !splitStop.is_split_lead
-                      ? "Chờ xe trưởng xuất phát"
-                      : "Xác nhận xuất phát"}
+                {!transferLoaded ? "Chờ xếp hàng" : "Xác nhận xuất phát"}
               </button>
               {!transferLoaded && (
                 <p className="mt-2 text-[11px] leading-relaxed text-warning-700">
@@ -870,7 +859,8 @@ export default function DriverTrip() {
 
           {trip.status === "IN_TRANSIT" &&
             !isTransferTrip &&
-            allStopsTerminal && (
+            allStopsTerminal &&
+            (!splitStop || splitStop.is_split_lead) && (
               <div className="mt-4 pt-4 border-t border-hairline-light">
                 <div className="bg-success-50 border border-success-200 rounded-lg p-3 text-xs text-success-900 mb-3">
                   Tất cả điểm giao đã hoàn tất. Bạn có thể xác nhận xe đã về kho
@@ -894,6 +884,7 @@ export default function DriverTrip() {
           {trip.status === "IN_TRANSIT" &&
             !isTransferTrip &&
             !allStopsTerminal &&
+            (!splitStop || splitStop.is_split_lead) &&
             totalCount > 0 && (
               <div className="mt-3 text-[11px] text-shade-50 bg-canvas-cream rounded-md p-2.5">
                 Hoàn tất xử lý tất cả {totalCount} điểm để mở nút xác nhận về
@@ -992,7 +983,8 @@ export default function DriverTrip() {
                         {doItem.do_number}
                       </p>
 
-                      {isPending && trip.status === "IN_TRANSIT" && (
+                      {isPending && trip.status === "IN_TRANSIT" &&
+                        (!isSplit || doItem.is_split_lead) && (
                         <div className="flex gap-2 mt-4">
                           {isSplit && !doItem.dealer_arrived_at ? (
                             <Button

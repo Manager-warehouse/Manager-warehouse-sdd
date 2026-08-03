@@ -116,6 +116,27 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     List<Inventory> findReservableForUpdate(@Param("warehouseId") Long warehouseId,
             @Param("productId") Long productId);
 
+    @Query("""
+            select i from Inventory i
+            join fetch i.batch b
+            left join i.location.parent parentLocation
+            where i.warehouse.id = :warehouseId
+              and i.product.id = :productId
+              and (i.totalQty - i.reservedQty) > 0
+              and i.location.isActive = true
+              and i.location.isQuarantine = false
+              and i.location.isStaging = false
+              and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
+            order by b.receivedDate asc, i.id asc
+            """)
+    List<Inventory> findPickCandidates(@Param("warehouseId") Long warehouseId,
+            @Param("productId") Long productId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select i from Inventory i

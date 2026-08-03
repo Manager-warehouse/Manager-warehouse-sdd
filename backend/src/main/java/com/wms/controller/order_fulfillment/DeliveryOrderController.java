@@ -166,6 +166,7 @@ public class DeliveryOrderController {
     @Operation(
             summary = "Save one complete outbound pick and QC result set",
             description = "Stores one full active pick/QC cycle for the delivery order. "
+                    + "Inventory remains reserved at source until Storekeeper quality approval. "
                     + "Duplicate allocation submission is blocked unless the same idempotency key "
                     + "and exact same payload are replayed after a previous success."
     )
@@ -174,8 +175,8 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid pick/QC payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Warehouse staff is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order, allocation, or location not found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Inventory version conflict or idempotency conflict", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Pick/QC business validation failed", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Idempotency conflict", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Pick/QC validation or destination location state failed", content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickQcResult(@PathVariable Long id,
                                                                @Valid @RequestBody DeliveryOrderPickQcResultRequest request) {
@@ -215,6 +216,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "200", description = "Quality approved and delivery order moved to QC_COMPLETED"),
             @ApiResponse(responseCode = "400", description = "Invalid quality-approval payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory version or row conflict while applying approved QC movement", content = @Content),
             @ApiResponse(responseCode = "422", description = "Quality approval validation failed, such as QC_REPLACEMENT_REQUIRED or DELIVERY_ORDER_STATUS_INVALID", content = @Content)
     })
     public DeliveryOrderResponse approveDeliveryOrderQuality(@PathVariable Long id,

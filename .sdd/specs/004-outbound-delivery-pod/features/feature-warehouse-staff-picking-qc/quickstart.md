@@ -61,10 +61,8 @@ Expected result:
 - Validate assigned warehouse scope and `WAITING_PICKING` status.
 - Validate the request includes every currently active allocation without a QC row.
 - Validate `pickedQty = qcPassQty + qcFailQty`.
-- Decrease source regular inventory `total_qty` and `reserved_qty`.
-- Increase outbound staging inventory `total_qty` and `reserved_qty` for pass quantity.
-- Increase quarantine inventory `total_qty` with `reserved_qty = 0` for fail quantity.
-- Create `outbound_qc_records`, quarantine records, inventory adjustments, and audit logs.
+- Keep source regular inventory `total_qty` and `reserved_qty` unchanged.
+- Create pending `outbound_qc_records` with `inventory_moved_at = null`; do not create quarantine or adjustment records yet.
 - Move the Delivery Order to `QC_PENDING_APPROVAL`.
 
 ### 2. Retry the same request safely
@@ -92,7 +90,10 @@ PUT /api/v1/delivery-orders/101/quality-approval
 Expected result:
 
 - Validate Delivery Order is `QC_PENDING_APPROVAL`.
-- Validate all requested quantity is covered by QC-passed goods in outbound staging.
+- Validate all requested quantity is covered by submitted QC-passed results.
+- Move passed quantity from reserved source inventory to reserved outbound staging.
+- Move failed quantity from reserved source inventory to quarantine and create linked quarantine/adjustment evidence.
+- Set `inventory_moved_at` on every approved active QC row.
 - Move the order to `QC_COMPLETED`.
 - Write `DELIVERY_ORDER_QC_APPROVE` audit.
 
@@ -134,8 +135,9 @@ Expected result:
 
 - Service test: reject pick/QC submission when `pickedQty != qcPassQty + qcFailQty`.
 - Service test: reject partial submission when not every active allocation is included.
-- Service test: move pass quantity to outbound staging and fail quantity to quarantine in one transaction.
-- Service test: create quarantine and `QC_FAIL_OUTBOUND` adjustment records for fail quantity.
+- Service test: Staff submission records QC without mutating inventory.
+- Service test: Storekeeper approval moves pass quantity to staging and fail quantity to quarantine in one transaction.
+- Service test: Storekeeper approval creates quarantine and `QC_FAIL_OUTBOUND` adjustment records for fail quantity.
 - Service test: block duplicate allocation submission without matching idempotency replay.
 - Service test: return previous result for same `idempotencyKey` and identical payload.
 - Service test: reject same `idempotencyKey` with different payload.

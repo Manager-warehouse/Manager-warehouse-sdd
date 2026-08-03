@@ -10,5 +10,6 @@ import org.springframework.stereotype.Repository;
 public interface InterWarehouseTransferAllocationRepository extends JpaRepository<InterWarehouseTransferAllocation, Long> {
     List<InterWarehouseTransferAllocation> findByTransferItemId(Long transferItemId);
     List<InterWarehouseTransferAllocation> findByTransferItemTransferId(Long transferId);
+    void deleteByTransferItemId(Long transferItemId);
     void deleteByTransferItemTransferId(Long transferId);
 }

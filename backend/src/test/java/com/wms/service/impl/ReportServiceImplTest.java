@@ -153,7 +153,7 @@ class ReportServiceImplTest {
         when(invoiceRepository.findByIssueDateBetween(any(), any())).thenReturn(List.of());
         when(deliveryOrderItemRepository.findCompletedItemsInPeriod(any(), any())).thenReturn(List.of());
         when(tripRepository.findByStatusAndCompletedAtBetween(any(), any(), any())).thenReturn(List.of());
-        when(outboundQcRecordRepository.findAll()).thenReturn(List.of());
+        when(outboundQcRecordRepository.findAllByIsActiveTrueAndInventoryMovedAtIsNotNull()).thenReturn(List.of());
         when(receiptItemRepository.findAll()).thenReturn(List.of());
         when(deliveryRepository.findAll()).thenReturn(List.of());
 

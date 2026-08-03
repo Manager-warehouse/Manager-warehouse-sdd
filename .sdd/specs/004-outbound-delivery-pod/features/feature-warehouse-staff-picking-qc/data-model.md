@@ -23,7 +23,7 @@
 
 - `WAITING_PICKING -> QC_PENDING_APPROVAL`: full active pick/QC submission succeeds.
 - `QC_PENDING_APPROVAL -> WAITING_PICKING`: replacement plan saved by Storekeeper in the paired feature.
-- `QC_PENDING_APPROVAL -> QC_COMPLETED`: Storekeeper quality approval succeeds after all requested quantity has QC-passed goods available.
+- `QC_PENDING_APPROVAL -> QC_COMPLETED`: Storekeeper quality approval succeeds after submitted QC-passed quantities cover all requested quantity and approved inventory movement succeeds.
 - `QC_COMPLETED -> WAREHOUSE_APPROVED`: Warehouse Manager approves outbound release.
 - `QC_COMPLETED -> REJECTED`: Warehouse Manager rejects and returned QC-passed goods are restored to original rows.
 
@@ -74,7 +74,7 @@
 
 ## OutboundQcRecord
 
-**Purpose**: Immutable proof of one successful pick/QC result row for a concrete allocation in a given active cycle.
+**Purpose**: Historical proof of one successful pick/QC result row for a concrete allocation and whether it remains active for the current cycle.
 
 **Fields**
 
@@ -94,6 +94,11 @@
 - `idempotency_key`
 - `request_hash`
 - `notes`
+- `is_active`
+- `rejected_by`
+- `rejected_at`
+- `rejection_reason`
+- `inventory_moved_at`
 - `created_at`
 
 **Validation rules**
@@ -103,6 +108,8 @@
 - `picked_qty = qc_pass_qty + qc_fail_qty`.
 - `qc_fail_reason` is required when `qc_fail_qty > 0`.
 - A repeated request with the same `idempotency_key` and the same payload hash returns the previous success without replaying movement.
+- Active rows participate in the current review cycle; only rows with `inventory_moved_at` participate in trip quantities and approved QC reporting.
+- New Staff submissions keep `inventory_moved_at = null`; Storekeeper approval sets it only after all inventory and QC-fail evidence mutations succeed.
 
 ## Inventory
 
@@ -122,9 +129,9 @@
 
 **Validation rules**
 
-- Source regular row decreases `total_qty` and `reserved_qty` for both pass and fail quantities.
-- Outbound staging row increases `total_qty` and `reserved_qty` for `qc_pass_qty`.
-- Quarantine row increases `total_qty` and keeps `reserved_qty = 0` for `qc_fail_qty`.
+- Staff submission does not mutate inventory; source `total_qty` and `reserved_qty` remain unchanged while approval is pending.
+- Storekeeper approval decreases source `total_qty` and `reserved_qty` for both pass and fail quantities.
+- Storekeeper approval increases outbound staging `total_qty` and `reserved_qty` for `qc_pass_qty` and quarantine `total_qty` for `qc_fail_qty`.
 - Reject return from outbound staging restores source `total_qty` and available regular stock while releasing staging reservation.
 - Every update must pass optimistic locking and preserve non-negative quantities.
 
@@ -179,7 +186,7 @@
 
 **Validation rules**
 
-- Allowed only when every requested quantity has matching QC-passed goods available in outbound staging after any replacement cycle.
+- Allowed only when every requested quantity is covered by submitted QC-passed results after any replacement cycle.
 - Must reject with `QC_REPLACEMENT_REQUIRED` if failed quantity remains unresolved.
 
 ## DeliveryOrderWarehouseRejectReturn

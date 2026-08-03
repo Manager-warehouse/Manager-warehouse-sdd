@@ -95,8 +95,8 @@ public class InterWarehouseTransferReceivingService {
         // Nếu số thực nhận khác số đã gửi thì phải nhập lý do để truy vết chênh lệch.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
+        helper.normalizeExpiredTransfer(transfer, actor);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
-        ensureDestinationReceivingNotOverdue(transfer);
 
         if (Boolean.TRUE.equals(transfer.isReturned())) {
             // Validate: xe quay đầu phải được tài xế xác nhận đã về kho nguồn trước khi kho nguồn đếm hàng.
@@ -149,8 +149,8 @@ public class InterWarehouseTransferReceivingService {
         // tổng số đạt và số lỗi phải bằng số thủ kho xác nhận.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
+        helper.normalizeExpiredTransfer(transfer, actor);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
-        ensureDestinationReceivingNotOverdue(transfer);
         // Validate: bước QC nhận bắt buộc có ảnh để CEO hoặc quản lý kho xem lại bằng chứng.
         if (helper.isBlank(request.qcPhotoRef())) {
             throw new BusinessRuleViolationException("RECEIVE_QC_PHOTO_REQUIRED");
@@ -450,14 +450,6 @@ public class InterWarehouseTransferReceivingService {
             if (!hasQuarantine) {
                 throw new BusinessRuleViolationException("QUARANTINE_LOCATION_NOT_CONFIGURED");
             }
-        }
-    }
-
-    private void ensureDestinationReceivingNotOverdue(InterWarehouseTransfer transfer) {
-        // Chặn nhận hàng trễ hạn ở kho đích. Khi xe quay đầu về kho nguồn thì không dùng kiểm tra quá hạn này.
-        // Validate: phiếu quá hạn thời gian dự kiến không được nhận bình thường, phải xử lý như ngoại lệ.
-        if (!Boolean.TRUE.equals(transfer.isReturned()) && helper.isTripOverdue(transfer)) {
-            throw new BusinessRuleViolationException("TRANSFER_TRIP_OVERDUE");
         }
     }
 

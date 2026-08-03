@@ -227,6 +227,49 @@ public class InterWarehouseTransferHelper {
         return deadlineExclusive != null && !LocalDateTime.now().isBefore(deadlineExclusive);
     }
 
+    public boolean normalizeExpiredTransfer(InterWarehouseTransfer transfer, User actor) {
+        // Chuẩn hóa trạng thái quá hạn trước khi trả response hoặc chạy action.
+        // Trước khi xe rời kho thì hủy phiếu để trả reservation; sau khi đã đi thì chuyển sang nhánh quay đầu.
+        boolean expired = isPastRequiredArrivalDate(transfer) || isTripOverdue(transfer);
+        if (!expired || isTerminalTransferStatus(transfer.getStatus())) {
+            return false;
+        }
+        if (transfer.getStatus() == InterWarehouseTransferStatus.IN_TRANSIT) {
+            if (transfer.isReturned()) {
+                return false;
+            }
+            Map<String, Object> before = snapshot(transfer);
+            transfer.setReturned(true);
+            transfer.setReturnRequested(false);
+            transfer.setReturnReason("TRANSFER_REQUIRED_DATE_EXPIRED");
+            transfer.setUpdatedAt(OffsetDateTime.now());
+            InterWarehouseTransfer saved = transferRepository.save(transfer);
+            audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, snapshot(saved));
+            return true;
+        }
+        if (transfer.getStatus() == InterWarehouseTransferStatus.NEW
+                || transfer.getStatus() == InterWarehouseTransferStatus.APPROVED) {
+            Map<String, Object> before = snapshot(transfer);
+            releaseReservations(transfer);
+            for (InterWarehouseTransferItem item : items(transfer)) {
+                item.setSentQty(null);
+                transferItemRepository.save(item);
+            }
+            Trip trip = transfer.getTrip();
+            if (trip != null && trip.getStatus() == TripStatus.PLANNED) {
+                trip.setStatus(TripStatus.CANCELLED);
+                trip.setUpdatedAt(OffsetDateTime.now());
+            }
+            transfer.setStatus(InterWarehouseTransferStatus.CANCELLED);
+            transfer.setRejectionReason("TRANSFER_REQUIRED_DATE_EXPIRED");
+            transfer.setUpdatedAt(OffsetDateTime.now());
+            InterWarehouseTransfer saved = transferRepository.save(transfer);
+            audit(saved, actor, AuditAction.TRANSFER_CANCEL, before, snapshot(saved));
+            return true;
+        }
+        return false;
+    }
+
     public void ensureDeadlineOpenForPlanning(InterWarehouseTransfer transfer) {
         // Validate: quá ngày cần hàng thì không cho lập chuyến/xuất kho nữa; phiếu chưa đi phải hủy để trả tồn giữ chỗ.
         if (isPastRequiredArrivalDate(transfer)) {

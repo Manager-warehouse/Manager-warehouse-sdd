@@ -5,6 +5,7 @@ import com.wms.dto.request.SplitDeliveryLegRequest;
 import com.wms.dto.request.SplitDeliveryPlanCreateRequest;
 import com.wms.dto.request.SplitDeliveryPlanUpdateRequest;
 import com.wms.dto.request.SplitLegFailureRequest;
+import com.wms.dto.request.TripCompleteRequest;
 import com.wms.dto.response.SplitDeliveryLegResponse;
 import com.wms.dto.response.SplitLegMilestoneResponse;
 import com.wms.dto.response.SplitDeliveryPlanResponse;
@@ -20,6 +21,7 @@ import com.wms.entity.order_fulfillment.SplitDeliveryLegItem;
 import com.wms.entity.order_fulfillment.SplitDeliveryPlan;
 import com.wms.entity.order_fulfillment.Trip;
 import com.wms.entity.order_fulfillment.TripDeliveryOrder;
+import com.wms.entity.stock_control.Batch;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
@@ -138,7 +140,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         validateNoStandardTripAssignment(order.getId(), null);
         validateSchedule(request.getPlannedStartAt(), request.getPlannedEndAt());
         Map<Long, DeliveryOrderItem> items = loadItems(order);
-        Allocation allocation = validateAllocation(request.getLegs(), items);
+        Allocation allocation = validateAllocation(request.getLegs(), items, order.getId());
         Driver leadDriver = validateLeadDriver(request.getLeadDriverId(), request.getLegs(), order.getWarehouse().getId(),
                 null);
         OffsetDateTime now = OffsetDateTime.now();
@@ -174,7 +176,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         if (request.getLegs() != null) {
             cancelCurrentLegTrips(currentLegs, actor);
             Map<Long, DeliveryOrderItem> items = loadItems(plan.getDeliveryOrder());
-            Allocation allocation = validateAllocation(request.getLegs(), items);
+            Allocation allocation = validateAllocation(request.getLegs(), items, plan.getDeliveryOrder().getId());
             LocalDateTime plannedStartAt = request.getPlannedStartAt() == null
                     ? plan.getPlannedStartAt()
                     : request.getPlannedStartAt();
@@ -202,25 +204,6 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
 
     @Override
     @Transactional
-    public SplitDeliveryPlanResponse confirmDriverReadiness(Long id, User actor) {
-        SplitDeliveryPlan plan = loadPlan(id);
-        requireSplitDriver(actor, plan);
-        requirePlanned(plan);
-        SplitDeliveryLeg leg = splitLegRepository.findBySplitPlanIdAndDriverUserId(plan.getId(), actor.getId())
-                .orElseThrow(() -> new OutboundDeliveryException("TRIP_DRIVER_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN,
-                        "Authenticated driver is not assigned to this split plan"));
-        if (leg.getReadinessConfirmedAt() == null) {
-            leg.setReadinessConfirmedAt(OffsetDateTime.now());
-            leg.setUpdatedAt(leg.getReadinessConfirmedAt());
-            splitLegRepository.save(leg);
-            audit(actor, AuditAction.SPLIT_DELIVERY_DRIVER_READY, plan, null,
-                    Map.of("splitPlanId", plan.getId(), "driverId", leg.getDriver().getId()));
-        }
-        return toResponse(plan);
-    }
-
-    @Override
-    @Transactional
     public SplitDeliveryPlanResponse departPlan(Long id, User actor) {
         SplitDeliveryPlan plan = loadPlan(id);
         requireLeadDriver(actor, plan);
@@ -232,56 +215,63 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
 
     @Override
     @Transactional
-    public SplitLegMilestoneResponse confirmDealerArrival(Long planId, Long legId, User actor) {
+    public SplitLegMilestoneResponse confirmDealerArrival(Long planId, User actor) {
         SplitDeliveryPlan plan = loadPlan(planId);
-        SplitDeliveryLeg leg = assignedInTransitLeg(plan, legId, actor);
-        if (leg.getDealerArrivedAt() == null) {
+        requireLeadDriver(actor, plan);
+        List<SplitDeliveryLeg> legs = inTransitLegs(plan);
+        SplitDeliveryLeg leadLeg = leadLeg(plan, legs);
+        if (legs.stream().anyMatch(leg -> leg.getDealerArrivedAt() == null)) {
             OffsetDateTime now = OffsetDateTime.now();
-            leg.setDealerArrivedAt(now);
-            leg.setUpdatedAt(now);
-            splitLegRepository.save(leg);
-            auditLeg(actor, AuditAction.SPLIT_LEG_ARRIVAL_CONFIRM, plan, leg, null,
-                    Map.of("dealerArrivedAt", now));
+            legs.forEach(leg -> {
+                leg.setDealerArrivedAt(now);
+                leg.setUpdatedAt(now);
+            });
+            splitLegRepository.saveAll(legs);
+            auditLeg(actor, AuditAction.SPLIT_LEG_ARRIVAL_CONFIRM, plan, leadLeg, null,
+                    Map.of("dealerArrivedAt", now, "wholeConvoy", true));
         }
-        return milestoneResponse(plan, leg);
+        return milestoneResponse(plan, leadLeg);
     }
 
     @Override
     @Transactional
-    public SplitLegMilestoneResponse confirmHandover(Long planId, Long legId, User actor) {
+    public SplitLegMilestoneResponse confirmHandover(Long planId, User actor) {
         SplitDeliveryPlan plan = loadPlan(planId);
-        SplitDeliveryLeg leg = assignedInTransitLeg(plan, legId, actor);
-        List<SplitDeliveryLeg> legs = activeLegs(plan);
+        requireLeadDriver(actor, plan);
+        List<SplitDeliveryLeg> legs = inTransitLegs(plan);
+        SplitDeliveryLeg leadLeg = leadLeg(plan, legs);
         if (legs.stream().anyMatch(item -> item.getDealerArrivedAt() == null)) {
-            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Every split leg must arrive before handover");
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Lead driver must confirm whole-convoy arrival before handover");
         }
-        if (leg.getHandoverConfirmedAt() == null) {
+        if (legs.stream().anyMatch(leg -> leg.getHandoverConfirmedAt() == null)) {
             OffsetDateTime now = OffsetDateTime.now();
-            leg.setHandoverConfirmedAt(now);
-            leg.setUpdatedAt(now);
-            splitLegRepository.save(leg);
-            auditLeg(actor, AuditAction.SPLIT_LEG_HANDOVER_CONFIRM, plan, leg, null,
-                    Map.of("handoverConfirmedAt", now));
+            legs.forEach(leg -> {
+                leg.setHandoverConfirmedAt(now);
+                leg.setUpdatedAt(now);
+            });
+            splitLegRepository.saveAll(legs);
+            auditLeg(actor, AuditAction.SPLIT_LEG_HANDOVER_CONFIRM, plan, leadLeg, null,
+                    Map.of("handoverConfirmedAt", now, "wholeDeliveryOrder", true));
         }
-        return milestoneResponse(plan, leg);
+        return milestoneResponse(plan, leadLeg);
     }
 
     @Override
     @Transactional
-    public SplitLegMilestoneResponse failDeliveryLeg(Long planId, Long legId, SplitLegFailureRequest request,
-            User actor) {
+    public SplitLegMilestoneResponse failDelivery(Long planId, SplitLegFailureRequest request, User actor) {
         SplitDeliveryPlan plan = loadPlan(planId);
-        SplitDeliveryLeg failedLeg = assignedInTransitLeg(plan, legId, actor);
+        requireLeadDriver(actor, plan);
         DeliveryOrder order = plan.getDeliveryOrder();
-        if (order.getStatus() != DeliveryOrderStatus.IN_TRANSIT) {
+        if (order.getStatus() != DeliveryOrderStatus.IN_TRANSIT || isFinalSplitState(plan.getStatus())) {
             throw new OutboundDeliveryException("DELIVERY_ALREADY_FINALIZED", HttpStatus.CONFLICT,
                     "Delivery Order is no longer eligible for split failure");
         }
+        List<SplitDeliveryLeg> legs = inTransitLegs(plan);
+        SplitDeliveryLeg failedLeg = leadLeg(plan, legs);
         Map<String, Object> before = snapshotWithLegs(plan);
         OffsetDateTime now = OffsetDateTime.now();
         failedLeg.setFailureReportedAt(now);
         failedLeg.setFailureReason(request.getFailureReason());
-        List<SplitDeliveryLeg> legs = activeLegs(plan);
         legs.forEach(leg -> {
             leg.setStatus(SplitDeliveryPlanStatus.RETURNED);
             leg.setUpdatedAt(now);
@@ -303,6 +293,52 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         auditLeg(actor, AuditAction.SPLIT_LEG_DELIVERY_FAIL, plan, failedLeg, before,
                 snapshotWithLegs(plan));
         return milestoneResponse(plan, failedLeg);
+    }
+
+    @Override
+    @Transactional
+    public SplitLegMilestoneResponse completePlan(Long planId, TripCompleteRequest request, User actor) {
+        SplitDeliveryPlan plan = loadPlan(planId);
+        requireLeadDriver(actor, plan);
+        if (plan.getStatus() != SplitDeliveryPlanStatus.IN_TRANSIT
+                && plan.getStatus() != SplitDeliveryPlanStatus.RETURNED) {
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split delivery plan is not ready for convoy completion");
+        }
+        DeliveryOrderStatus orderStatus = plan.getDeliveryOrder().getStatus();
+        if (orderStatus != DeliveryOrderStatus.COMPLETED && orderStatus != DeliveryOrderStatus.RETURNED) {
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Delivery Order must be COMPLETED or RETURNED");
+        }
+        List<SplitDeliveryLeg> legs = activeLegs(plan);
+        SplitDeliveryLeg leadLeg = leadLeg(plan, legs);
+        Map<String, Object> before = convoySnapshot(plan, legs);
+        OffsetDateTime now = request == null || request.getReturnedAt() == null
+                ? OffsetDateTime.now()
+                : request.getReturnedAt();
+        String notes = request == null ? null : request.getNotes();
+        legs.forEach(leg -> completeLegReturn(leg, now, notes));
+        plan.setStatus(SplitDeliveryPlanStatus.COMPLETED);
+        plan.setCompletedAt(now);
+        plan.setUpdatedAt(now);
+        splitLegRepository.saveAll(legs);
+        tripRepository.saveAll(legs.stream().map(SplitDeliveryLeg::getTrip).toList());
+        vehicleRepository.saveAll(legs.stream().map(SplitDeliveryLeg::getVehicle).toList());
+        driverRepository.saveAll(legs.stream().map(SplitDeliveryLeg::getDriver).toList());
+        splitPlanRepository.save(plan);
+        audit(actor, AuditAction.COMPLETE_TRIP, plan, before, convoySnapshot(plan, legs));
+        return milestoneResponse(plan, leadLeg);
+    }
+
+    private void completeLegReturn(SplitDeliveryLeg leg, OffsetDateTime now, String notes) {
+        leg.setStatus(SplitDeliveryPlanStatus.COMPLETED);
+        leg.setUpdatedAt(now);
+        leg.getTrip().setStatus(TripStatus.COMPLETED);
+        leg.getTrip().setCompletedAt(now);
+        leg.getTrip().setUpdatedAt(now);
+        if (notes != null && !notes.isBlank()) {
+            leg.getTrip().setNotes(notes.trim());
+        }
+        leg.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+        leg.getDriver().setStatus(DriverStatus.AVAILABLE);
     }
 
     @Override
@@ -355,7 +391,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                     .createdAt(now)
                     .updatedAt(now)
                     .build());
-            saveLegItems(leg, row, items);
+            saveLegItems(leg, row, items, allocation);
         }
     }
 
@@ -390,7 +426,8 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         return saved;
     }
 
-    private void saveLegItems(SplitDeliveryLeg leg, SplitDeliveryLegRequest row, Map<Long, DeliveryOrderItem> items) {
+    private void saveLegItems(SplitDeliveryLeg leg, SplitDeliveryLegRequest row, Map<Long, DeliveryOrderItem> items,
+            Allocation allocation) {
         List<SplitDeliveryLegItem> entities = row.getItems().stream()
                 .map(item -> {
                     DeliveryOrderItem source = items.get(item.getDoItemId());
@@ -399,7 +436,7 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                             .splitLeg(leg)
                             .deliveryOrderItem(source)
                             .product(source.getProduct())
-                            .batch(source.getBatch())
+                            .batch(allocation.batchFor(item))
                             .quantity(quantity)
                             .weightKg(value(source.getProduct().getWeightKg()).multiply(quantity))
                             .volumeM3(value(source.getProduct().getVolumeM3()).multiply(quantity))
@@ -518,27 +555,49 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                 Map.of("splitPlanId", plan.getId(), "deliveryOrderId", plan.getDeliveryOrder().getId()));
     }
 
-    private Allocation validateAllocation(List<SplitDeliveryLegRequest> legs, Map<Long, DeliveryOrderItem> items) {
-        Map<Long, BigDecimal> totals = new LinkedHashMap<>();
+    private Allocation validateAllocation(List<SplitDeliveryLegRequest> legs, Map<Long, DeliveryOrderItem> items,
+            Long deliveryOrderId) {
+        List<OutboundQcRecord> qcRecords = outboundQcRecordRepository
+                .findPassedRecordsByDeliveryOrderIdIn(List.of(deliveryOrderId));
+        Map<ItemBatchKey, BigDecimal> approvedByBatch = new LinkedHashMap<>();
+        Map<ItemBatchKey, Batch> batches = new LinkedHashMap<>();
+        for (OutboundQcRecord record : qcRecords) {
+            ItemBatchKey key = new ItemBatchKey(record.getDeliveryOrderItem().getId(), record.getBatch().getId());
+            if (items.containsKey(key.doItemId())) {
+                approvedByBatch.merge(key, value(record.getQcPassQty()), BigDecimal::add);
+                batches.put(key, record.getBatch());
+            }
+        }
+
+        Map<Long, BigDecimal> totalsByItem = new LinkedHashMap<>();
+        Map<ItemBatchKey, BigDecimal> totalsByBatch = new LinkedHashMap<>();
         for (SplitDeliveryLegRequest leg : legs) {
             for (SplitDeliveryLegItemRequest item : leg.getItems()) {
                 DeliveryOrderItem source = items.get(item.getDoItemId());
+                ItemBatchKey key = new ItemBatchKey(item.getDoItemId(), item.getBatchId());
                 if (source == null || !Objects.equals(source.getProduct().getId(), item.getProductId())
-                        || source.getBatch() == null || !Objects.equals(source.getBatch().getId(), item.getBatchId())) {
+                        || !approvedByBatch.containsKey(key)) {
                     throw rule("SPLIT_DELIVERY_PLAN_INVALID", "Split item does not match the Delivery Order item");
                 }
-                totals.merge(item.getDoItemId(), value(item.getQuantity()), BigDecimal::add);
+                BigDecimal quantity = value(item.getQuantity());
+                totalsByItem.merge(item.getDoItemId(), quantity, BigDecimal::add);
+                totalsByBatch.merge(key, quantity, BigDecimal::add);
             }
         }
         for (DeliveryOrderItem item : items.values()) {
             if (value(item.getQcPassQty()).compareTo(value(item.getRequestedQty())) != 0) {
                 throw rule("STAGED_QC_PASS_QTY_INSUFFICIENT", "QC-passed quantity must fully cover requested quantity");
             }
-            if (value(item.getQcPassQty()).compareTo(value(totals.get(item.getId()))) != 0) {
+            if (value(item.getQcPassQty()).compareTo(value(totalsByItem.get(item.getId()))) != 0) {
                 throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split plan must allocate 100% of approved quantity");
             }
         }
-        return new Allocation(totals);
+        for (Map.Entry<ItemBatchKey, BigDecimal> entry : approvedByBatch.entrySet()) {
+            if (entry.getValue().compareTo(value(totalsByBatch.get(entry.getKey()))) != 0) {
+                throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split plan must allocate 100% of each QC-passed batch");
+            }
+        }
+        return new Allocation(batches);
     }
 
     private Capacity calculateLegCapacity(SplitDeliveryLegRequest leg, Map<Long, DeliveryOrderItem> items) {
@@ -615,9 +674,6 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         if (legs.isEmpty() || legs.stream().anyMatch(leg -> leg.getStatus() != SplitDeliveryPlanStatus.PLANNED)) {
             throw rule("SPLIT_DELIVERY_INCOMPLETE", "All split legs must be PLANNED before departure");
         }
-        if (legs.stream().anyMatch(leg -> leg.getReadinessConfirmedAt() == null)) {
-            throw rule("SPLIT_DELIVERY_INCOMPLETE", "All split drivers must confirm readiness");
-        }
         if (legs.stream().anyMatch(leg -> leg.getVehicle().getStatus() != VehicleStatus.AVAILABLE)) {
             throw rule("SPLIT_VEHICLE_NOT_AVAILABLE", "Cho co xe san sang de tao ke hoach giao hang");
         }
@@ -675,14 +731,6 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         if (!assignmentRepository.findWarehouseIdsByUserId(actor.getId()).contains(warehouseId)) {
             throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN,
                     "User is not assigned to warehouse: " + warehouseId);
-        }
-    }
-
-    private void requireSplitDriver(User actor, SplitDeliveryPlan plan) {
-        boolean assigned = splitLegRepository.findBySplitPlanIdAndDriverUserId(plan.getId(), actor.getId()).isPresent();
-        if (!assigned) {
-            throw new OutboundDeliveryException("TRIP_DRIVER_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN,
-                    "Authenticated driver is not assigned to this split plan");
         }
     }
 
@@ -797,21 +845,28 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                 .build();
     }
 
-    private SplitDeliveryLeg assignedInTransitLeg(SplitDeliveryPlan plan, Long legId, User actor) {
+    private List<SplitDeliveryLeg> inTransitLegs(SplitDeliveryPlan plan) {
         if (plan.getStatus() != SplitDeliveryPlanStatus.IN_TRANSIT) {
             throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split delivery plan must be IN_TRANSIT");
         }
-        SplitDeliveryLeg leg = splitLegRepository.findById(legId)
-                .filter(item -> Objects.equals(item.getSplitPlan().getId(), plan.getId()))
-                .orElseThrow(() -> notFound("Split delivery leg not found"));
-        if (!Objects.equals(leg.getDriver().getUser().getId(), actor.getId())) {
-            throw new OutboundDeliveryException("TRIP_DRIVER_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN,
-                    "Authenticated driver is not assigned to this split leg");
+        List<SplitDeliveryLeg> legs = activeLegs(plan);
+        if (legs.isEmpty() || legs.stream().anyMatch(leg -> leg.getStatus() != SplitDeliveryPlanStatus.IN_TRANSIT)) {
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "All split delivery legs must be IN_TRANSIT");
         }
-        if (leg.getStatus() != SplitDeliveryPlanStatus.IN_TRANSIT) {
-            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Split delivery leg must be IN_TRANSIT");
-        }
-        return leg;
+        return legs;
+    }
+
+    private SplitDeliveryLeg leadLeg(SplitDeliveryPlan plan, List<SplitDeliveryLeg> legs) {
+        return legs.stream()
+                .filter(leg -> Objects.equals(leg.getDriver().getId(), plan.getLeadDriver().getId()))
+                .findFirst()
+                .orElseThrow(() -> rule("SPLIT_LEAD_DRIVER_REQUIRED", "Lead driver must be assigned to a split leg"));
+    }
+
+    private boolean isFinalSplitState(SplitDeliveryPlanStatus status) {
+        return status == SplitDeliveryPlanStatus.RETURNED
+                || status == SplitDeliveryPlanStatus.COMPLETED
+                || status == SplitDeliveryPlanStatus.CANCELLED;
     }
 
     private List<SplitDeliveryLeg> activeLegs(SplitDeliveryPlan plan) {
@@ -867,6 +922,20 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
                         "driverId", leg.getDriver().getId(),
                         "status", leg.getStatus()))
                 .toList());
+        return values;
+    }
+
+    private Map<String, Object> convoySnapshot(SplitDeliveryPlan plan, List<SplitDeliveryLeg> legs) {
+        Map<String, Object> values = snapshot(plan);
+        values.put("legs", legs.stream().map(leg -> Map.of(
+                "id", leg.getId(),
+                "status", leg.getStatus(),
+                "tripId", leg.getTrip().getId(),
+                "tripStatus", leg.getTrip().getStatus(),
+                "vehicleId", leg.getVehicle().getId(),
+                "vehicleStatus", leg.getVehicle().getStatus(),
+                "driverId", leg.getDriver().getId(),
+                "driverStatus", leg.getDriver().getStatus())).toList());
         return values;
     }
 
@@ -926,6 +995,12 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
     private record Capacity(BigDecimal weight, BigDecimal volume) {
     }
 
-    private record Allocation(Map<Long, BigDecimal> totalsByItem) {
+    private record ItemBatchKey(Long doItemId, Long batchId) {
+    }
+
+    private record Allocation(Map<ItemBatchKey, Batch> batches) {
+        private Batch batchFor(SplitDeliveryLegItemRequest item) {
+            return batches.get(new ItemBatchKey(item.getDoItemId(), item.getBatchId()));
+        }
     }
 }

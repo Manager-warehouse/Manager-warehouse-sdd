@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, Eye, Loader2, MapPin, Package, Plus, Search, Truck, User } from 'lucide-react';
+import { Calendar, Eye, Loader2, MapPin, Package, Plus, Search, Trash2, Truck, User } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -37,24 +37,90 @@ const nowDateTimeValue = () => {
   return offsetDate.toISOString().slice(0, 16);
 };
 
-const getOrderItems = (order) => order?.items?.filter((item) => Number(item.requested_qty || item.qc_pass_qty || 0) > 0) || [];
+export const getSplitAllocationItems = (order) => (order?.items || []).flatMap((item) => {
+  const byBatch = new Map();
+  (item.allocations || []).forEach((allocation) => {
+    const batchId = allocation.batch_id || allocation.batchId;
+    const quantity = Number(allocation.qc_pass_qty || allocation.qcPassQty || 0);
+    if (!batchId || quantity <= 0) return;
+    const key = `${item.id}:${batchId}`;
+    const current = byBatch.get(key);
+    byBatch.set(key, {
+      key,
+      do_item_id: item.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      sku: item.sku,
+      batch_id: batchId,
+      batch_code: allocation.batch_code || allocation.batchCode || `#${batchId}`,
+      quantity: Number(((current?.quantity || 0) + quantity).toFixed(2)),
+    });
+  });
+  if (byBatch.size) return [...byBatch.values()];
 
-const getItemQuantity = (item) => Number(item.qc_pass_qty || item.requested_qty || 0);
-
-const getItemBatchId = (item) => item.batch_id || item.allocations?.[0]?.batch_id || item.allocations?.[0]?.batchId;
+  const quantity = Number(item.qc_pass_qty || item.requested_qty || 0);
+  if (!item.batch_id || quantity <= 0) return [];
+  return [{
+    key: `${item.id}:${item.batch_id}`,
+    do_item_id: item.id,
+    product_id: item.product_id,
+    product_name: item.product_name,
+    sku: item.sku,
+    batch_id: item.batch_id,
+    batch_code: item.batch_code || `#${item.batch_id}`,
+    quantity,
+  }];
+});
 
 const buildDefaultSplitRows = (order, vehicles, drivers) => {
+  const allocationItems = getSplitAllocationItems(order);
   const selectedVehicles = vehicles.slice(0, 2);
   const selectedDrivers = drivers.slice(0, 2);
   return selectedVehicles.map((vehicle, legIndex) => ({
     vehicle_id: vehicle?.id || '',
     driver_id: selectedDrivers[legIndex]?.id || '',
-    item_quantities: getOrderItems(order).reduce((map, item) => {
-      const total = getItemQuantity(item);
-      map[item.id] = legIndex === 0 ? Math.ceil(total / 2) : total - Math.ceil(total / 2);
+    item_quantities: allocationItems.reduce((map, item) => {
+      const firstQuantity = Number((item.quantity / 2).toFixed(2));
+      map[item.key] = legIndex === 0 ? firstQuantity : Number((item.quantity - firstQuantity).toFixed(2));
       return map;
     }, {}),
   }));
+};
+
+export const buildSplitPlanPayload = ({ order, rows, plannedStartAt, plannedEndAt }) => {
+  const items = getSplitAllocationItems(order);
+  return {
+    do_id: order.id,
+    lead_driver_id: rows[0].driver_id,
+    planned_start_at: plannedStartAt,
+    planned_end_at: plannedEndAt,
+    legs: rows.map((row) => ({
+      vehicle_id: row.vehicle_id,
+      driver_id: row.driver_id,
+      items: items.map((item) => ({
+        do_item_id: item.do_item_id,
+        product_id: item.product_id,
+        batch_id: item.batch_id,
+        quantity: Number(row.item_quantities[item.key] || 0),
+      })).filter((item) => item.quantity > 0),
+    })),
+  };
+};
+
+const getTripSplitStop = (trip, splitPlanId) => trip?.delivery_orders?.find((stop) => (
+  stop.split_plan_id && (!splitPlanId || Number(stop.split_plan_id) === Number(splitPlanId))
+));
+
+export const getSplitFleetAssignments = (selectedTrip, allTrips) => {
+  const selectedStop = getTripSplitStop(selectedTrip);
+  if (!selectedStop) return selectedTrip ? [selectedTrip] : [];
+  return allTrips
+    .filter((trip) => getTripSplitStop(trip, selectedStop.split_plan_id))
+    .sort((left, right) => {
+      const leftLead = getTripSplitStop(left, selectedStop.split_plan_id)?.is_split_lead ? 1 : 0;
+      const rightLead = getTripSplitStop(right, selectedStop.split_plan_id)?.is_split_lead ? 1 : 0;
+      return rightLead - leftLead || Number(left.id) - Number(right.id);
+    });
 };
 
 const getTripStatusBadge = (status) => {
@@ -185,7 +251,8 @@ export default function TripPlanning() {
       {
         vehicle_id: '',
         driver_id: '',
-        item_quantities: getOrderItems(order).reduce((map, item) => ({ ...map, [item.id]: 0 }), {}),
+        item_quantities: getSplitAllocationItems(order)
+          .reduce((map, item) => ({ ...map, [item.key]: 0 }), {}),
       },
     ]);
   };
@@ -248,56 +315,46 @@ export default function TripPlanning() {
 
   const handleCreateSplitSubmit = async () => {
     const order = formData.delivery_orders[0];
-    const items = getOrderItems(order);
+    const items = getSplitAllocationItems(order);
     if (!order || splitRows.length < 2) {
-      addToast('Can it nhat 2 xe de chia mot DO', 'error');
+      addToast('Cần ít nhất 2 xe để chia một đơn xuất hàng', 'error');
       return;
     }
     if (splitRows.some((row) => !row.vehicle_id || !row.driver_id)) {
-      addToast('Vui long chon du xe va tai xe cho tung leg', 'error');
+      addToast('Vui lòng chọn đủ phương tiện và tài xế cho từng xe', 'error');
       return;
     }
     const vehicleIds = new Set(splitRows.map((row) => String(row.vehicle_id)));
     const driverIds = new Set(splitRows.map((row) => String(row.driver_id)));
     if (vehicleIds.size !== splitRows.length || driverIds.size !== splitRows.length) {
-      addToast('Xe va tai xe trong ke hoach split khong duoc trung nhau', 'error');
+      addToast('Phương tiện và tài xế trong kế hoạch không được trùng nhau', 'error');
       return;
     }
     const incompleteItem = items.find((item) => {
-      const assigned = splitRows.reduce((sum, row) => sum + Number(row.item_quantities[item.id] || 0), 0);
-      return assigned !== getItemQuantity(item);
+      const assigned = splitRows.reduce((sum, row) => sum + Number(row.item_quantities[item.key] || 0), 0);
+      return Math.abs(assigned - item.quantity) > 0.001;
     });
     if (incompleteItem) {
-      addToast('Tong so luong chia phai bang so luong can giao cua tung san pham', 'error');
+      addToast('Tổng số lượng phân bổ phải bằng số lượng cần giao của từng sản phẩm và lô', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      await outboundService.createSplitDeliveryPlan({
-        do_id: order.id,
-        lead_driver_id: splitRows[0].driver_id,
-        planned_start_at: formData.planned_start_at,
-        planned_end_at: formData.planned_end_at,
-        legs: splitRows.map((row) => ({
-          vehicle_id: row.vehicle_id,
-          driver_id: row.driver_id,
-          items: items.map((item) => ({
-            do_item_id: item.id,
-            product_id: item.product_id,
-            batch_id: getItemBatchId(item),
-            quantity: Number(row.item_quantities[item.id] || 0),
-          })).filter((item) => item.quantity > 0),
-        })),
-      });
-      addToast('Da tao ke hoach giao hang nhieu xe', 'success');
+      await outboundService.createSplitDeliveryPlan(buildSplitPlanPayload({
+        order,
+        rows: splitRows,
+        plannedStartAt: formData.planned_start_at,
+        plannedEndAt: formData.planned_end_at,
+      }));
+      addToast('Đã tạo kế hoạch giao hàng bằng nhiều xe', 'success');
       setShowCreateModal(false);
       setFormData(emptyForm);
       setSelectedVehicleObj(null);
       setSplitRows([]);
       fetchTrips();
     } catch (error) {
-      addToast(error.message || 'Loi khi tao ke hoach giao hang nhieu xe', 'error');
+      addToast(error.message || 'Lỗi khi tạo kế hoạch giao hàng bằng nhiều xe', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -350,6 +407,9 @@ export default function TripPlanning() {
   const isOverweight = selectedVehicleObj && currentWeight > maxWeight;
   const splitOrder = formData.delivery_orders.length === 1 ? formData.delivery_orders[0] : null;
   const canCreateSplitPlan = Boolean(isOverweight && splitOrder);
+  const detailFleet = useMemo(() => getSplitFleetAssignments(detailTrip, trips), [detailTrip, trips]);
+  const isSplitDetail = detailFleet.length > 1;
+  const detailTotalWeight = detailFleet.reduce((sum, trip) => sum + Number(trip.total_weight_kg || 0), 0);
   const isSubmitDisabled = !formData.vehicle_id || !formData.driver_id || !formData.planned_start_at || !formData.planned_end_at || !formData.delivery_orders.length || isOverweight || submitting;
 
   return (
@@ -436,14 +496,16 @@ export default function TripPlanning() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
-                { label: 'Loại xe', value: detailTrip.vehicle_type || '-', icon: <Truck className="w-3.5 h-3.5" /> },
-                { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
-                { label: 'SĐT tài xế', value: detailTrip.driver_phone || '-', icon: <User className="w-3.5 h-3.5" /> },
-                { label: 'GPLX', value: detailTrip.driver_license_number || '-', icon: <User className="w-3.5 h-3.5" /> },
+                ...(!isSplitDetail ? [
+                  { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
+                  { label: 'Loại xe', value: detailTrip.vehicle_type || '-', icon: <Truck className="w-3.5 h-3.5" /> },
+                  { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'SĐT tài xế', value: detailTrip.driver_phone || '-', icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'GPLX', value: detailTrip.driver_license_number || '-', icon: <User className="w-3.5 h-3.5" /> },
+                ] : []),
                 { label: 'TG Dự kiến', value: detailTrip.planned_start_at ? `${new Date(detailTrip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} - ${new Date(detailTrip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}` : '-', icon: <Calendar className="w-3.5 h-3.5" /> },
-                { label: 'Tổng khối lượng', value: `${detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
-                { label: 'Tải trọng xe', value: detailTrip.vehicle_max_weight_kg ? `${detailTrip.vehicle_max_weight_kg} kg` : '-', icon: <Package className="w-3.5 h-3.5" /> },
+                { label: isSplitDetail ? 'Tổng khối lượng kế hoạch' : 'Tổng khối lượng', value: `${isSplitDetail ? detailTotalWeight : detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
+                ...(!isSplitDetail ? [{ label: 'Tải trọng xe', value: detailTrip.vehicle_max_weight_kg ? `${detailTrip.vehicle_max_weight_kg} kg` : '-', icon: <Package className="w-3.5 h-3.5" /> }] : []),
               ].map(({ label, value, icon }) => (
                 <div key={label} className="bg-canvas-cream rounded-lg border border-hairline-light p-3.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-shade-40 mb-1 flex items-center gap-1">{icon}{label}</p>
@@ -451,6 +513,44 @@ export default function TripPlanning() {
                 </div>
               ))}
             </div>
+
+            {isSplitDetail && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">
+                  Phương tiện và tài xế ({detailFleet.length} xe)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {detailFleet.map((assignment, index) => {
+                    const splitStop = getTripSplitStop(assignment);
+                    return (
+                      <div key={assignment.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Truck className="w-4 h-4 text-shade-50 shrink-0" />
+                            <span className="text-sm font-bold text-ink truncate">{assignment.vehicle_plate || `Xe ${index + 1}`}</span>
+                          </div>
+                          {splitStop?.is_split_lead && (
+                            <span className="text-[10px] font-semibold text-info-800 bg-info-50 border border-info-200 px-2 py-1 rounded-pill shrink-0">
+                              Xe trưởng đoàn
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                          <span className="text-shade-50">Tài xế</span>
+                          <span className="font-semibold text-ink text-right">{assignment.driver_name || assignment.driver_id || '-'}</span>
+                          <span className="text-shade-50">Vai trò</span>
+                          <span className="font-semibold text-ink text-right">{splitStop?.is_split_lead ? 'Tài xế trưởng' : 'Tài xế'}</span>
+                          <span className="text-shade-50">Số điện thoại</span>
+                          <span className="font-semibold text-ink text-right">{assignment.driver_phone || '-'}</span>
+                          <span className="text-shade-50">Khối lượng</span>
+                          <span className="font-semibold text-ink text-right">{assignment.total_weight_kg || 0} kg</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">
@@ -534,36 +634,59 @@ export default function TripPlanning() {
         )}
       </Modal>
 
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Lập chuyến xe giao hàng" maxWidth="max-w-4xl">
-        <div className="flex flex-col md:flex-row gap-6">
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Lập chuyến xe giao hàng" maxWidth="max-w-6xl">
+        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 flex flex-col gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Phương tiện *"
-                type="select"
-                value={formData.vehicle_id}
-                onChange={(event) => {
-                  setFormData((prev) => ({ ...prev, vehicle_id: event.target.value }));
-                  setSelectedVehicleObj(vehicles.find((vehicle) => Number(vehicle.id) === Number(event.target.value)));
-                }}
-                options={[
-                  { value: '', label: '-- Chọn xe --' },
-                  ...vehicles.map((vehicle) => ({
-                    value: vehicle.id,
-                    label: `${vehicle.plate_number || vehicle.plate || vehicle.license_plate} (Tải: ${vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)`,
-                  })),
-                ]}
-              />
-              <Input
-                label="Tài xế *"
-                type="select"
-                value={formData.driver_id}
-                onChange={(event) => setFormData((prev) => ({ ...prev, driver_id: event.target.value }))}
-                options={[
-                  { value: '', label: '-- Chọn tài xế --' },
-                  ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name })),
-                ]}
-              />
+              {!canCreateSplitPlan && (
+                <>
+                  <Input
+                    label="Phương tiện *"
+                    type="select"
+                    value={formData.vehicle_id}
+                    onChange={(event) => {
+                      setFormData((prev) => ({ ...prev, vehicle_id: event.target.value }));
+                      setSelectedVehicleObj(vehicles.find((vehicle) => Number(vehicle.id) === Number(event.target.value)));
+                    }}
+                    options={[
+                      { value: '', label: '-- Chọn xe --' },
+                      ...vehicles.map((vehicle) => ({
+                        value: vehicle.id,
+                        label: `${vehicle.plate_number || vehicle.plate || vehicle.license_plate} (Tải: ${vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)`,
+                      })),
+                    ]}
+                  />
+                  <Input
+                    label="Tài xế *"
+                    type="select"
+                    value={formData.driver_id}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, driver_id: event.target.value }))}
+                    options={[
+                      { value: '', label: '-- Chọn tài xế --' },
+                      ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name })),
+                    ]}
+                  />
+                </>
+              )}
+              {canCreateSplitPlan && (
+                <div className="sm:col-span-2 flex items-center justify-between gap-3 border border-info-200 bg-info-50 px-4 py-3 rounded-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Truck className="w-4 h-4 text-info-700 shrink-0" />
+                    <span className="text-xs font-semibold text-info-800">Kế hoạch giao hàng bằng nhiều xe</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-info-800 underline underline-offset-2 shrink-0"
+                    onClick={() => {
+                      setSelectedVehicleObj(null);
+                      setSplitRows([]);
+                      setFormData((prev) => ({ ...prev, vehicle_id: '', driver_id: '' }));
+                    }}
+                  >
+                    Chọn lại chuyến một xe
+                  </button>
+                </div>
+              )}
               <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Bắt đầu dự kiến *"
@@ -612,7 +735,7 @@ export default function TripPlanning() {
             </div>
           </div>
 
-          <div className="w-full md:w-[300px] bg-canvas-cream rounded-lg border border-hairline-light p-4 flex flex-col gap-4">
+          <div className="w-full lg:w-[430px] lg:shrink-0 border-t lg:border-t-0 lg:border-l border-hairline-light pt-5 lg:pt-0 lg:pl-6 flex flex-col gap-4">
             <span className="text-xs font-bold uppercase tracking-widest text-shade-40">Lộ trình & tải trọng</span>
             {selectedVehicleObj ? (
               <TripCapacityBar currentWeight={currentWeight} maxWeight={maxWeight} />
@@ -620,63 +743,88 @@ export default function TripPlanning() {
               <p className="text-xs text-shade-40 italic">Chọn xe để xem tải trọng.</p>
             )}
             {canCreateSplitPlan && (
-              <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 flex flex-col gap-3">
-                <div>
-                  <p className="text-xs font-bold text-warning-900">DO vuot tai trong 1 xe</p>
-                  <p className="text-[11px] text-warning-800 mt-1">Chia du so luong trong mot lan va cac xe se xuat phat cung nhau.</p>
+              <div className="flex flex-col gap-4">
+                <div className="border-l-4 border-warning-500 bg-warning-50 px-4 py-3">
+                  <p className="text-sm font-bold text-warning-900">Đơn xuất hàng vượt tải trọng một xe</p>
+                  <p className="text-xs text-warning-800 mt-1">Phân bổ toàn bộ hàng trong một kế hoạch; các xe xuất phát cùng nhau.</p>
                 </div>
                 <div className="flex flex-col gap-3">
                   {splitRows.map((row, rowIndex) => (
-                    <div key={rowIndex} className="rounded border border-warning-200 bg-white/70 p-2 flex flex-col gap-2">
+                    <div key={rowIndex} className="rounded-lg border border-hairline-light bg-canvas-light p-3 flex flex-col gap-3 shadow-level-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-ink">Xe {rowIndex + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-ink">Xe {rowIndex + 1}</span>
+                          {rowIndex === 0 && (
+                            <span className="text-[10px] font-semibold text-info-800 bg-info-50 border border-info-200 px-2 py-1 rounded-pill">
+                              Xe trưởng đoàn
+                            </span>
+                          )}
+                        </div>
                         {splitRows.length > 2 && (
-                          <button type="button" className="text-[11px] text-danger-600 font-semibold" onClick={() => removeSplitRow(rowIndex)}>
-                            Xoa
+                          <button
+                            type="button"
+                            className="w-8 h-8 inline-flex items-center justify-center text-danger-600 hover:bg-danger-50 rounded focus:outline-none focus:ring-2 focus:ring-danger-200"
+                            onClick={() => removeSplitRow(rowIndex)}
+                            title={`Xóa xe ${rowIndex + 1}`}
+                            aria-label={`Xóa xe ${rowIndex + 1}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
-                      <select
-                        className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
-                        value={row.vehicle_id}
-                        onChange={(event) => updateSplitRow(rowIndex, 'vehicle_id', event.target.value)}
-                      >
-                        <option value="">Chon xe</option>
-                        {vehicles.map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.id}>
-                            {vehicle.plate_number || vehicle.plate || vehicle.license_plate} ({vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
-                        value={row.driver_id}
-                        onChange={(event) => updateSplitRow(rowIndex, 'driver_id', event.target.value)}
-                      >
-                        <option value="">Chon tai xe</option>
-                        {drivers.map((driver) => (
-                          <option key={driver.id} value={driver.id}>{driver.full_name || driver.name}</option>
-                        ))}
-                      </select>
-                      {getOrderItems(splitOrder).map((item) => (
-                        <label key={item.id} className="text-[11px] text-shade-60 flex items-center gap-2">
-                          <span className="flex-1 truncate">{item.product_name || item.sku || `Item ${item.id}`}</span>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[11px] font-semibold text-shade-60">Phương tiện</span>
+                        <select
+                          className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
+                          value={row.vehicle_id}
+                          onChange={(event) => updateSplitRow(rowIndex, 'vehicle_id', event.target.value)}
+                        >
+                          <option value="">-- Chọn xe --</option>
+                          {vehicles.map((vehicle) => (
+                            <option key={vehicle.id} value={vehicle.id}>
+                              {vehicle.plate_number || vehicle.plate || vehicle.license_plate} ({vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[11px] font-semibold text-shade-60">
+                          {rowIndex === 0 ? 'Tài xế trưởng' : 'Tài xế'}
+                        </span>
+                        <select
+                          className="text-input text-xs border border-hairline-light rounded p-2 bg-canvas-light"
+                          value={row.driver_id}
+                          onChange={(event) => updateSplitRow(rowIndex, 'driver_id', event.target.value)}
+                        >
+                          <option value="">-- Chọn tài xế --</option>
+                          {drivers.map((driver) => (
+                            <option key={driver.id} value={driver.id}>{driver.full_name || driver.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <span className="text-[11px] font-semibold text-shade-60">Số lượng giao theo sản phẩm và lô</span>
+                      {getSplitAllocationItems(splitOrder).map((item) => (
+                        <label key={item.key} className="text-[11px] text-shade-60 flex items-center gap-2">
+                          <span className="flex-1 truncate">
+                            {item.product_name || item.sku || `Item ${item.do_item_id}`} (Lô {item.batch_code})
+                          </span>
                           <input
                             type="number"
                             min="0"
-                            max={getItemQuantity(item)}
+                            max={item.quantity}
+                            step="0.01"
                             className="w-20 text-input text-xs border border-hairline-light rounded p-1 text-right"
-                            value={row.item_quantities[item.id] ?? 0}
-                            onChange={(event) => updateSplitQuantity(rowIndex, item.id, event.target.value)}
+                            value={row.item_quantities[item.key] ?? 0}
+                            onChange={(event) => updateSplitQuantity(rowIndex, item.key, event.target.value)}
                           />
                         </label>
                       ))}
                     </div>
                   ))}
                 </div>
-                <button type="button" className="text-xs font-semibold text-ink underline underline-offset-2" onClick={addSplitRow}>
-                  Them xe
-                </button>
+                <Button variant="outline-light" icon={Plus} className="self-start" onClick={addSplitRow}>
+                  Thêm xe
+                </Button>
               </div>
             )}
             <div className="flex-1">
@@ -704,11 +852,15 @@ export default function TripPlanning() {
         <div className="flex justify-end gap-3 border-t border-hairline-light pt-4 mt-4">
           <Button variant="outline-light" onClick={() => setShowCreateModal(false)}>Đóng</Button>
           {canCreateSplitPlan && (
-            <Button variant="outline" loading={submitting} disabled={!formData.planned_start_at || !formData.planned_end_at || submitting} onClick={handleCreateSplitSubmit}>
+            <Button variant="primary" loading={submitting} disabled={!formData.planned_start_at || !formData.planned_end_at || submitting} onClick={handleCreateSplitSubmit}>
               Tạo kế hoạch nhiều xe
             </Button>
           )}
-          <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>Tạo chuyến xe</Button>
+          {!canCreateSplitPlan && (
+            <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>
+              Tạo chuyến xe
+            </Button>
+          )}
         </div>
       </Modal>
     </div>

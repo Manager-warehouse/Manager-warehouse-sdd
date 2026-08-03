@@ -78,6 +78,7 @@ public TransferRequestResponse createRequest(TransferRequestCreateRequest reques
 - Ngày cần hàng không được là quá khứ.
 - Không chọn kho ảo `IN_TRANSIT`.
 - Không tạo trùng yêu cầu còn mở cùng tuyến/kỳ cần hàng.
+- Tính tổng tải của yêu cầu và chặn ngay nếu không xe active nào trong đội xe chở được toàn bộ đơn.
 
 ### 3.2. Gửi trưởng kho nguồn duyệt
 
@@ -209,6 +210,7 @@ Chức năng chính:
 - Chưa quá deadline ngày cần hàng.
 - Xe/tài xế hợp lệ, rảnh, thuộc phạm vi điều phối.
 - Thời gian bắt đầu/kết thúc chuyến hợp lệ.
+- Tổng tải phiếu không vượt tải trọng/thể tích của xe được chọn.
 - Không cho lập chuyến nếu đã có trip điều chuyển.
 
 ### 5.2. Công nhân báo số lượng xếp
@@ -217,8 +219,9 @@ File: [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/
 
 Chức năng chính:
 
-- Công nhân nhập số lượng thực xếp lên xe.
-- Nếu lệch kế hoạch thì phải nhập lý do xử lý lại.
+- Công nhân xem danh sách kệ/bin đã được giữ hàng, thấy kệ nào còn bao nhiêu để lấy.
+- Công nhân nhập số lượng lấy theo từng kệ/bin; tổng pick từng dòng phải đúng `plannedQty`.
+- Nếu không chọn kệ, chọn sai kệ đã giữ, lấy vượt allocation hoặc tổng lệch kế hoạch thì không gửi được cho thủ kho.
 - Storekeeper chỉ được QC xuất khi số lượng đã xếp khớp kế hoạch và không còn cờ cần xử lý lại.
 
 ### 5.3. Thủ kho nguồn QC xuất
@@ -306,6 +309,28 @@ Chức năng chính:
 - Nhập phần lỗi QC vào quarantine.
 - Nếu thiếu/thừa thì tạo hồ sơ chênh lệch.
 
+### 6.6. Cộng/trừ tồn khi nhập cuối và xử lý hàng lỗi
+
+File chính: [InterWarehouseTransferReceivingService.java:520](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:520)
+
+Nguyên tắc tồn kho:
+
+| Tình huống | Trừ ở đâu | Cộng ở đâu | Ghi nhận phụ |
+|---|---|---|---|
+| QC đạt, không lệch count | Trừ `IN_TRANSIT` theo allocation đã xuất | Cộng vào kệ thường kho nhận theo putaway plan | Không tạo quarantine |
+| QC lỗi khi count khớp số gửi | Trừ `IN_TRANSIT` theo allocation đã xuất | Cộng vào kệ quarantine của kho nhận | Tạo `QuarantineRecord` nguồn `INTERNAL_TRANSFER` |
+| Nhận thiếu | Trừ toàn bộ phần đã xuất khỏi `IN_TRANSIT` | Chỉ cộng phần thực nhận hợp lệ; phần thiếu không cộng kho nào | Tạo `SHORTAGE` incident và adjustment âm `TRANSFER_DISCREPANCY` để audit |
+| Nhận thừa nhưng hợp lệ theo count | Cộng đủ số công nhân count vào kho nhận | Phần thừa cũng nằm ở kho nhận vì có hàng vật lý | Tạo `OVER_RECEIPT` incident và `discrepancy_hold_entries` để CEO chốt trách nhiệm |
+| Count lệch số gửi | Không cho nhập QC lỗi ở bước QC nhận | `qcPassedQty = workerReceivedQty`, `qcFailedQty = 0` | Phần thiếu/thừa đi hồ sơ chênh lệch, không quarantine ở bước này |
+
+Hàng lỗi điều chuyển sau khi vào quarantine:
+
+- Không tính vào tồn khả dụng để bán/xuất tiếp.
+- Hiển thị ở màn Quarantine với nguồn `Điều chuyển kho: TRF-...`.
+- Nếu một dòng lỗi bị tách nhiều batch/kệ, API quarantine gom theo cùng `TRF + dòng hàng + SKU + lý do lỗi`; ví dụ `10 + 90` sẽ hiển thị một dòng `100`.
+- Khi gửi yêu cầu tiêu hủy từ dòng đã gom, frontend gửi xử lý cho toàn bộ `quarantine_record_ids` trong nhóm, không chỉ record đầu tiên.
+- Tiêu hủy/duyệt tiêu hủy trừ khỏi tồn quarantine theo flow hàng lỗi của module Quarantine; không cộng ngược về kho nguồn/kho đích.
+
 ---
 
 ## 7. Luồng Chính 5: Hồ Sơ Chênh Lệch
@@ -331,17 +356,39 @@ File chính:
 
 ## 8. Luồng Chính 6: Quay Đầu Xe
 
-### 8.1. Điều kiện quay đầu hiện còn
+### 8.1. Quá hạn trước khi xe đang giao
 
-Nhánh quay đầu do kho đích báo sai SKU đã được gỡ khỏi API/service.
+File chính:
+
+- [TransferRequestServiceImpl.java:459](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java:459): tự hủy `TRQ` quá ngày cần hàng.
+- [InterWarehouseTransferHelper.java:230](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferHelper.java:230): chuẩn hóa `TRF` quá hạn trước khi trả response hoặc chạy action.
+
+Nguyên tắc:
+
+- Nếu `TRQ` quá `neededByDate` mà chưa convert xong, hệ thống tự chuyển `CANCELLED`.
+- Nếu `TRF` đang `NEW` hoặc `APPROVED` và quá hạn trước khi xe rời kho, hệ thống:
+  - release reservation để trả lại tồn giữ chỗ;
+  - hủy trip `PLANNED` nếu có;
+  - chuyển `TRF` sang `CANCELLED`;
+  - ghi `rejectionReason = TRANSFER_REQUIRED_DATE_EXPIRED`;
+  - audit `TRANSFER_CANCEL`.
+- Các API submit/approve/convert/gán xe/xếp/QC/depart đều gọi normalize hoặc deadline guard nên người dùng thao tác trễ sẽ thấy phiếu đã hủy hoặc nhận lỗi `TRANSFER_REQUIRED_DATE_EXPIRED`.
+- Frontend hiển thị trạng thái `CANCELLED` là `Đã hủy`; nếu đang thao tác action panel thì backend trả lỗi và UI báo toast lỗi theo message API.
+
+### 8.2. Quá hạn khi xe đang giao
+
+Nhánh quay đầu do kho đích báo sai SKU đã được gỡ khỏi API/service. Nhánh quay đầu hiện còn chỉ dùng cho phiếu đã `IN_TRANSIT` và quá hạn.
 
 Chức năng chính:
 
-- Nếu phiếu đang `IN_TRANSIT` bị quá ngày cần hàng, hệ thống tự đặt `returned = true`.
+- Nếu phiếu đang `IN_TRANSIT` bị quá ngày cần hàng hoặc trip quá `plannedEndAt`, hệ thống tự đặt `returned = true`.
+- Hệ thống giữ trạng thái chính là `IN_TRANSIT` để còn thao tác chặng quay đầu vật lý.
+- Ghi `returnReason = TRANSFER_REQUIRED_DATE_EXPIRED` và audit `TRANSFER_RETURN_TO_SOURCE`.
+- Chặn nhận tại kho đích; tài xế phải chạy chặng quay đầu về kho nguồn.
 - Nếu phiếu đã có `returned = true`, các bước nhận tiếp theo diễn ra tại kho nguồn.
 - Không còn endpoint tạo/duyệt/bác yêu cầu quay đầu do sai SKU tại kho đích.
 
-### 8.2. Quay đầu về kho nguồn
+### 8.3. Quay đầu về kho nguồn
 
 File: [InterWarehouseTransferShippingService.java:644](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:644)
 
@@ -417,10 +464,13 @@ Chức năng chính:
 | Assign trip | Phiếu không phải `APPROVED` | `INVALID_TRANSFER_STATUS` qua `requireStatus` | [InterWarehouseTransferShippingService.java:83](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) |
 | Assign trip | Phiếu quá ngày cần hàng trước depart | Tự hủy/trả response | [InterWarehouseTransferShippingService.java:83](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) |
 | Assign trip | Chưa có driver/vehicle hợp lệ, lịch sai, tài nguyên bận | Các lỗi vehicle/driver/schedule tương ứng | [InterWarehouseTransferShippingService.java:83](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) |
+| Assign trip | Xe được chọn không chứa được tổng tải phiếu | `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD` | [InterWarehouseTransferShippingService.java:83](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) |
 | Báo xếp hàng | Chưa có trip | `TRANSFER_TRIP_REQUIRED` hoặc gate tương ứng | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
 | Báo xếp hàng | Gửi thiếu dòng hàng | `SOURCE_LOAD_ITEMS_REQUIRED` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
 | Báo xếp hàng | Số lượng lẻ | `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
-| Báo xếp hàng | Lệch kế hoạch nhưng không có lý do | `SOURCE_LOAD_REWORK_REASON_REQUIRED` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
+| Báo xếp hàng | Không gửi pick theo kệ/bin | `SOURCE_PICK_ROWS_REQUIRED` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
+| Báo xếp hàng | Chọn kệ không thuộc allocation đã giữ hoặc lấy vượt allocation | `SOURCE_PICK_LOCATION_NOT_RESERVED`, `SOURCE_PICK_QTY_EXCEEDS_AVAILABLE` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
+| Báo xếp hàng | Tổng pick không khớp kế hoạch hoặc không khớp allocation từng kệ | `SOURCE_PICK_QTY_MUST_MATCH_PLAN`, `SOURCE_PICK_QTY_MUST_MATCH_RESERVED_BIN` | [InterWarehouseTransferShippingService.java:183](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:183) |
 | QC xuất | Chưa báo xếp hàng | `SOURCE_LOAD_REPORT_REQUIRED` hoặc gate tương ứng | [InterWarehouseTransferShippingService.java:272](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:272) |
 | QC xuất | Còn yêu cầu xếp lại | `SOURCE_LOAD_REWORK_REQUIRED` | [InterWarehouseTransferShippingService.java:272](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:272) |
 | QC xuất | Không có ảnh QC | `OUTBOUND_QC_PHOTO_REQUIRED` | [InterWarehouseTransferShippingService.java:272](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:272) |

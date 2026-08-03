@@ -45,7 +45,7 @@ Validation:
 - Quản lý kho nguồn hoặc quản lý có quyền chỉ được hủy phiếu `APPROVED` khi chưa chốt gửi hàng.
 - Không được hủy sau khi phiếu đã `IN_TRANSIT`.
 - Nếu tạo từ transfer request, request liên kết phải là `APPROVED` và chưa từng convert.
-- GET/list/detail không được mutate status hoặc persist overdue transition.
+- GET/list/detail có thể normalize quá hạn trước khi trả response: `NEW`/`APPROVED` quá hạn thành `CANCELLED` và release reservation nếu có; `IN_TRANSIT` quá hạn set `is_returned = true` để đi chặng quay đầu. Mọi transition này phải audit và không được tạo tồn âm.
 - Receive-count bị chặn cho đến khi đã ghi nhận tài xế đến và bàn giao tại kho nhận.
 - Nhận hàng quay đầu bị chặn cho đến khi có return departure và source arrival/handover.
 - Outbound QC tại nguồn bị chặn cho đến khi có số lượng loaded do công nhân báo cáo.
@@ -148,42 +148,26 @@ Validation:
 - `receive_checker_note` là optional khi số thủ kho kiểm bằng số công nhân nhập, và bắt buộc khi khác nhau.
 - `qc_failed_qty` có mặt vật lý sẽ tạo hoặc cập nhật quarantine source record với `origin_type = INTERNAL_TRANSFER` và `origin_id = transfer_item.id`.
 - `variance_qty` âm thể hiện thiếu hàng và không được tạo quarantine source record.
-- Sai SKU không còn tự tạo flow return-to-source; nếu có damage/QC failure riêng thì xử lý theo quarantine/disposal tương ứng.
+- Sai SKU không còn tự tạo flow return-to-source; nếu có damage/QC failure riêng thì xử lý theo count/QC/discrepancy/quarantine tương ứng.
 - Vị trí kho đích cho số lượng QC pass phải còn đủ sức chứa bin.
 
-## WrongSkuReport
+## Sai SKU
 
-**Bảng**: `transfer_wrong_sku_reports` hoặc tên bảng thực tế tương đương
-
-Các trường cần thêm/kiểm tra:
-- `id`
-- `transfer_id`
-- `transfer_item_id`
-- `expected_product_id`
-- `actual_product_id`
-- `quantity`
-- `reason`
-- `photo_refs`
-- `status`: `REPORTED`, `APPROVED`, `REJECTED`, `RETURN_DEPARTED`, `RETURN_ARRIVED`, `CLOSED`
-- `reported_by`, `reported_at`
-- `decided_by`, `decided_at`, `decision_reason`
-
-Validation:
-- Sản phẩm expected và actual phải khác nhau.
-- Quantity phải dương và không được vượt quá số lượng `IN_TRANSIT` bị ảnh hưởng.
-- Bắt buộc có reason.
-- Photo references là optional cho wrong-SKU trong Sprint 1 nhưng phải được giữ nếu người dùng cung cấp.
-- Quyết định của quản lý yêu cầu scope quản lý kho đích.
+Sprint 1 runtime không còn flow wrong-SKU return riêng:
+- Không expose endpoint hoặc action request/approve/reject return do sai SKU.
+- Nếu còn bảng/field legacy cho dữ liệu cũ thì chỉ giữ tương thích schema, không là dependency của flow điều chuyển hiện tại.
+- Sai SKU vật lý, nếu phát sinh, được xử lý qua receive count, QC, discrepancy hoặc quarantine theo trạng thái thực tế của hàng.
 
 ## Quyết định trả hàng điều chuyển
 
 Các trường trên `transfers`:
 - `is_returned`
-- `return_reason_code`: `TRIP_OVERDUE`
+- `return_reason_code`: `TRANSFER_REQUIRED_DATE_EXPIRED`
 - `return_reason`
 
 Rules:
-- Khi transfer quá deadline trong lúc `IN_TRANSIT`, hệ thống set `is_returned = true`.
+- Khi transfer quá hạn nhận hàng trong lúc `IN_TRANSIT`, hệ thống set `is_returned = true`.
+- Khi transfer quá hạn trước `IN_TRANSIT`, hệ thống cancel phiếu và release reservation nếu có; không mở chặng quay đầu vì hàng chưa rời kho nguồn.
 - Cùng trip, vehicle, driver và inventory `IN_TRANSIT` vẫn active cho chặng quay đầu.
 - Sau khi quay về kho nguồn, kho nguồn phải count/check/QC/final receive trước khi nhập lại tồn.
 - Tài xế được gán phải ghi return departure và source arrival/handover trước khi kho nguồn bắt đầu nhận.
@@ -244,6 +228,7 @@ Dùng cho hàng QC fail vật lý:
 - Warehouse là nơi hàng được quarantine thực tế: kho đích trong luồng thường, kho nguồn trong luồng quay đầu.
 - Quantity là số QC fail vật lý.
 - Hàng quarantine không được tính vào available inventory.
+- API quản lý quarantine phải gom record điều chuyển theo `transfer + transfer item + product + reason` và trả `quarantine_record_ids`; xử lý tiêu hủy từ dòng gom phải áp dụng toàn bộ id trong nhóm.
 - Disposal/return/scrap tiếp theo thuộc Spec 009, không thuộc Spec 005.
 
 ## AuditLog
@@ -266,7 +251,7 @@ Bắt buộc audit cho:
 - Submit putaway/final receive.
 - Discrepancy incident và adjustment.
 - Quarantine reject.
-- Wrong-SKU report, approve/reject return.
+- Normalize quá hạn thành cancel hoặc return-to-source.
 - Return depart, return arrive, return handover và final source receive.
 
 Audit payload phải đủ để dựng lại before/after header, item quantities, allocations, trip/resource state, QC result, photo refs, inventory movements, discrepancy ids và actor/timestamp.

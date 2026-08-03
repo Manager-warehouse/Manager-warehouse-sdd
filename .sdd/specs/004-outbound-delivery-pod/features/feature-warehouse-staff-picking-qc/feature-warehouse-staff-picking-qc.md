@@ -4,9 +4,9 @@
 
 Nhân viên kho lấy hàng thực tế theo kế hoạch của Thủ kho, kiểm tra chất lượng từng sản phẩm và nhập số lượng đã lấy, số lượng đạt QC, số lượng không đạt QC theo từng Delivery Order item, allocation, batch, location và zone đã được lập kế hoạch. Feature này không dùng trạng thái `PICKING`; Delivery Order ở `WAITING_PICKING` trong lúc chờ nhân viên kho nhập kết quả lấy hàng/QC.
 
-Khi nhân viên kho lưu kết quả QC, hàng đạt QC được chuyển nội bộ từ bin gốc sang outbound staging trong cùng kho và tiếp tục bị giữ cho Delivery Order, chưa được xuất bán. Với `qcPassQty`, hệ thống giảm `total_qty` và `reserved_qty` ở source inventory, sau đó cộng `total_qty` và `reserved_qty` vào staging inventory cùng product/batch. Hàng không đạt QC được chuyển sang quarantine, tạo quarantine record, tạo inventory adjustment record loại `QC_FAIL_OUTBOUND` cho phần fail, trừ khỏi tồn kho hợp lệ và không được tính vào available inventory. Việc trừ tồn kho xuất bán thực tế chỉ xảy ra sau này khi tài xế xác nhận nhận hàng và Delivery Order chuyển sang `IN_TRANSIT`.
+Khi nhân viên kho lưu kết quả QC, hệ thống chỉ lưu số lượng đạt/không đạt và vị trí staging/quarantine dự kiến; toàn bộ hàng vẫn nằm tại bin nguồn và tiếp tục được reserve. Chỉ khi Thủ kho duyệt kết quả cuối cùng, hàng đạt mới được chuyển sang outbound staging và hàng không đạt mới được chuyển sang quarantine, đồng thời tạo quarantine record và adjustment `QC_FAIL_OUTBOUND`.
 
-Sau khi Nhân viên kho nhập kết quả lấy hàng/QC một lần duy nhất cho toàn bộ kế hoạch hiện tại, Delivery Order chuyển sang `QC_PENDING_APPROVAL` kể cả khi số lượng đạt QC chưa đủ. Nếu có hàng fail QC, Thủ kho xem kết quả ở trạng thái chờ duyệt và chọn hàng thay thế ở feature picking plan; khi replacement plan được lưu, Delivery Order quay lại `WAITING_PICKING` để Nhân viên kho lấy và QC phần hàng thay thế. Khi Delivery Order quay lại `WAITING_PICKING` do replacement, `pick-qc-result` chỉ yêu cầu các allocation replacement hoặc allocation còn `PLANNED`/chưa có QC record; các allocation cũ đã QC pass và đang nằm ở outbound staging không phải nhập lại.
+Sau khi Nhân viên kho nhập kết quả lấy hàng/QC một lần duy nhất cho toàn bộ kế hoạch hiện tại, Delivery Order chuyển sang `QC_PENDING_APPROVAL` kể cả khi số lượng đạt QC chưa đủ. Nếu có hàng fail QC, Thủ kho xem kết quả ở trạng thái chờ duyệt và chọn hàng thay thế ở feature picking plan; khi replacement plan được lưu, Delivery Order quay lại `WAITING_PICKING` để Nhân viên kho lấy và QC phần hàng thay thế. Khi Delivery Order quay lại `WAITING_PICKING` do replacement, `pick-qc-result` chỉ yêu cầu các allocation replacement hoặc allocation còn `PLANNED`/chưa có QC record; các allocation cũ đã có QC record đang chờ duyệt không phải nhập lại.
 
 ## 2. Actors
 
@@ -31,21 +31,19 @@ Sau khi Nhân viên kho nhập kết quả lấy hàng/QC một lần duy nhất
   * For every Delivery Order item, cumulative QC-passed quantity SHALL NOT exceed the requested quantity.
   * For the submitted plan, total `pickedQty` across all rows for each Delivery Order item SHALL equal the item's currently planned quantity.
   * `qcFailReason` SHALL be required when `qcFailQty > 0`.
-  * QC-passed quantity SHALL remain in outbound staging until warehouse manager approval, trip departure, or warehouse rejection.
-  * Failed QC quantity SHALL be moved to quarantine, recorded by an inventory adjustment, deducted from valid regular inventory, and excluded from available inventory.
+  * Before Storekeeper quality approval, both QC-passed and QC-failed quantities SHALL remain physically and reserved in their source inventory rows.
+  * After Storekeeper quality approval, QC-passed quantity SHALL remain in outbound staging until trip departure or warehouse rejection, while failed quantity SHALL remain in quarantine and outside available inventory.
 * **Event-driven:**
   * WHEN warehouse staff saves picked and QC quantities for a Delivery Order in `WAITING_PICKING`, the system SHALL:
     * Validate the warehouse staff user is assigned to the Delivery Order warehouse.
     * Store picked quantity, QC pass quantity, and QC fail quantity for each `doItemId` + `allocationId` + `batchId` + `locationId` + `zoneId`.
-    * Move QC-passed quantity from the planned batch/bin/location/zone to outbound staging in the same warehouse by decreasing source inventory `total_qty` and `reserved_qty`, then increasing staging inventory `total_qty` and `reserved_qty` for the same product/batch.
-    * Move QC-failed quantity from the planned batch/bin/location/zone to quarantine in the same warehouse by decreasing source inventory `total_qty` and `reserved_qty`, then increasing quarantine inventory `total_qty` for the same product/batch with `reserved_qty = 0`.
-    * Create a quarantine record and an inventory adjustment record with type `QC_FAIL_OUTBOUND`, negative quantity against the regular source inventory, and references to the Delivery Order, allocation, outbound QC record, and quarantine record for every QC-failed quantity.
-    * Decrease regular valid inventory for the failed quantity, remove the failed quantity from the original concrete reservation, keep failed goods out of available inventory, and preserve version checks on every affected inventory row.
-    * Keep QC-passed goods reserved for the Delivery Order in outbound staging.
+    * Persist the selected staging and quarantine destinations on the QC record without changing source, staging, or quarantine inventory.
+    * Keep the complete picked quantity reserved in its source inventory until Storekeeper approval.
+    * Defer quarantine records, `QC_FAIL_OUTBOUND` adjustments, occupancy changes, and all inventory movement.
     * Move the Delivery Order to `QC_PENDING_APPROVAL`.
   * WHEN any Delivery Order item has cumulative QC-passed quantity lower than requested quantity because of QC fail, the system SHALL keep the Delivery Order in `QC_PENDING_APPROVAL` so the Storekeeper can review the fail result and select replacement goods, and SHALL block Storekeeper quality approval until replacement goods have been planned, picked, and QC-passed.
   * WHEN the Storekeeper saves replacement allocation for QC fail quantity, the system SHALL move the Delivery Order back to `WAITING_PICKING`.
-  * WHEN the Storekeeper approves quality for a `QC_PENDING_APPROVAL` Delivery Order, the system SHALL move the Delivery Order to `QC_COMPLETED` and create an audit log with before/after state and optional notes.
+  * WHEN the Storekeeper approves quality for a `QC_PENDING_APPROVAL` Delivery Order, the system SHALL atomically move QC-passed quantities from reserved source inventory to reserved outbound staging, move QC-failed quantities from reserved source inventory to quarantine, create quarantine and `QC_FAIL_OUTBOUND` adjustment records, set `inventory_moved_at`, move the Delivery Order to `QC_COMPLETED`, and create the required audits.
   * WHEN warehouse manager approves a `QC_COMPLETED` Delivery Order, the system SHALL move the Delivery Order to `WAREHOUSE_APPROVED` and create an audit log with before/after state and optional notes.
   * WHEN warehouse manager rejects a `QC_COMPLETED` Delivery Order, the system SHALL:
     * Store the rejection reason.
@@ -59,7 +57,7 @@ Sau khi Nhân viên kho nhập kết quả lấy hàng/QC một lần duy nhất
 ## 4. API Endpoints
 
 * `PUT /api/v1/delivery-orders/{id}/pick-qc-result` - Nhân viên kho lưu số lượng đã lấy, đạt QC và không đạt QC theo từng Delivery Order item, allocation, batch, location và zone.
-* `PUT /api/v1/delivery-orders/{id}/quality-approval` - Thủ kho phê duyệt chất lượng outbound sau khi đủ số lượng đạt QC.
+* `PUT /api/v1/delivery-orders/{id}/quality-approval` - Thủ kho chấp nhận kết quả QC hoặc từ chối kèm lý do để Nhân viên kho đếm/QC lại.
 * `PUT /api/v1/delivery-orders/{id}/warehouse-approval` - Trưởng kho phê duyệt xuất kho sau `QC_COMPLETED`.
 * `PUT /api/v1/delivery-orders/{id}/warehouse-reject` - Trưởng kho từ chối xuất kho sau `QC_COMPLETED`.
 
@@ -94,13 +92,13 @@ Validation rules:
 * Tổng `qcPassQty` theo `doItemId` SHALL NOT vượt quá `requestedQty` của Delivery Order item.
 * `stagingLocationId` SHALL thuộc outbound staging zone trong cùng kho. If the warehouse has exactly one default outbound staging location, the backend MAY resolve it automatically when `stagingLocationId` is omitted.
 * `quarantineLocationId` SHALL thuộc quarantine zone trong cùng kho khi có `qcFailQty > 0`. If the warehouse has exactly one default quarantine location, the backend MAY resolve it automatically when `quarantineLocationId` is omitted.
-* If `stagingLocationId` or `quarantineLocationId` is provided, the backend SHALL validate the location belongs to the Delivery Order warehouse and has the required zone type before applying inventory movement.
+* The backend SHALL validate destinations when Staff submits the result and revalidate operational state, purpose, and capacity when Storekeeper approves before applying inventory movement.
 
 Inventory movement rules:
 
-* For `qcPassQty`, source inventory SHALL decrease `total_qty` and `reserved_qty`; staging inventory for the same product/batch SHALL increase `total_qty` and `reserved_qty`.
-* For `qcFailQty`, source inventory SHALL decrease `total_qty` and `reserved_qty`; quarantine inventory for the same product/batch SHALL increase `total_qty` and SHALL keep `reserved_qty = 0`.
-* For `qcFailQty`, the system SHALL create an inventory adjustment with type `QC_FAIL_OUTBOUND`, negative quantity against the regular source inventory, and references to Delivery Order, allocation, outbound QC record, and quarantine record.
+* Staff submission SHALL NOT mutate any source, staging, or quarantine inventory row.
+* On Storekeeper `ACCEPT`, source inventory SHALL decrease `total_qty` and `reserved_qty`; staging inventory SHALL increase `total_qty` and `reserved_qty` for `qcPassQty`; quarantine inventory SHALL increase `total_qty` with `reserved_qty = 0` for `qcFailQty`.
+* On Storekeeper `ACCEPT`, every `qcFailQty > 0` SHALL create an approved `QC_FAIL_OUTBOUND` adjustment and linked quarantine record under the Storekeeper actor.
 * Quarantine inventory SHALL NOT be counted as available regular inventory.
 
 Duplicate handling:
@@ -119,7 +117,7 @@ Duplicate handling:
 Validation rules:
 
 * Delivery Order SHALL be in `QC_PENDING_APPROVAL`.
-* All requested quantities SHALL have QC-passed goods available in outbound staging after any required replacement.
+* Submitted QC-passed quantities SHALL cover all requested quantities after any required replacement.
 * The system SHALL create `DELIVERY_ORDER_QC_APPROVE` audit log with actor, role, warehouse, before state, after state, and `notes`.
 
 ### Warehouse approval request payload
@@ -160,7 +158,7 @@ Validation rules:
   * Given a delivery order is in `WAITING_PICKING` with a saved picking plan
   * And the warehouse staff user is assigned to the delivery order warehouse
   * When warehouse staff records picked, QC pass, and QC fail quantities by `doItemId`, `allocationId`, `batchId`, `locationId`, and `zoneId`
-  * Then the system SHALL validate quantities, move QC-passed goods to outbound staging, move failed goods to quarantine, create inventory adjustment records, create QC/quarantine audit logs, deduct failed goods from valid regular inventory, remove failed quantity from concrete reservation, and move the order to `QC_PENDING_APPROVAL`.
+  * Then the system SHALL validate quantities and destinations, persist the QC evidence, keep all inventory unchanged and reserved at source, and move the order to `QC_PENDING_APPROVAL`.
 
 * **Scenario: Block invalid QC quantity**
   * Given an allocation has planned quantity 10
@@ -206,9 +204,9 @@ Validation rules:
   * Then the system SHALL reject the action with `QC_REPLACEMENT_REQUIRED`.
 
 * **Scenario: Storekeeper approves quality**
-  * Given all requested quantities have QC-passed goods in outbound staging and the Delivery Order is in `QC_PENDING_APPROVAL`
+  * Given all requested quantities are covered by submitted QC-passed results and the Delivery Order is in `QC_PENDING_APPROVAL`
   * When the Storekeeper approves quality
-  * Then the system SHALL move the Delivery Order to `QC_COMPLETED`.
+  * Then the system SHALL move passed goods to staging, failed goods to quarantine, create quarantine/adjustment evidence, and move the Delivery Order to `QC_COMPLETED`.
 
 * **Scenario: Warehouse manager approves outbound**
   * Given a Delivery Order is in `QC_COMPLETED`

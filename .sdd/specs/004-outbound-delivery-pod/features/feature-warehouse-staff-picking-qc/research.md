@@ -18,21 +18,21 @@
 
 **Alternatives considered**: No idempotency support was rejected because the feature spec requires safe retry. Accepting the same key without validating payload identity was rejected because it can hide conflicting submissions.
 
-## Decision: Move QC-passed goods from source inventory to outbound staging by inventory transfer semantics, not issue semantics
+## Decision: Defer QC inventory movement until Storekeeper approval
 
-**Rationale**: At this step the goods are not yet sold or departed. The source regular inventory must decrease `total_qty` and `reserved_qty`, while a staging inventory row for the same product and batch increases `total_qty` and `reserved_qty`, preserving reservation for the Delivery Order until warehouse approval and dispatch.
+**Rationale**: Warehouse Staff submission is evidence awaiting Storekeeper review. Source inventory remains physically present and reserved while approval is pending. Storekeeper approval then moves passed goods to reserved staging and failed goods to quarantine in one transaction.
 
-**Alternatives considered**: Directly decreasing stock as if issued was rejected because outbound fulfillment is not final until later `IN_TRANSIT` logic.
+**Alternatives considered**: Moving goods during Staff submission was rejected because a later Storekeeper rejection would require compensating inventory, quarantine, adjustment, and occupancy writes.
 
 ## Decision: Move QC-failed goods into quarantine while also creating quarantine and inventory adjustment records
 
-**Rationale**: The constitution requires failed QC goods to enter quarantine and stay out of available inventory. Creating a quarantine record plus `QC_FAIL_OUTBOUND` adjustment preserves traceability between the Delivery Order, allocation, source row, and quarantined quantity.
+**Rationale**: After Storekeeper approval, failed QC goods must enter quarantine and stay out of available inventory. Creating a quarantine record plus `QC_FAIL_OUTBOUND` adjustment at approval preserves traceability and attributes the accepted movement to the approving Storekeeper.
 
 **Alternatives considered**: Leaving fail quantity on the source allocation with a flag was rejected because it would keep damaged goods mixed with regular stock and weaken auditability.
 
 ## Decision: Let replacement cycles submit only newly active allocations without replaying previously passed staging allocations
 
-**Rationale**: Once a prior allocation already passed QC and is sitting in outbound staging, forcing warehouse staff to resubmit it on replacement cycles would duplicate QC evidence and risk double movement. The active cycle should therefore include only replacement allocations or allocations still lacking QC records.
+**Rationale**: Once a prior allocation already has pending QC evidence, forcing warehouse staff to resubmit it on replacement cycles would duplicate QC evidence and risk double movement at approval. The active cycle should therefore include only replacement allocations or allocations still lacking QC records.
 
 **Alternatives considered**: Requiring all allocations on every cycle was rejected because it conflicts with the feature requirements and idempotency rules.
 

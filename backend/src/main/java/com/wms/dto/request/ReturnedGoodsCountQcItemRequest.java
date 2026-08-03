@@ -32,4 +32,6 @@ public class ReturnedGoodsCountQcItemRequest {
     private BigDecimal qualityFailQty;
 
     private String qualityFailureReason;
+
+    private String shortageReason;
 }
