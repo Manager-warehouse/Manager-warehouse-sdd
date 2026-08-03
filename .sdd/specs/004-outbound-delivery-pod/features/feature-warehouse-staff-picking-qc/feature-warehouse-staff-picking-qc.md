@@ -46,6 +46,8 @@ Sau khi Nhân viên kho nhập kết quả lấy hàng/QC một lần duy nhất
   * WHEN the Storekeeper approves quality for a `QC_PENDING_APPROVAL` Delivery Order, the system SHALL atomically move QC-passed quantities from reserved source inventory to reserved outbound staging, move QC-failed quantities from reserved source inventory to quarantine, create quarantine and `QC_FAIL_OUTBOUND` adjustment records, set `inventory_moved_at`, move the Delivery Order to `QC_COMPLETED`, and create the required audits.
   * WHEN the Storekeeper rejects quality for a `QC_PENDING_APPROVAL` Delivery Order, the system SHALL require a rejection reason, leave inventory in its reserved source rows, mark the rejected QC rows inactive, reset picked/pass/fail summaries for those rows, and move the Delivery Order to `WAITING_PICKING` for Warehouse Staff recount.
   * WHEN Warehouse Staff resubmits the recount, inactive rejected QC rows SHALL remain as history but SHALL NOT block or contribute to the new active pick/QC cycle, idempotency replay, delivery quantities, or QC reporting.
+  * WHEN a recount exposes an imbalanced picking plan because original and replacement allocations total more or less than the Delivery Order requested quantity, the Staff UI SHALL block QC submission and allow Warehouse Staff to request Storekeeper replanning.
+  * The replanning request SHALL be accepted only while the Delivery Order is `WAITING_PICKING` and at least one item has `sum(active allocation planned_qty) != requested_qty`; it SHALL preserve inventory reservations, store the reason on the Delivery Order, and create a `PICKING_PLAN_ADJUSTMENT_REQUEST` audit entry.
   * WHEN warehouse manager approves a `QC_COMPLETED` Delivery Order, the system SHALL move the Delivery Order to `WAREHOUSE_APPROVED` and create an audit log with before/after state and optional notes.
   * WHEN warehouse manager rejects a `QC_COMPLETED` Delivery Order, the system SHALL:
     * Store the rejection reason.
@@ -217,6 +219,11 @@ Validation rules:
   * Given Warehouse Staff submitted a complete pick/QC result and the Delivery Order is in `QC_PENDING_APPROVAL`
   * When the Storekeeper rejects the result with a reason
   * Then the system SHALL leave inventory reserved at source, deactivate the rejected QC rows, preserve them as history, show the reason to Warehouse Staff, and move the Delivery Order to `WAITING_PICKING`.
+
+* **Scenario: Staff requests picking-plan redistribution after recount rejection**
+  * Given rejected QC history is shown for recount and active original plus replacement allocations do not total the requested quantity
+  * When Warehouse Staff requests Storekeeper redistribution
+  * Then the system SHALL block QC submission, keep the Delivery Order in `WAITING_PICKING`, store the generated mismatch reason, create a `PICKING_PLAN_ADJUSTMENT_REQUEST` audit, and allow Storekeeper to revise the active allocations and release any excess reservation through the picking-plan flow.
 
 * **Scenario: Warehouse manager approves outbound**
   * Given a Delivery Order is in `QC_COMPLETED`

@@ -468,6 +468,21 @@ class DeliveryOrderControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void requestPickingPlanAdjustment_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.requestPickingPlanAdjustment(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan-adjustment-request")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Tong phan bo 12 vuot so luong yeu cau 10\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
+    }
+
+    @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void approveQuality_success() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);

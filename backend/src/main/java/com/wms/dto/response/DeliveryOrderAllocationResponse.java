@@ -17,7 +17,9 @@ public class DeliveryOrderAllocationResponse {
     private BigDecimal pickedQty;
     private BigDecimal qcPassQty;
     private BigDecimal qcFailQty;
+    private String qcFailReason;
     private Long stagingLocationId;
+    private Long quarantineLocationId;
     private boolean qcCompleted;
     private boolean replacement;
 }

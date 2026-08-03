@@ -28,6 +28,17 @@ public interface OutboundQcRecordRepository extends JpaRepository<OutboundQcReco
             "deliveryOrder", "deliveryOrderItem", "allocation", "batch", "location", "zone",
             "stagingLocation", "quarantineLocation", "quarantineRecord"
     })
+    @Query("""
+            select r from OutboundQcRecord r
+            where r.allocation.id in :allocationIds
+            order by r.allocation.id asc, r.createdAt desc, r.id desc
+            """)
+    List<OutboundQcRecord> findHistoryByAllocationIdIn(@Param("allocationIds") Collection<Long> allocationIds);
+
+    @EntityGraph(attributePaths = {
+            "deliveryOrder", "deliveryOrderItem", "allocation", "batch", "location", "zone",
+            "stagingLocation", "quarantineLocation", "quarantineRecord"
+    })
     List<OutboundQcRecord> findByDeliveryOrderIdAndIsActiveTrue(Long deliveryOrderId);
 
     @EntityGraph(attributePaths = {

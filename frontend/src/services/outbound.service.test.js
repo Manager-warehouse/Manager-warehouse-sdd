@@ -96,6 +96,17 @@ describe('outboundService pick/QC payload', () => {
     });
   });
 
+  it('sends the Staff request to revise an imbalanced picking plan', async () => {
+    const { outboundService } = await import('./outbound.service');
+    mocks.put.mockResolvedValue({ data: { id: 100, status: 'WAITING_PICKING', items: [] } });
+
+    await outboundService.requestPickingPlanAdjustment(100, 'Yêu cầu 10, đang phân bổ 12');
+
+    expect(mocks.put).toHaveBeenCalledWith('/delivery-orders/100/picking-plan-adjustment-request', {
+      reason: 'Yêu cầu 10, đang phân bổ 12',
+    });
+  });
+
   it('sends shortage reason and normalizes server-derived shortage quantity', async () => {
     const { outboundService } = await import('./outbound.service');
     mocks.put.mockResolvedValue({

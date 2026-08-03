@@ -5,6 +5,7 @@ import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest;
 import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
@@ -181,6 +182,22 @@ public class DeliveryOrderController {
     public DeliveryOrderResponse saveDeliveryOrderPickQcResult(@PathVariable Long id,
                                                                @Valid @RequestBody DeliveryOrderPickQcResultRequest request) {
         return deliveryOrderService.saveDeliveryOrderPickQcResult(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/picking-plan-adjustment-request")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @Operation(summary = "Request Storekeeper to revise an imbalanced picking plan")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Adjustment request recorded"),
+            @ApiResponse(responseCode = "400", description = "Reason is missing", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Warehouse scope or role is invalid", content = @Content),
+            @ApiResponse(responseCode = "422",
+                    description = "Order is not waiting for picking or its picking plan is already balanced",
+                    content = @Content)
+    })
+    public DeliveryOrderResponse requestPickingPlanAdjustment(@PathVariable Long id,
+            @Valid @RequestBody DeliveryOrderPickingPlanAdjustmentRequest request) {
+        return deliveryOrderService.requestPickingPlanAdjustment(id, request, currentUser());
     }
 
     @PutMapping("/{id}/replacement-plan")

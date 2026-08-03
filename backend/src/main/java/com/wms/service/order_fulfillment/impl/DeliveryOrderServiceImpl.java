@@ -8,6 +8,7 @@ import com.wms.dto.request.DeliveryOrderItemCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickQcRowRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest;
 import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementAllocationRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
@@ -742,6 +743,44 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         DeliveryOrder saved = deliveryOrderRepository.save(order);
 
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_PICK_COMPLETE, "DELIVERY_ORDER",
+                saved.getId(), saved.getDoNumber(), before,
+                snapshot(saved, null, List.of(), orderItems, orderAllocations));
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryOrderResponse requestPickingPlanAdjustment(Long id,
+            DeliveryOrderPickingPlanAdjustmentRequest request,
+            User actor) {
+        requireRole(actor, UserRole.WAREHOUSE_STAFF,
+                "Only Warehouse Staff can request a picking plan adjustment");
+        DeliveryOrder order = findOrder(id);
+        requireWarehouseScope(actor, order.getWarehouse().getId());
+        if (order.getStatus() != DeliveryOrderStatus.WAITING_PICKING) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Picking plan adjustment can only be requested from WAITING_PICKING status");
+        }
+
+        List<DeliveryOrderItem> orderItems = items(order.getId());
+        List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
+        boolean planImbalanced = orderItems.stream().anyMatch(item -> orderAllocations.stream()
+                .filter(allocation -> allocation.getDeliveryOrderItem().getId().equals(item.getId()))
+                .map(DeliveryOrderItemAllocation::getPlannedQty)
+                .reduce(ZERO, this::valueAdd)
+                .compareTo(value(item.getRequestedQty())) != 0);
+        if (!planImbalanced) {
+            throw new OutboundDeliveryException("PICKING_PLAN_ADJUSTMENT_NOT_REQUIRED",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Picking plan already matches the requested quantities");
+        }
+
+        Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
+        order.setRejectionReason(request.getReason().trim());
+        order.setUpdatedAt(OffsetDateTime.now());
+        DeliveryOrder saved = deliveryOrderRepository.save(order);
+        auditUtil.logChange(actor, AuditAction.PICKING_PLAN_ADJUSTMENT_REQUEST, "DELIVERY_ORDER",
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return toResponse(saved);
@@ -1656,25 +1695,47 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (allocationIds.isEmpty()) {
             return Map.of();
         }
-        return outboundQcRecordRepository.findByAllocationIdIn(allocationIds).stream()
+        Map<Long, AllocationQcSummary> summaries = outboundQcRecordRepository.findByAllocationIdIn(allocationIds)
+                .stream()
                 .collect(Collectors.groupingBy(row -> row.getAllocation().getId(),
-                        Collectors.collectingAndThen(Collectors.toList(), rows -> {
-                            BigDecimal qcPassQty = rows.stream()
-                                    .map(OutboundQcRecord::getQcPassQty)
-                                    .reduce(ZERO, this::valueAdd);
-                            BigDecimal qcFailQty = rows.stream()
-                                    .map(OutboundQcRecord::getQcFailQty)
-                                    .reduce(ZERO, this::valueAdd);
-                            Long stagingLocationId = rows.stream()
-                                    .filter(row -> value(row.getQcPassQty()).compareTo(ZERO) > 0)
-                                    .map(OutboundQcRecord::getStagingLocation)
-                                    .filter(Objects::nonNull)
-                                    .map(WarehouseLocation::getId)
-                                    .findFirst()
-                                    .orElse(null);
-                            return new AllocationQcSummary(qcPassQty, qcFailQty, stagingLocationId,
-                                    qcPassQty.add(qcFailQty).compareTo(ZERO) > 0);
-                        })));
+                        Collectors.collectingAndThen(Collectors.toList(), rows -> summarizeQcRows(rows, true))));
+        List<Long> missingAllocationIds = allocationIds.stream()
+                .filter(allocationId -> !summaries.containsKey(allocationId))
+                .toList();
+        if (!missingAllocationIds.isEmpty()) {
+            outboundQcRecordRepository.findHistoryByAllocationIdIn(missingAllocationIds).stream()
+                    .filter(row -> !Boolean.TRUE.equals(row.getIsActive()))
+                    .collect(Collectors.toMap(row -> row.getAllocation().getId(), Function.identity(),
+                            (latest, ignored) -> latest))
+                    .forEach((allocationId, row) -> summaries.put(allocationId,
+                            summarizeQcRows(List.of(row), false)));
+        }
+        return summaries;
+    }
+
+    private AllocationQcSummary summarizeQcRows(List<OutboundQcRecord> rows, boolean completed) {
+        BigDecimal qcPassQty = rows.stream()
+                .map(OutboundQcRecord::getQcPassQty)
+                .reduce(ZERO, this::valueAdd);
+        BigDecimal qcFailQty = rows.stream()
+                .map(OutboundQcRecord::getQcFailQty)
+                .reduce(ZERO, this::valueAdd);
+        OutboundQcRecord failedRow = rows.stream()
+                .filter(row -> value(row.getQcFailQty()).compareTo(ZERO) > 0)
+                .findFirst()
+                .orElse(null);
+        Long stagingLocationId = rows.stream()
+                .filter(row -> value(row.getQcPassQty()).compareTo(ZERO) > 0)
+                .map(OutboundQcRecord::getStagingLocation)
+                .filter(Objects::nonNull)
+                .map(WarehouseLocation::getId)
+                .findFirst()
+                .orElse(null);
+        return new AllocationQcSummary(qcPassQty, qcFailQty,
+                failedRow == null ? null : failedRow.getQcFailReason(), stagingLocationId,
+                failedRow == null || failedRow.getQuarantineLocation() == null
+                        ? null : failedRow.getQuarantineLocation().getId(),
+                completed);
     }
 
     private void requireReturnedOrderScope(DeliveryOrder order, User actor) {
