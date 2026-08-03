@@ -204,7 +204,7 @@
 2. Trưởng kho chỉ được tạo yêu cầu cho kho mình phụ trách; kho yêu cầu trở thành kho đích, kho còn hàng là kho nguồn đề xuất.
 3. Yêu cầu điều chuyển phải có kho nguồn, kho đích, SKU/số lượng, ngày cần hàng, lý do nghiệp vụ, số tồn khả dụng quan sát tại kho nguồn và kho yêu cầu.
 4. Hệ thống chặn ngày cần hàng trong quá khứ, SKU trùng dòng, số lượng không nguyên/dưới hoặc bằng 0, thiếu lý do nghiệp vụ và yêu cầu vượt tồn khả dụng hiện tại của kho nguồn.
-5. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
+5. Trưởng kho nguồn có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit. CEO chỉ xem/giám sát read-only.
 6. Trưởng kho nguồn duyệt yêu cầu thì hệ thống giữ hàng nguồn ngay theo FIFO hợp lệ; nếu tồn khả dụng không đủ thì không duyệt và không tạo reservation một phần.
 7. Sau khi Trưởng kho nguồn duyệt, Planner kho nguồn hoặc Planner trung tâm chuyển yêu cầu đã duyệt/đã giữ hàng thành một phiếu `TRF-*`.
 8. Một yêu cầu đã được Trưởng kho nguồn duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.

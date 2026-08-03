@@ -1,6 +1,36 @@
--- V62: Allow source-warehouse approval/rejection audit actions for transfer requests.
--- V61 recreated chk_audit_logs_action but missed the new source-manager actions,
--- causing TRQ approve/reject to fail at audit insert time with HTTP 409.
+-- V63: Remove legacy CEO approval states from the transfer request flow.
+-- Current TRQ flow is source warehouse manager approval/rejection:
+-- DRAFT -> SUBMITTED -> APPROVED/REJECTED -> CONVERTED/CANCELLED.
+
+UPDATE transfer_requests
+SET status = 'APPROVED'
+WHERE status = 'CEO_APPROVED';
+
+UPDATE transfer_requests
+SET status = 'REJECTED'
+WHERE status = 'CEO_REJECTED';
+
+UPDATE audit_logs
+SET action = 'TRANSFER_REQUEST_SOURCE_APPROVE'
+WHERE action = 'TRANSFER_REQUEST_CEO_APPROVE';
+
+UPDATE audit_logs
+SET action = 'TRANSFER_REQUEST_SOURCE_REJECT'
+WHERE action = 'TRANSFER_REQUEST_CEO_REJECT';
+
+ALTER TABLE transfer_requests
+    DROP CONSTRAINT IF EXISTS transfer_requests_status_check;
+
+ALTER TABLE transfer_requests
+    ADD CONSTRAINT transfer_requests_status_check
+    CHECK (status IN (
+        'DRAFT',
+        'SUBMITTED',
+        'APPROVED',
+        'REJECTED',
+        'CONVERTED',
+        'CANCELLED'
+    ));
 
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
 
