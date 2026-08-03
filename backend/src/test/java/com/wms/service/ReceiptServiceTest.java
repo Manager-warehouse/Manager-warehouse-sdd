@@ -706,6 +706,8 @@ class ReceiptServiceTest {
                 cancelRequest("User cancellation", 0), planner);
 
         assertEquals("CANCELLED", response.getStatus());
+        assertEquals("User cancellation", response.getRejectionReason());
+        assertEquals("User cancellation", response.getCancellationReason());
         verify(auditLogService).log(eq(planner), eq(AuditAction.RECEIPT_CANCEL),
                 eq("RECEIPT"), eq(100L), any(), eq(20L), any(), any());
     }

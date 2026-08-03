@@ -29,10 +29,15 @@ public interface PriceHistoryService {
     List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status,
             LocalDate effectiveDateFrom, LocalDate effectiveDateTo, User actor);
 
-    ProductPriceHistoryResponse getByProduct(Long productId);
+    ProductPriceHistoryResponse getByProduct(Long productId, Long warehouseId, User actor);
 
     /** Price lookup for DO creation — scoped to the DO's warehouse. Returns empty if no APPROVED entry exists. */
     Optional<PriceHistory> lookupApproved(Long productId, Long warehouseId, LocalDate date);
 
-    PriceImportResponse importFromExcel(MultipartFile file, User actor);
+    /**
+     * targetWarehouseId, when provided, overrides the file's warehouse_code column for
+     * every row — used when re-importing a file exported from another warehouse to clone
+     * its prices into this one, without editing the column by hand.
+     */
+    PriceImportResponse importFromExcel(MultipartFile file, Long targetWarehouseId, User actor);
 }

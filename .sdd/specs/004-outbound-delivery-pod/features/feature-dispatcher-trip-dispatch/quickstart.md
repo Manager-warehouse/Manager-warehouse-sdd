@@ -197,17 +197,7 @@ Expected result:
 - Keep the Delivery Order in `WAREHOUSE_APPROVED`.
 - Write `SPLIT_DELIVERY_PLAN_CREATE` audit.
 
-### 7. Split drivers confirm readiness and lead driver departs all vehicles
-
-```http
-PUT /api/v1/split-delivery-plans/7001/driver-readiness
-Authorization: Bearer <driver-jwt>
-```
-
-Expected result:
-
-- Mark only the authenticated driver's split leg as ready.
-- Keep the plan `PLANNED` until every active leg is ready.
+### 7. Lead driver departs all split vehicles
 
 ```http
 PUT /api/v1/split-delivery-plans/7001/depart
@@ -216,8 +206,8 @@ Authorization: Bearer <lead-driver-jwt>
 
 Expected result:
 
-- Validate all active legs have readiness confirmations.
-- Revalidate all vehicles/drivers are still ready.
+- Validate the authenticated driver is the lead driver for the split plan.
+- Revalidate all planned vehicles/drivers are still available for coordinated departure.
 - Move the full Delivery Order staged quantity to virtual `IN_TRANSIT` once.
 - Create one current Delivery attempt for the Delivery Order.
 - Mark every leg trip `IN_TRANSIT`, every vehicle/driver `ON_TRIP`, and the Delivery Order `IN_TRANSIT`.
@@ -240,9 +230,9 @@ Expected result:
 - Controller integration test: cancel, depart, and complete endpoints return expected business errors and status transitions.
 - Service test: split plan rejects incomplete allocation and duplicate vehicle/driver assignment.
 - Service test: split plan rejects per-leg vehicle overload.
-- Service test: split departure requires all drivers ready and lead-driver scope.
+- Service test: split departure requires lead-driver scope and all planned vehicles/drivers to remain available.
 - Service test: split departure rejects unavailable vehicle/driver and tells Dispatcher to wait for a ready vehicle when no valid replacement exists.
-- Controller integration test: split create, update, cancel, driver-readiness, and depart endpoints return expected success and business-error responses.
+- Controller integration test: split create, update, cancel, and depart endpoints return expected success and business-error responses.
 
 ## Definition of done reminders
 

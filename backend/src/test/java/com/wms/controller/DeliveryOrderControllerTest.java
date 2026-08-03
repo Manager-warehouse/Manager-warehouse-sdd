@@ -797,7 +797,9 @@ class DeliveryOrderControllerTest {
                       "doItemId": 200,
                       "batchId": 71,
                       "destinationLocationId": 801,
-                      "plannedQty": 8
+                      "plannedQty": 8,
+                      "failedDestinationLocationId": null,
+                      "failedPlannedQty": 0
                     }
                   ]
                 }

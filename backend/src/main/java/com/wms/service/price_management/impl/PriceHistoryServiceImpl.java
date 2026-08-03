@@ -244,11 +244,28 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public ProductPriceHistoryResponse getByProduct(Long productId) {
+    public ProductPriceHistoryResponse getByProduct(Long productId, Long warehouseId, User actor) {
         Product product = requireProduct(productId);
+
+        // Same scoping as getAll(): ACCOUNTANT is restricted to assigned warehouse(s);
+        // an explicit warehouseId outside that set is rejected. Other roles pass through
+        // unrestricted, but the frontend always sends the active warehouse so the history
+        // modal stays consistent with whatever single-warehouse list it was opened from.
+        List<Long> assignedWarehouseIds = null;
+        if (actor != null && actor.getRole() == UserRole.ACCOUNTANT) {
+            assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (warehouseId != null && !assignedWarehouseIds.contains(warehouseId)) {
+                throw new AccessDeniedException("Access denied: Warehouse scope mismatch");
+            }
+        }
+        List<Long> finalAssignedWarehouseIds = assignedWarehouseIds;
+
         List<PriceHistoryResponse> entries = priceHistoryRepository
                 .findByProductIdOrderByCreatedAtDesc(productId)
-                .stream().map(p -> toResponse(p, null)).toList();
+                .stream()
+                .filter(p -> warehouseId == null || p.getWarehouse().getId().equals(warehouseId))
+                .filter(p -> finalAssignedWarehouseIds == null || finalAssignedWarehouseIds.contains(p.getWarehouse().getId()))
+                .map(p -> toResponse(p, null)).toList();
         return ProductPriceHistoryResponse.builder()
                 .productId(productId)
                 .productSku(product.getSku())
@@ -265,8 +282,21 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     @Override
     @Transactional
-    public PriceImportResponse importFromExcel(MultipartFile file, User actor) {
+    public PriceImportResponse importFromExcel(MultipartFile file, Long targetWarehouseId, User actor) {
         validateExcelFile(file);
+
+        Warehouse overrideWarehouse = null;
+        if (targetWarehouseId != null) {
+            overrideWarehouse = requireWarehouse(targetWarehouseId);
+            enforceWarehouseScope(actor, overrideWarehouse.getId());
+        }
+        // Without an override, each row's warehouse_code drives the target warehouse
+        // instead of whatever's active on screen - an ACCOUNTANT must still be blocked
+        // from bulk-importing prices into a warehouse they aren't assigned to, so their
+        // assignment set is resolved once up front and checked per row below.
+        List<Long> assignedWarehouseIds = (actor != null && actor.getRole() == UserRole.ACCOUNTANT)
+                ? userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId())
+                : null;
 
         List<CreatedRow> created = new ArrayList<>();
         List<FailedRow> failed = new ArrayList<>();
@@ -292,7 +322,8 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
             Set<String> seenInFile = new HashSet<>();
             for (Row row : dataRows) {
-                processExcelRow(row, row.getRowNum() + 1, actor, created, failed, seenInFile);
+                processExcelRow(row, row.getRowNum() + 1, actor, overrideWarehouse, assignedWarehouseIds,
+                        created, failed, seenInFile);
             }
         } catch (IOException e) {
             log.error("Failed to parse Excel file", e);
@@ -476,7 +507,8 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         }
     }
 
-    protected void processExcelRow(Row row, int displayRow, User actor,
+    protected void processExcelRow(Row row, int displayRow, User actor, Warehouse overrideWarehouse,
+                                   List<Long> assignedWarehouseIds,
                                    List<CreatedRow> created, List<FailedRow> failed, Set<String> seenInFile) {
         String sku = cellString(row, 0);
         String warehouseCode = cellString(row, 1);
@@ -485,8 +517,9 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         String sellStr = cellString(row, 4);
         String notes = cellString(row, 5);
 
-        // Presence check
-        if (sku.isEmpty() || warehouseCode.isEmpty() || effectiveDateStr.isEmpty()
+        // Presence check - warehouse_code is only required when not overriding every row
+        // to a single target warehouse.
+        if (sku.isEmpty() || (overrideWarehouse == null && warehouseCode.isEmpty()) || effectiveDateStr.isEmpty()
                 || costStr.isEmpty() || sellStr.isEmpty()) {
             failed.add(failRow(displayRow, sku, "MISSING_REQUIRED_FIELD", "Thiếu trường bắt buộc"));
             return;
@@ -499,11 +532,24 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
             return;
         }
 
-        // Warehouse lookup
-        Optional<Warehouse> warehouseOpt = warehouseRepository.findByCode(warehouseCode);
-        if (warehouseOpt.isEmpty()) {
-            failed.add(failRow(displayRow, sku, "WAREHOUSE_NOT_FOUND", "Mã kho '" + warehouseCode + "' không tồn tại"));
-            return;
+        // Warehouse resolution: an explicit override replaces whatever warehouse_code says
+        // (cloning a file exported from another warehouse into this one); otherwise resolve
+        // from the file as before, still bounded by the actor's own warehouse assignment.
+        Warehouse warehouse;
+        if (overrideWarehouse != null) {
+            warehouse = overrideWarehouse;
+        } else {
+            Optional<Warehouse> warehouseOpt = warehouseRepository.findByCode(warehouseCode);
+            if (warehouseOpt.isEmpty()) {
+                failed.add(failRow(displayRow, sku, "WAREHOUSE_NOT_FOUND", "Mã kho '" + warehouseCode + "' không tồn tại"));
+                return;
+            }
+            warehouse = warehouseOpt.get();
+            if (assignedWarehouseIds != null && !assignedWarehouseIds.contains(warehouse.getId())) {
+                failed.add(failRow(displayRow, sku, "WAREHOUSE_SCOPE_FORBIDDEN",
+                        "Bạn không được phân quyền nhập bản giá cho kho '" + warehouseCode + "'"));
+                return;
+            }
         }
 
         // Date parse
@@ -543,7 +589,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         }
 
         Product product = productOpt.get();
-        Warehouse warehouse = warehouseOpt.get();
 
         // Two rows in the same file targeting the same (product, warehouse, effective_date)
         // would both pass the DB check below independently — track keys already created in
@@ -552,7 +597,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         String dedupKey = product.getId() + ":" + warehouse.getId() + ":" + effective;
         if (seenInFile.contains(dedupKey)) {
             failed.add(failRow(displayRow, sku, "OVERLAPPING_EFFECTIVE_DATE",
-                    "Trùng effective_date với một dòng khác trong cùng file cho sản phẩm/kho này"));
+                    "Trùng effective_date với một dòng khác trong cùng file cho sản phẩm/kho " + warehouse.getCode()));
             return;
         }
 
@@ -561,7 +606,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         if (!conflicts.isEmpty()) {
             failed.add(failRow(displayRow, sku, "OVERLAPPING_EFFECTIVE_DATE",
                     "Đã có bản giá " + conflicts.get(0).getStatus() + " khác cùng effective_date "
-                            + conflicts.get(0).getEffectiveDate()));
+                            + conflicts.get(0).getEffectiveDate() + " tại kho " + warehouse.getCode()));
             return;
         }
 

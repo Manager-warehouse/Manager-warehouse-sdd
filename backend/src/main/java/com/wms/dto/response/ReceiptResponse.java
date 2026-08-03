@@ -68,6 +68,12 @@ public class ReceiptResponse {
     @JsonProperty("recount_reason")
     private String recountReason;
 
+    @JsonProperty("rejection_reason")
+    private String rejectionReason;
+
+    @JsonProperty("cancellation_reason")
+    private String cancellationReason;
+
     private Integer version;
 
     @JsonProperty("credit_note_generated")
@@ -250,6 +256,22 @@ public class ReceiptResponse {
 
     public void setRecountReason(String recountReason) {
         this.recountReason = recountReason;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason != null ? cancellationReason : rejectionReason;
+    }
+
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
     }
 
     public Integer getVersion() {

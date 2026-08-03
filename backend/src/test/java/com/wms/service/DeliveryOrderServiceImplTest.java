@@ -70,6 +70,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.mockito.ArgumentCaptor;
+
 import com.wms.dto.request.DeliveryOrderAllocationRequest;
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
@@ -2000,6 +2002,56 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void submitReturnedGoodsCountQc_requiresShortageReasonAndRejectsOverReceipt() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("7.00"), new BigDecimal("7.00"), ZERO, null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_SHORTAGE_REASON_REQUIRED");
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("9.00"), new BigDecimal("9.00"), ZERO, null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_QTY_EXCEEDS_EXPECTED");
+    }
+
+    @Test
+    void submitReturnedGoodsCountQc_derivesShortageFromActualReceivedQuantity() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+        ReturnedGoodsCountQcRequest request = returnedCountQcRequest(
+                new BigDecimal("7.00"), new BigDecimal("7.00"), ZERO, null);
+        request.getItems().get(0).setShortageReason("One carton was missing from the vehicle");
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.submitReturnedGoodsCountQc(100L, request, warehouseStaff);
+
+        assertThat(response.getItems().get(0).getActualQty()).isEqualByComparingTo("7.00");
+        assertThat(response.getItems().get(0).getShortageQty()).isEqualByComparingTo("1.00");
+        assertThat(response.getItems().get(0).getShortageReason())
+                .isEqualTo("One carton was missing from the vehicle");
+    }
+
+    @Test
     void approveReturnedGoods_rejectsWithReasonAndBlocksPutawayPlanning() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
@@ -2125,6 +2177,43 @@ class DeliveryOrderServiceImplTest {
         assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
         assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
         assertThat(flow.getItems().get(0).getPutawayCompletedQty()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
+    void completeReturnedGoodsPutaway_reconcilesApprovedShortageFromTransit() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, bin);
+        flow.setApprovedByStorekeeper(storekeeper);
+        flow.getItems().get(0).setShortageQty(new BigDecimal("2.00"));
+        flow.getItems().get(0).setShortageReason("Two units missing on vehicle return");
+        Inventory transitInventory = inventory(900L, warehouse(99L, "INTRANSIT"), product, batch, bin,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(inventoryRepository.findTransitRowForDeliveryConfirmation(30L, 71L))
+                .thenReturn(Optional.of(transitInventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 801L))
+                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.completeReturnedGoodsPutaway(100L, new ReturnedGoodsPutawayCompleteRequest(), warehouseStaff);
+
+        ArgumentCaptor<Adjustment> adjustmentCaptor = ArgumentCaptor.forClass(Adjustment.class);
+        verify(adjustmentRepository).save(adjustmentCaptor.capture());
+        Adjustment adjustment = adjustmentCaptor.getValue();
+        assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
+        assertThat(adjustment.getType()).isEqualTo(AdjustmentType.RETURN_SHORTAGE);
+        assertThat(adjustment.getQuantityAdjustment()).isEqualByComparingTo("-2.00");
+        assertThat(adjustment.getReason()).isEqualTo("Two units missing on vehicle return");
+        assertThat(adjustment.getApprovedBy()).isEqualTo(storekeeper);
     }
 
     @Test

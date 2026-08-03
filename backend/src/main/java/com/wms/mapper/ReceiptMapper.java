@@ -35,6 +35,8 @@ public class ReceiptMapper {
         response.setPreReceiveRejectionReason(receipt.getPreReceiveRejectionReason());
         response.setStorekeeperReviewedAt(receipt.getStorekeeperReviewedAt());
         response.setRecountReason(receipt.getRecountReason());
+        response.setRejectionReason(receipt.getRejectionReason());
+        response.setCancellationReason(receipt.getRejectionReason());
         response.setVersion(receipt.getVersion());
         response.setCreditNoteGenerated(false);
         response.setItems(items.stream().map(this::toItemResponse).toList());

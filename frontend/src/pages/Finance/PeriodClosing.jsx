@@ -63,6 +63,10 @@ const PeriodClosing = () => {
   // invite a click that's guaranteed to fail.
   const periodHasEnded = (p) => (p.end_date ?? p.endDate) < getLocalDateString();
 
+  // Server-computed: OPEN, already ended, and today is at/past the configured
+  // "Ngày khóa sổ kế toán hàng tháng" (MONTHLY_CLOSING_DAY) - see AccountingPeriodServiceImpl.isOverdue.
+  const overduePeriods = periods.filter(p => p.is_overdue ?? p.isOverdue);
+
   const handleClosePeriod = async (periodId) => {
     setClosingPeriodId(periodId);
     try {
@@ -94,6 +98,34 @@ const PeriodClosing = () => {
           </p>
         </div>
       </div>
+
+      {isAccountantManager && overduePeriods.length > 0 && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-xs text-red-800 leading-relaxed">
+              <span className="font-bold">Đã quá hạn khóa sổ</span> theo cấu hình "Ngày khóa sổ kế toán hàng tháng": {' '}
+              <span className="font-semibold">
+                {overduePeriods.map(p => p.period_name || p.periodName).join(', ')}
+              </span>
+              . Vui lòng rà soát và chốt sổ kỳ kế toán sớm nhất có thể.
+            </p>
+            <Button
+              size="sm"
+              variant="primary"
+              className="shrink-0 bg-red-700 hover:bg-red-800"
+              onClick={() => setConfirmModalPeriod(
+                [...overduePeriods].sort((a, b) =>
+                  (a.start_date ?? a.startDate) > (b.start_date ?? b.startDate) ? 1 : -1
+                )[0]
+              )}
+            >
+              <Lock className="w-3.5 h-3.5 mr-1" />
+              Khóa sổ ngay
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
         <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
@@ -163,25 +195,32 @@ const PeriodClosing = () => {
                       <td className="p-4 text-shade-60">{p.start_date || p.startDate}</td>
                       <td className="p-4 text-shade-60">{p.end_date || p.endDate}</td>
                       <td className="p-4 text-center">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase inline-flex items-center gap-1 ${
-                            p.status === 'CLOSED'
-                              ? 'bg-aloe-10 text-ink'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200'
-                          }`}
-                        >
-                          {p.status === 'CLOSED' ? (
-                            <>
-                              <Lock className="w-3 h-3 text-ink" />
-                              Đã Khóa
-                            </>
-                          ) : (
-                            <>
-                              <Unlock className="w-3 h-3 text-amber-700" />
-                              Đang Mở
-                            </>
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase inline-flex items-center gap-1 ${
+                              p.status === 'CLOSED'
+                                ? 'bg-aloe-10 text-ink'
+                                : (p.is_overdue ?? p.isOverdue)
+                                ? 'bg-red-100 text-red-700 border border-red-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}
+                          >
+                            {p.status === 'CLOSED' ? (
+                              <>
+                                <Lock className="w-3 h-3 text-ink" />
+                                Đã Khóa
+                              </>
+                            ) : (
+                              <>
+                                <Unlock className="w-3 h-3 text-amber-700" />
+                                Đang Mở
+                              </>
+                            )}
+                          </span>
+                          {(p.is_overdue ?? p.isOverdue) && (
+                            <span className="text-[8px] font-bold uppercase text-red-600">Quá hạn khóa sổ</span>
                           )}
-                        </span>
+                        </div>
                       </td>
                       <td className="p-4 text-shade-70 font-medium">
                         {p.closed_by_name || p.closedByName || (p.status === 'CLOSED' ? 'Kế toán trưởng' : '—')}

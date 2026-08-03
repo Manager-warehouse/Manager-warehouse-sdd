@@ -63,6 +63,8 @@ import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.PriceHistoryCreateRequest;
 import com.wms.dto.response.PriceHistoryResponse;
+import com.wms.dto.response.PriceImportResponse;
+import com.wms.dto.response.ProductPriceHistoryResponse;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.product_catalog.Product;
 import com.wms.entity.access_control.User;
@@ -82,6 +84,13 @@ import com.wms.util.PartnerAuditUtil;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.mock.web.MockMultipartFile;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -389,7 +398,141 @@ class PriceHistoryServiceTest {
         verify(priceHistoryRepository).findAll(any(Specification.class), any(Sort.class));
     }
 
+    // ── warehouse scope (getByProduct) ──────────────────────────────────────────
+
+    @Test
+    void getByProduct_noWarehouseFilter_returnsEntriesFromAssignedWarehouseOnly() {
+        // Regression test: the "Lịch sử giá" modal was showing entries from every
+        // warehouse for a product even though the accountant is only assigned to
+        // warehouse 1L — entries from an unassigned warehouse 2L must be excluded.
+        PriceHistory ownWarehouseEntry = pendingPriceHistory(1L);
+        PriceHistory otherWarehouseEntry = pendingPriceHistory(2L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        otherWarehouseEntry.setWarehouse(otherWarehouse);
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(priceHistoryRepository.findByProductIdOrderByCreatedAtDesc(10L))
+                .thenReturn(List.of(ownWarehouseEntry, otherWarehouseEntry));
+
+        ProductPriceHistoryResponse resp = service.getByProduct(10L, null, actor);
+
+        assertThat(resp.getEntries()).extracting(PriceHistoryResponse::getId).containsExactly(1L);
+    }
+
+    @Test
+    void getByProduct_explicitWarehouseOutsideScope_throws() {
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> service.getByProduct(10L, 2L, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(priceHistoryRepository, never()).findByProductIdOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void getByProduct_nonAccountantRole_seesAllWarehouses() {
+        PriceHistory ownWarehouseEntry = pendingPriceHistory(1L);
+        PriceHistory otherWarehouseEntry = pendingPriceHistory(2L);
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        otherWarehouseEntry.setWarehouse(otherWarehouse);
+        User manager = new User();
+        manager.setId(2L);
+        manager.setRole(UserRole.ACCOUNTANT_MANAGER);
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(priceHistoryRepository.findByProductIdOrderByCreatedAtDesc(10L))
+                .thenReturn(List.of(ownWarehouseEntry, otherWarehouseEntry));
+
+        ProductPriceHistoryResponse resp = service.getByProduct(10L, null, manager);
+
+        assertThat(resp.getEntries()).hasSize(2);
+    }
+
+    // ── import (warehouse override / scope) ─────────────────────────────────────
+
+    @Test
+    void importFromExcel_withTargetWarehouseOverride_ignoresFileWarehouseCode() throws Exception {
+        // Regression test: re-importing a file exported from warehouse "HP-01" while
+        // targeting a different warehouse must apply prices to the target, not silently
+        // re-target the original warehouse from the file's warehouse_code column.
+        Warehouse targetWarehouse = new Warehouse();
+        targetWarehouse.setId(2L);
+        targetWarehouse.setCode("HN-01");
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L, 2L));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(targetWarehouse));
+        when(productRepository.findBySkuAndIsActiveTrue("POT-001")).thenReturn(Optional.of(product));
+        when(priceHistoryRepository.findConflictingActive(eq(10L), eq(2L), any(), isNull())).thenReturn(List.of());
+        when(priceHistoryRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        MockMultipartFile file = buildImportExcel(List.<String[]>of(
+                new String[] { "POT-001", "HP-01", "01/07/2026", "80000", "115000", "" }
+        ));
+
+        PriceImportResponse resp = service.importFromExcel(file, 2L, actor);
+
+        assertThat(resp.getCreatedCount()).isEqualTo(1);
+        assertThat(resp.getFailedCount()).isEqualTo(0);
+        verify(warehouseRepository, never()).findByCode(any());
+    }
+
+    @Test
+    void importFromExcel_targetWarehouseOutsideAccountantScope_throws() throws Exception {
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        otherWarehouse.setCode("HN-01");
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(otherWarehouse));
+
+        MockMultipartFile file = buildImportExcel(List.<String[]>of(
+                new String[] { "POT-001", "HP-01", "01/07/2026", "80000", "115000", "" }
+        ));
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 2L, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(priceHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void importFromExcel_noOverride_rowWarehouseOutsideAccountantScope_failsRowNotThrows() throws Exception {
+        // No override: warehouse_code drives the target per row, but an ACCOUNTANT still
+        // can't bulk-import into a warehouse they aren't assigned to (assigned: {1L} only).
+        Warehouse otherWarehouse = new Warehouse();
+        otherWarehouse.setId(2L);
+        otherWarehouse.setCode("HN-01");
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L));
+        when(productRepository.findBySkuAndIsActiveTrue("POT-001")).thenReturn(Optional.of(product));
+        when(warehouseRepository.findByCode("HN-01")).thenReturn(Optional.of(otherWarehouse));
+
+        MockMultipartFile file = buildImportExcel(List.<String[]>of(
+                new String[] { "POT-001", "HN-01", "01/07/2026", "80000", "115000", "" }
+        ));
+
+        PriceImportResponse resp = service.importFromExcel(file, null, actor);
+
+        assertThat(resp.getCreatedCount()).isEqualTo(0);
+        assertThat(resp.getFailedCount()).isEqualTo(1);
+        assertThat(resp.getFailed().get(0).getErrorCode()).isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+        verify(priceHistoryRepository, never()).save(any());
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    private MockMultipartFile buildImportExcel(List<String[]> rows) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("price_import");
+            Row header = sheet.createRow(0);
+            String[] cols = { "product_sku", "warehouse_code", "effective_date", "cost_price", "selling_price", "notes" };
+            for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
+            int rowIdx = 1;
+            for (String[] row : rows) {
+                Row r = sheet.createRow(rowIdx++);
+                for (int i = 0; i < row.length; i++) r.createCell(i).setCellValue(row[i]);
+            }
+            wb.write(out);
+            return new MockMultipartFile("file", "price_import.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", out.toByteArray());
+        }
+    }
 
     private PriceHistoryCreateRequest buildCreateRequest(LocalDate effective) {
         PriceHistoryCreateRequest req = new PriceHistoryCreateRequest();

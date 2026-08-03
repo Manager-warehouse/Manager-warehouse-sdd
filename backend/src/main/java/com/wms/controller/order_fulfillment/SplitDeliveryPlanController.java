@@ -4,6 +4,7 @@ import com.wms.dto.request.SplitDeliveryPlanCreateRequest;
 import com.wms.dto.request.SplitDeliveryPlanCancelRequest;
 import com.wms.dto.request.SplitDeliveryPlanUpdateRequest;
 import com.wms.dto.request.SplitLegFailureRequest;
+import com.wms.dto.request.TripCompleteRequest;
 import com.wms.dto.response.SplitLegMilestoneResponse;
 import com.wms.dto.response.SplitDeliveryPlanResponse;
 import com.wms.entity.access_control.User;
@@ -80,18 +81,6 @@ public class SplitDeliveryPlanController {
         return splitDeliveryPlanService.cancelPlan(id, request.getCancelReason(), currentUser());
     }
 
-    @PutMapping("/{id}/driver-readiness")
-    @PreAuthorize("hasRole('DRIVER')")
-    @Operation(summary = "Confirm driver readiness for a split delivery leg")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Driver readiness accepted",
-                    content = @Content(schema = @Schema(implementation = SplitDeliveryPlanResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Driver is not assigned to this split plan", content = @Content)
-    })
-    public SplitDeliveryPlanResponse confirmDriverReadiness(@PathVariable Long id) {
-        return splitDeliveryPlanService.confirmDriverReadiness(id, currentUser());
-    }
-
     @PutMapping("/{id}/depart")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Lead driver confirms coordinated departure for every split delivery leg")
@@ -99,32 +88,40 @@ public class SplitDeliveryPlanController {
             @ApiResponse(responseCode = "200", description = "Split delivery plan departed",
                     content = @Content(schema = @Schema(implementation = SplitDeliveryPlanResponse.class))),
             @ApiResponse(responseCode = "403", description = "Authenticated driver is not the lead driver", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Split drivers or resources are not ready", content = @Content)
+            @ApiResponse(responseCode = "422", description = "Split resources or Delivery Order are not ready", content = @Content)
     })
     public SplitDeliveryPlanResponse departPlan(@PathVariable Long id) {
         return splitDeliveryPlanService.departPlan(id, currentUser());
     }
 
-    @PutMapping("/{planId}/legs/{legId}/dealer-arrival")
+    @PutMapping("/{planId}/dealer-arrival")
     @PreAuthorize("hasRole('DRIVER')")
-    @Operation(summary = "Confirm assigned split leg arrived at the dealer")
-    public SplitLegMilestoneResponse confirmDealerArrival(@PathVariable Long planId, @PathVariable Long legId) {
-        return splitDeliveryPlanService.confirmDealerArrival(planId, legId, currentUser());
+    @Operation(summary = "Lead driver confirms the whole split convoy arrived at the dealer")
+    public SplitLegMilestoneResponse confirmDealerArrival(@PathVariable Long planId) {
+        return splitDeliveryPlanService.confirmDealerArrival(planId, currentUser());
     }
 
-    @PutMapping("/{planId}/legs/{legId}/handover")
+    @PutMapping("/{planId}/handover")
     @PreAuthorize("hasRole('DRIVER')")
-    @Operation(summary = "Confirm assigned split leg handed over goods after every leg arrived")
-    public SplitLegMilestoneResponse confirmHandover(@PathVariable Long planId, @PathVariable Long legId) {
-        return splitDeliveryPlanService.confirmHandover(planId, legId, currentUser());
+    @Operation(summary = "Lead driver confirms whole split Delivery Order handover")
+    public SplitLegMilestoneResponse confirmHandover(@PathVariable Long planId) {
+        return splitDeliveryPlanService.confirmHandover(planId, currentUser());
     }
 
-    @PutMapping("/{planId}/legs/{legId}/fail-delivery")
+    @PutMapping("/{planId}/fail-delivery")
     @PreAuthorize("hasRole('DRIVER')")
-    @Operation(summary = "Fail the whole split Delivery Order from one assigned leg")
-    public SplitLegMilestoneResponse failDeliveryLeg(@PathVariable Long planId, @PathVariable Long legId,
+    @Operation(summary = "Lead driver reports failure for the whole split Delivery Order")
+    public SplitLegMilestoneResponse failDelivery(@PathVariable Long planId,
             @Valid @RequestBody SplitLegFailureRequest request) {
-        return splitDeliveryPlanService.failDeliveryLeg(planId, legId, request, currentUser());
+        return splitDeliveryPlanService.failDelivery(planId, request, currentUser());
+    }
+
+    @PutMapping("/{planId}/complete")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "Lead driver confirms the whole split convoy returned to the source warehouse")
+    public SplitLegMilestoneResponse completePlan(@PathVariable Long planId,
+            @Valid @RequestBody(required = false) TripCompleteRequest request) {
+        return splitDeliveryPlanService.completePlan(planId, request, currentUser());
     }
 
     private User currentUser() {

@@ -527,12 +527,12 @@ export const inboundService = {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 200));
       const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
-      const receipt = receipts.find(r => r.id === Number(id));
+      const receipt = receipts.find(r => String(r.id) === String(id));
       if (!receipt) throw new Error('RECEIPT_NOT_FOUND');
 
       const items = getDb(KEYS.RECEIPT_ITEMS, INITIAL_RECEIPT_ITEMS);
       const receiptItems = enrichMockReceiptItems(
-        items.filter(item => item.receipt_id === Number(id))
+        items.filter(item => String(item.receipt_id) === String(id))
       );
       const suppliers = await masterDataService.getSuppliers();
       const supplier = suppliers.find(s => s.id === receipt.supplier_id);
@@ -1089,8 +1089,9 @@ export const inboundService = {
         if (!reason || !reason.trim()) throw new Error('PRE_RECEIVE_REJECTION_REASON_REQUIRED');
         receipts[rIdx].status = 'REVISION_REQUIRED';
         receipts[rIdx].pre_receive_approved_by = null;
-        receipts[rIdx].pre_receive_approved_at = null;
         receipts[rIdx].pre_receive_rejection_reason = reason;
+        receipts[rIdx].rejection_reason = reason;
+        receipts[rIdx].notes = reason;
       }
       receipts[rIdx].updated_at = new Date().toISOString();
       receipts[rIdx].version = (receipts[rIdx].version || 0) + 1;
@@ -1157,7 +1158,10 @@ export const inboundService = {
       const rIdx = receipts.findIndex(r => String(r.id) === String(id));
       if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
       receipts[rIdx].status = 'CANCELLED';
+      receipts[rIdx].cancellation_reason = reason;
+      receipts[rIdx].cancellationReason = reason;
       receipts[rIdx].rejection_reason = reason;
+      receipts[rIdx].rejectionReason = reason;
       receipts[rIdx].updated_at = new Date().toISOString();
       saveDb(KEYS.RECEIPTS, receipts);
       addMockAuditLog('RECEIPT_CANCEL', 'Receipt', id, `Hủy phiếu nhập kho: ${receipts[rIdx].receipt_number}`);

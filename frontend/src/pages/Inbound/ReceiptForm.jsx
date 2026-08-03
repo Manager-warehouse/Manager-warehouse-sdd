@@ -6,7 +6,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { inboundService } from "../../services/inbound.service";
 import { masterDataService } from "../../services/masterData.service";
 import pricingService from "../../services/pricing.service";
-import { ArrowLeft, Trash2, Plus, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, Search, Loader2, AlertTriangle } from "lucide-react";
 import Input from "../../components/common/Input";
 
 const ReceiptForm = () => {
@@ -262,10 +262,10 @@ const ReceiptForm = () => {
         receiptNumber
           ? isRevisionMode
             ? `Đã chỉnh sửa và gửi lại phiếu: ${receiptNumber}`
-            : `Nhập kho thành công: ${receiptNumber}`
+            : `Kế hoạch nhập kho: ${receiptNumber}`
           : isRevisionMode
             ? "Đã chỉnh sửa và gửi lại phiếu"
-            : "Nhập kho thành công",
+            : "Kế hoạch nhập kho",
         "success",
       );
       navigate("/inbound/receipts");
@@ -306,10 +306,20 @@ const ReceiptForm = () => {
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
           {isRevisionMode ? "Chỉnh sửa lệnh nhập kho" : "Lập lệnh nhập kho"}
         </h1>
-        {isRevisionMode && revisionReceipt?.pre_receive_rejection_reason && (
-          <p className="mt-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs font-semibold text-danger-800">
-            Lý do cần chỉnh sửa: {revisionReceipt.pre_receive_rejection_reason}
-          </p>
+        {isRevisionMode && (revisionReceipt?.pre_receive_rejection_reason || revisionReceipt?.preReceiveRejectionReason || revisionReceipt?.rejection_reason || revisionReceipt?.rejectionReason || revisionReceipt?.notes) && (
+          <div className="mt-2 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-xs font-medium text-danger-900 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold text-danger-700 block mb-0.5">Lý do Quản lý yêu cầu chỉnh sửa:</strong>
+              <span>
+                {revisionReceipt.pre_receive_rejection_reason ||
+                  revisionReceipt.preReceiveRejectionReason ||
+                  revisionReceipt.rejection_reason ||
+                  revisionReceipt.rejectionReason ||
+                  revisionReceipt.notes}
+              </span>
+            </div>
+          </div>
         )}
       </div>
 

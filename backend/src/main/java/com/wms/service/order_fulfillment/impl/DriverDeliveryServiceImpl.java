@@ -359,6 +359,10 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Transactional
     public TripDriverViewResponse completeTrip(Long tripId, TripCompleteRequest request, User actor) {
         Trip trip = assignedTrip(tripId, actor);
+        if (splitDeliveryLegRepository.findByTripId(trip.getId()).isPresent()) {
+            throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN,
+                    "Split convoy return must be completed by the lead driver through the split delivery plan");
+        }
         if (trip.getStatus() != TripStatus.IN_TRANSIT) {
             throw rule("TRIP_NOT_READY_TO_COMPLETE", "Trip must be IN_TRANSIT");
         }
@@ -377,25 +381,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         trip.setCompletedAt(now);
         trip.setUpdatedAt(now);
         
-        java.util.Optional<SplitDeliveryLeg> splitLegOpt = splitDeliveryLegRepository.findByTripId(trip.getId());
-        if (splitLegOpt.isPresent()) {
-            SplitDeliveryLeg leg = splitLegOpt.get();
-            leg.setStatus(SplitDeliveryPlanStatus.COMPLETED);
-            splitDeliveryLegRepository.save(leg);
-            trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
-            trip.getDriver().setStatus(DriverStatus.AVAILABLE);
-
-            SplitDeliveryPlan plan = leg.getSplitPlan();
-            boolean allLegsCompleted = splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId()).stream()
-                    .allMatch(l -> l.getStatus() == SplitDeliveryPlanStatus.COMPLETED);
-            if (allLegsCompleted) {
-                plan.setStatus(SplitDeliveryPlanStatus.COMPLETED);
-                splitDeliveryPlanRepository.save(plan);
-            }
-        } else {
-            trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
-            trip.getDriver().setStatus(DriverStatus.AVAILABLE);
-        }
+        trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+        trip.getDriver().setStatus(DriverStatus.AVAILABLE);
 
         Trip saved = tripRepository.save(trip);
         auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(), saved.getWarehouse().getId(), before, tripSnapshot(saved));
