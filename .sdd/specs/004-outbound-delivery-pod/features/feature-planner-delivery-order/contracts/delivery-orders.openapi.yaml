@@ -56,7 +56,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Credit, dealer eligibility, price, accounting period, warehouse, or stock validation failed
+          description: Credit, dealer eligibility, price, accounting period, warehouse, stock, product weight, or warehouse fleet-capacity validation failed; includes DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY and PRODUCT_WEIGHT_MISSING
           content:
             application/json:
               schema:
@@ -166,7 +166,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Delivery Order is not NEW, or credit, dealer eligibility, price, accounting period, warehouse, or stock validation failed
+          description: Delivery Order is not NEW, or credit, dealer eligibility, price, accounting period, warehouse, stock, product weight, or warehouse fleet-capacity validation failed; includes DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY and PRODUCT_WEIGHT_MISSING
           content:
             application/json:
               schema:

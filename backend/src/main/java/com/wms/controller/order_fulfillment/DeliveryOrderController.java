@@ -128,7 +128,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "201", description = "Delivery order created"),
             @ApiResponse(responseCode = "400", description = "Invalid request payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Planner is not assigned to the selected warehouse", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Credit hold or insufficient stock", content = @Content)
+            @ApiResponse(responseCode = "422", description = "Credit hold, insufficient stock, PRODUCT_WEIGHT_MISSING, or DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY", content = @Content)
     })
     public DeliveryOrderResponse createDeliveryOrder(@Valid @RequestBody DeliveryOrderCreateRequest request) {
         return deliveryOrderService.createDeliveryOrder(request, currentUser());
@@ -142,7 +142,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid update payload or delivery date", content = @Content),
             @ApiResponse(responseCode = "403", description = "Planner is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Delivery order cannot be updated after picking planning starts", content = @Content)
+            @ApiResponse(responseCode = "422", description = "Update forbidden, PRODUCT_WEIGHT_MISSING, or DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY", content = @Content)
     })
     public DeliveryOrderResponse updateDeliveryOrder(@PathVariable Long id,
                                                      @Valid @RequestBody DeliveryOrderUpdateRequest request) {

@@ -47,6 +47,7 @@ import java.util.List;
 @Repository
 public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     List<Vehicle> findByIsActive(Boolean isActive);
+    List<Vehicle> findByWarehouseIdAndIsActiveTrue(Long warehouseId);
     List<Vehicle> findByStatusAndIsActive(VehicleStatus status, Boolean isActive);
     boolean existsByPlateNumber(String plateNumber);
     boolean existsByPlateNumberAndIdNot(String plateNumber, Long id);
