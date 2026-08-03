@@ -24,6 +24,12 @@
 
 **Alternatives considered**: Persisting raw OTP temporarily for troubleshooting was rejected because it violates the spec and weakens security.
 
+## Decision: Store POD image files in persistent local storage on the VPS
+
+**Rationale**: POD evidence is retained on infrastructure already operated for the WMS. The backend writes both images under a configurable persistent root outside the application release directory, while PostgreSQL stores only generated relative paths and metadata. Authorized reads are streamed through the backend so normal Delivery Order role and warehouse-scope checks still apply.
+
+**Alternatives considered**: Supabase/object storage was rejected for this deployment. Public `/uploads/**` exposure and absolute filesystem paths in API/database records were rejected because they bypass access control, couple records to one VPS path, and increase path-disclosure risk.
+
 ## Decision: Block OTP resend while the current OTP is still active
 
 **Rationale**: The spec says active OTP must remain unchanged until expiry or admin reset. Enforcing `OTP_STILL_ACTIVE` prevents churn in dealer communication, keeps the mobile flow deterministic, and avoids invalidating an OTP the dealer may already be reading.
@@ -53,3 +59,21 @@
 **Rationale**: Driver trip completion confirms that the vehicle and driver are operationally back, not that returned goods have been received by Storekeeper, counted, quality-checked, accepted, and stored. Keeping the Delivery Order in `RETURNED` until staff putaway confirmation preserves stock accuracy and makes Storekeeper accountable for returned-goods receipt, QC decision, and location planning.
 
 **Alternatives considered**: Moving the Delivery Order to `DELIVERY_FAILED` when the driver confirms vehicle return was rejected because it would close the outbound order before warehouse custody, quantity, quality, and storage location are verified.
+
+## Decision: Use one lead-driver POD/OTP flow for a split Delivery Order
+
+**Rationale**: The dealer accepts one Delivery Order, not independent vehicle fragments. One current delivery attempt, one complete POD pair, and one OTP row prevent duplicate invoice/inventory finalization. Every leg must confirm arrival before handover, and every leg must confirm handover before the lead driver can mutate POD or OTP.
+
+**Alternatives considered**: Separate POD/OTP per leg was rejected because it could complete or invoice only part of the Delivery Order and contradicts full-delivery confirmation.
+
+## Decision: Replace POD as a complete pair and invalidate the current usable OTP
+
+**Rationale**: OTP confirms the evidence state visible when the code was issued. Replacing either image after issuance makes that code stale, so both images are replaced atomically and any `PENDING`, `ACTIVE`, or `SEND_FAILED` OTP becomes `EXPIRED`. `LOCKED` remains locked until admin reset.
+
+**Alternatives considered**: Keeping the old OTP after evidence replacement was rejected because the dealer would confirm evidence that has changed.
+
+## Decision: Reuse the existing trip-complete command for each split vehicle return
+
+**Rationale**: Every split leg already owns a regular trip, driver, and vehicle. Calling `PUT /api/v1/trips/{tripId}/complete` independently releases only that trip's resources and avoids a second endpoint with identical lifecycle responsibility. OTP success never invokes trip completion automatically.
+
+**Alternatives considered**: A dedicated `/split-delivery-plans/{planId}/legs/{legId}/return` endpoint was rejected as duplicate command surface.

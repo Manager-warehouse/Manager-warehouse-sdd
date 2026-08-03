@@ -105,9 +105,10 @@ public class DeliveryOrderController {
     @GetMapping("/{id}/picking-candidates")
     @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(
-            summary = "Get FIFO picking candidates for each item in the delivery order",
-            description = "Returns available inventory rows ordered by FIFO (receivedDate ASC) "
-                    + "for each DO item, grouped by DO item ID. "
+            summary = "Get date-ranked picking candidates for each delivery order item",
+            description = "Returns available inventory rows ordered by receivedDate ASC for display only; "
+                    + "Storekeeper may select any valid row regardless of its position in the list. "
+                    + "Candidates are grouped by DO item ID. "
                     + "Only available when the delivery order status is NEW, WAITING_PICKING, or QC_PENDING_APPROVAL."
     )
     @ApiResponses({
@@ -179,7 +180,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "409", description = "Inventory, reservation, allocation, or Delivery Order concurrent modification conflict", content = @Content),
             @ApiResponse(responseCode = "422",
                     description = "Picking-plan business rule violation such as PICKING_PLAN_QTY_MISMATCH, "
-                            + "FIFO_VIOLATION, PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
+                            + "PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
                     content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickingPlan(@PathVariable Long id,

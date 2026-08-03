@@ -60,7 +60,7 @@
 - [X] T021 [P] [US1] Add driver trip and OTP request DTO validation in `backend/src/main/java/com/wms/dto/request/DeliveryOtpRequest.java` and `backend/src/main/java/com/wms/dto/response/TripDriverViewResponse.java`
 - [X] T022 [US1] Add `GET /api/v1/trips/{id}`, `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence`, and `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` endpoints with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/TripController.java`
 - [X] T023 [US1] Implement assigned-trip detail loading and current-attempt mapping for the driver mobile view in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
-- [X] T024 [US1] Implement POD evidence validation, file storage, and current-attempt POD URL persistence in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [X] T024 [US1] Implement the original POD evidence validation and storage flow in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java` (superseded for storage/access behavior by T109-T117)
 - [X] T025 [US1] Implement first-time OTP generation, single-row OTP persistence, and dealer-email delivery in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
 - [X] T026 [US1] Write `UPLOAD_POD` and `REQUEST_OTP` audit logs with before/after attempt and OTP state in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
 
@@ -219,6 +219,52 @@
 
 ---
 
+## Phase 9: User Story 6 - Drivers complete coordinated split delivery POD/OTP (Priority: P1)
+
+**Goal**: Multiple assigned drivers deliver one Delivery Order with arrival/handover coordination, while the lead driver owns one shared POD/OTP flow and every driver independently returns their own vehicle.
+
+**Independent Test**: Depart one split Delivery Order on two legs, confirm both arrivals and handovers, replace the complete POD pair and verify the current OTP expires, retry a `SEND_FAILED` email immediately on the same row, confirm delivery once through the lead driver, and complete each linked trip independently without releasing sibling resources.
+
+### Tests for User Story 6
+
+- [X] T093 [P] [US6] Add service tests for assigned-leg dealer arrival, all-arrived handover gate, and all-handover milestone response in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T094 [P] [US6] Add service test proving one failed split leg moves the whole Delivery Order, attempt, plan, and all legs to return handling in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T095 [P] [US6] Add controller tests for dealer-arrival, handover, and split-leg fail-delivery endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
+- [X] T096 [P] [US6] Add driver service tests for lead-driver identity through `Driver.user.id`, all-handover POD/OTP gate, and non-lead rejection in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [X] T097 [P] [US6] Add driver service tests requiring complete-pair POD replacement and expiring current PENDING/ACTIVE/SEND_FAILED OTP while preserving LOCKED in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [X] T098 [P] [US6] Add driver service test proving OTP confirmation does not release split resources and each linked trip completes independently through `PUT /api/v1/trips/{tripId}/complete` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+
+### Implementation for User Story 6
+
+- [X] T099 [US6] Enforce complete-pair POD upload/replacement and current usable OTP invalidation in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
+- [X] T100 [US6] Centralize split lead-driver authorization using `leadDriver.user.id` and require every active leg handover before shared POD, OTP request, or OTP confirmation in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
+- [X] T101 [US6] Verify immediate same-row retry from `SEND_FAILED` and preserve no-automatic-resource-release behavior in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DriverDeliveryServiceImpl.java`
+- [X] T102 [US6] Verify assigned-leg arrival/handover and whole-Delivery-Order failure behavior in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T103 [US6] Verify Swagger metadata for split dealer-arrival, handover, and fail-delivery routes in `backend/src/main/java/com/wms/controller/order_fulfillment/SplitDeliveryPlanController.java`
+- [X] T104 [P] [US6] Update driver OpenAPI contract for split milestones, shared POD/OTP errors, `SEND_FAILED`, and independent trip completion in `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml`
+- [X] T105 [P] [US6] Update Driver plan, research, data model, quickstart, parent outbound spec, and active plan marker in `.sdd/specs/004-outbound-delivery-pod`
+- [X] T106 [P] [US6] Add frontend driver tests for split milestone action gating and independent return actions in `frontend/src/pages/Outbound/DriverTrip.test.jsx`
+- [X] T107 [US6] Align Driver mobile split milestone controls and service calls in `frontend/src/pages/Outbound/DriverTrip.jsx` and `frontend/src/services/outbound.service.js`
+- [X] T108 [US6] Run targeted backend tests, frontend tests/build, Maven compile, and `git diff --check` for the restored Driver split flow
+
+## Phase 10: Persistent VPS POD storage and completed-order evidence review
+
+**Goal**: Replace external object storage and persisted access URLs with private persistent local storage on the VPS, then show both confirmed POD images on authorized completed Delivery Order detail screens.
+
+**Independent Test**: Upload a complete POD pair, verify only generated relative paths and metadata are persisted beneath the configured VPS root, complete delivery, open the Delivery Order detail as an authorized user, and view both streamed images. Verify restart persistence, unauthorized access rejection, missing-file handling, path-boundary protection, and pair cleanup on failure.
+
+- [X] T109 [P] Add storage-service tests for generated relative paths, JPEG/PNG/WebP detection, persistent-root boundary enforcement, pair cleanup, replacement cleanup, and unavailable-root errors.
+- [X] T110 [P] Add controller/service tests for authenticated `GET /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}` access, successful delivered-attempt lookup, unauthorized warehouse scope, invalid evidence type, and missing local file.
+- [X] T111 Replace Supabase POD storage with configurable persistent VPS filesystem storage and remove unused legacy local-storage helpers and persisted signed-URL behavior.
+- [X] T112 Persist POD relative paths and full metadata on `deliveries`, keeping legacy URL columns unused for new uploads.
+- [X] T113 Implement authorized POD image streaming with normalized root-boundary validation and safe response headers.
+- [X] T114 [P] Add frontend tests for the completed/closed Delivery Order `Bằng chứng giao hàng` section, two labelled previews, larger viewer, loading failure, and retry.
+- [X] T115 Implement completed/closed Delivery Order POD evidence viewing through authenticated binary requests without exposing the VPS path or public static URLs.
+- [X] T116 Update runtime configuration/deployment documentation for the persistent POD volume, filesystem permissions, backup, restore, and redeployment retention.
+- [X] T117 Run backend tests, frontend tests, OpenAPI validation, and `git diff --check`; verify no Supabase POD configuration or public `/uploads/pod` route remains in the implemented flow.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -240,6 +286,7 @@
 - **US4**: Depends on OTP lock semantics from US2.
 - **US5**: Depends on US3 because returned-goods processing starts only after a failed/refused delivery has moved the Delivery Order to `RETURNED`.
 - **Driver Trip List Filters**: Cross-cuts US1 and Spec 005 visibility, but remains read-only and independently testable from delivery confirmation.
+- **US6**: Depends on Dispatcher split-plan departure and the existing US1-US3 POD/OTP/trip-complete foundations; it does not change regular single-vehicle delivery behavior.
 
 ### Parallel Opportunities
 
@@ -254,6 +301,7 @@
 - T063 through T066 can run in parallel while T067 through T074 are implemented by file ownership.
 - T076 through T084 can be written in parallel for US5 tests.
 - T085 and T086 can run in parallel before T087 through T092.
+- T093 through T098 can be written in parallel before T099 through T103; T104 through T106 can proceed in parallel by file ownership.
 
 ## Parallel Example: User Story 1
 
@@ -303,6 +351,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 5. Finish polish verification and OpenAPI alignment.
 6. Deliver the shared driver trip list labels and filters so mixed `TRIP-*`/`TTR-*` assignments are easy to identify.
 7. Deliver US5 returned-goods processing so `RETURNED` orders close as `DELIVERY_FAILED` only after Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway completion.
+8. Deliver US6 coordinated split arrival/handover, lead-driver shared POD/OTP, whole-DO failure, and independent vehicle return.
 
 ### Validation Checklist
 
@@ -319,3 +368,4 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 - Returned-goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved destination location with non-negative quantity and version checks.
 - Service and controller tests cover happy paths and business-error paths for each user story.
 - Driver trip list uses neutral transport wording, exposes `Tat ca` / `Noi bo` / `Dai ly` filters, and renders `DELIVERY` versus `TRANSFER` summaries without enabling the wrong action set.
+- Split delivery uses one Delivery attempt/POD pair/OTP row, blocks shared POD/OTP until all handovers, returns the whole Delivery Order when one leg fails, and releases each vehicle only through its own trip completion.

@@ -16,6 +16,8 @@ public interface SplitDeliveryPlanService {
 
     SplitDeliveryPlanResponse confirmDriverReadiness(Long id, User actor);
 
+    SplitDeliveryPlanResponse departPlan(Long id, User actor);
+
     SplitLegMilestoneResponse confirmDealerArrival(Long planId, Long legId, User actor);
 
     SplitLegMilestoneResponse confirmHandover(Long planId, Long legId, User actor);

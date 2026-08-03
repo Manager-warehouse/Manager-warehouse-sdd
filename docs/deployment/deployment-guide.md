@@ -124,9 +124,34 @@ sudo chown -R "$USER":"$USER" /app/backups/manager-warehouse /app/manager-wareho
 chmod 700 /app/backups/manager-warehouse /app/manager-warehouse/.release
 ```
 
-Ảnh chứng từ/POD/điều chuyển được lưu trong Docker volume `uploads`
-và được mount vào backend tại `/app/uploads`. Không xóa volume này khi rollback
-hoặc recreate container; đây là dữ liệu nghiệp vụ tương tự backup/database.
+Ảnh điều chuyển tiếp tục dùng Docker volume `uploads`. Hai ảnh POD của mỗi lần giao
+được lưu riêng trên VPS tại `/var/lib/wms/pod-evidence` và được mount read-write vào
+backend tại đúng đường dẫn này. Backend chỉ lưu đường dẫn tương đối và metadata trong
+PostgreSQL; ảnh không được public qua Nginx hoặc `/uploads`.
+
+Chuẩn bị thư mục POD trước lần deploy đầu tiên. UID/GID phải khớp với user `wms`
+trong backend container; kiểm tra bằng `docker run --rm <backend-image> id wms`:
+
+```bash
+sudo mkdir -p /var/lib/wms/pod-evidence
+sudo chown -R <WMS_UID>:<WMS_GID> /var/lib/wms/pod-evidence
+sudo chmod 750 /var/lib/wms/pod-evidence
+```
+
+Có thể đổi thư mục host bằng `POD_STORAGE_ROOT_HOST` trong `.env`; đường dẫn trong
+container vẫn là `/var/lib/wms/pod-evidence`. Không đặt thư mục này bên trong checkout
+hoặc `.release`, và không xóa nó khi rollback hay recreate container.
+
+Backup ảnh POD phải được thực hiện cùng snapshot PostgreSQL để object key và file nhất
+quán. Ví dụ tạo archive chỉ đọc:
+
+```bash
+sudo tar -C /var/lib/wms -czf /app/backups/manager-warehouse/pod-evidence-$(date +%Y%m%d%H%M%S).tar.gz pod-evidence
+```
+
+Khi restore, dừng backend, restore database và archive POD từ cùng một mốc backup,
+khôi phục owner/quyền thư mục, sau đó mới khởi động backend và kiểm tra hai ảnh trên
+một Delivery Order đã hoàn tất.
 
 Đăng nhập GHCR một lần để xác nhận PAT có quyền đọc package. Không ghi PAT vào
 shell history; workflow sẽ đăng nhập lại bằng secret được mask:

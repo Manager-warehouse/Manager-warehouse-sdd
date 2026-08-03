@@ -36,7 +36,7 @@ Warehouse staff records one-shot picking and QC results against the concrete all
 |-----------|--------|-------|
 | Layered Architecture | PASS | Controller handles payload and role gating, service owns workflow and inventory mutations, repositories remain persistence-only. |
 | Inventory Integrity | PASS | Source, staging, and quarantine rows all mutate in one transaction with optimistic locking and non-negative checks. |
-| FIFO Batch Selection | PASS | This feature consumes pre-planned allocations and replacement allocations created from FIFO-valid stock, without introducing FEFO. |
+| Batch Candidate Ordering | PASS | This feature consumes Storekeeper-selected valid allocations; candidate display order does not constrain the selected batch. |
 | QC Gate & Quarantine | PASS | QC-failed goods move into quarantine and are excluded from regular available inventory by rule. |
 | In-Transit Tracking | PASS | QC-passed goods remain in outbound staging and do not leave stock until later trip departure flow. |
 | Auth & RBAC | PASS | Warehouse staff, Storekeeper, and Warehouse Manager mutations all require role plus warehouse assignment. |
@@ -108,7 +108,7 @@ See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contrac
 |-----------|--------|-------|
 | Layered Architecture | PASS | Contracts and data model map cleanly to Controller -> Service -> Repository -> Entity. |
 | Inventory Integrity | PASS | Design keeps source, staging, quarantine, and reject-return movement versioned and non-negative. |
-| FIFO Batch Selection | PASS | QC records consume the concrete allocation chosen earlier and preserve replacement re-entry without changing FIFO policy. |
+| Batch Candidate Ordering | PASS | QC records consume the concrete allocation chosen earlier and do not impose a received-date selection rule. |
 | QC Gate & Quarantine | PASS | Failed quantity moves to quarantine with explicit supporting records and stays out of available stock. |
 | In-Transit Tracking | PASS | Passed quantity stays reserved in outbound staging until later warehouse approval and trip flow. |
 | Auth & RBAC | PASS | All actor-specific endpoints retain warehouse assignment checks in addition to role checks. |

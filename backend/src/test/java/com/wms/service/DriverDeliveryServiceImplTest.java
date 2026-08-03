@@ -60,6 +60,7 @@ import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.order_fulfillment.PodEvidenceStorageService;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodContent;
 import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodObject;
 import com.wms.service.order_fulfillment.impl.DriverDeliveryServiceImpl;
 import java.math.BigDecimal;
@@ -230,8 +231,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void requestDeliveryOtp_rejectsMissingDealerEmail() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         order.getDealer().setEmail(" ");
         stubCurrentAttempt();
 
@@ -242,8 +242,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void requestDeliveryOtp_updatesSameRowAfterExpiry() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.EXPIRED, OffsetDateTime.now().minusMinutes(1), 2, "000000");
         stubCurrentAttempt();
         when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(otp));
@@ -260,8 +259,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void requestDeliveryOtp_blocksResendWhileActive() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         stubCurrentAttempt();
         when(otpRepository.findByDeliveryId(80L))
                 .thenReturn(Optional.of(otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456")));
@@ -273,8 +271,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_locksOtpAfterThirdWrongSubmission() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 2, "123456");
         stubCurrentAttempt();
         when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(otp));
@@ -293,8 +290,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_rejectsExpiredOtp() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().minusMinutes(1), 0, "123456");
         stubCurrentAttempt();
         when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(otp));
@@ -310,8 +306,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_updatesAttemptInventoryOrderAndCreatesInvoice() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
         DeliveryOrderItem item = item(BigDecimal.valueOf(2), BigDecimal.valueOf(50));
         Inventory transit = Inventory.builder().id(90L).totalQty(BigDecimal.valueOf(5))
@@ -336,8 +331,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_completesTripAndReleasesResourcesWhenLastStopIsDone() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
         DeliveryOrderItem item = item(BigDecimal.ONE, BigDecimal.valueOf(10));
         Inventory transit = Inventory.builder().id(90L).totalQty(BigDecimal.valueOf(5))
@@ -362,8 +356,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_scopesInvoiceToConfirmedDeliveryOrderOnly() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOrder sibling = DeliveryOrder.builder().id(71L).doNumber("DO-2").dealer(order.getDealer())
                 .warehouse(warehouse).status(DeliveryOrderStatus.IN_TRANSIT).build();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
@@ -386,8 +379,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_doesNotCreatePaymentOrSendNotifications() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
         DeliveryOrderItem item = item(BigDecimal.ONE, BigDecimal.valueOf(10));
         Inventory transit = Inventory.builder().id(90L).totalQty(BigDecimal.valueOf(5))
@@ -408,8 +400,7 @@ class DriverDeliveryServiceImplTest {
 
     @Test
     void confirmDelivery_rejectsMissingTransitStock() {
-        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
-        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        setPodEvidence();
         DeliveryOrderItem item = item(BigDecimal.valueOf(2), BigDecimal.valueOf(50));
         stubCurrentAttempt();
         when(otpRepository.findByDeliveryId(80L))
@@ -484,6 +475,32 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
+    void completeTrip_releasesCurrentSplitLegWithoutWaitingForOtherVehicles() {
+        order.setStatus(DeliveryOrderStatus.COMPLETED);
+        SplitDeliveryPlan plan = SplitDeliveryPlan.builder().id(900L).deliveryOrder(order)
+                .warehouse(warehouse).status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
+        SplitDeliveryLeg currentLeg = SplitDeliveryLeg.builder().id(901L).splitPlan(plan).trip(trip)
+                .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
+        SplitDeliveryLeg otherLeg = SplitDeliveryLeg.builder().id(902L).splitPlan(plan)
+                .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
+        TripDeliveryOrder row = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order)
+                .splitPlan(plan).stopOrder(1).build();
+        when(tripRepository.findAssignedDriverTrip(50L, actor.getId())).thenReturn(Optional.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(50L)).thenReturn(List.of(row));
+        when(splitDeliveryLegRepository.findByTripId(50L)).thenReturn(Optional.of(currentLeg));
+        when(splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(currentLeg, otherLeg));
+        when(tripRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.completeTrip(50L, new TripCompleteRequest(), actor);
+
+        assertThat(trip.getVehicle().getStatus()).isEqualTo(VehicleStatus.AVAILABLE);
+        assertThat(trip.getDriver().getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+        assertThat(plan.getStatus()).isEqualTo(SplitDeliveryPlanStatus.IN_TRANSIT);
+        verify(splitDeliveryPlanRepository, never()).save(plan);
+    }
+
+    @Test
     void resetDeliveryOtp_rejectsMissingCurrentAttemptOrOtpRow() {
         when(deliveryRepository.findLatestCurrentAttemptByDeliveryOrderId(eq(70L), any())).thenReturn(Optional.empty());
 
@@ -532,6 +549,106 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
+    void uploadPodEvidence_blocksLeadUntilEverySplitLegConfirmsHandover() {
+        SplitDeliveryPlan splitPlan = SplitDeliveryPlan.builder().id(900L).planNumber("SDP-1")
+                .deliveryOrder(order).warehouse(warehouse).leadDriver(trip.getDriver())
+                .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
+        TripDeliveryOrder splitAssignment = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order)
+                .splitPlan(splitPlan).stopOrder(1).build();
+        SplitDeliveryLeg pendingHandover = SplitDeliveryLeg.builder().id(901L).splitPlan(splitPlan).trip(trip)
+                .status(SplitDeliveryPlanStatus.IN_TRANSIT).build();
+        when(tripRepository.findAssignedDriverTrip(50L, actor.getId())).thenReturn(Optional.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(50L, 70L))
+                .thenReturn(Optional.of(splitAssignment));
+        when(splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(pendingHandover));
+
+        assertThatThrownBy(() -> service.uploadPodEvidence(
+                50L, 70L, image("goodsImage"), image("signDocumentImage"), null, actor))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("SPLIT_DELIVERY_INCOMPLETE");
+
+        verify(podStorageService, never()).upload(anyLong(), any(), any());
+    }
+
+    @Test
+    void uploadPodEvidence_requiresCompleteEvidencePair() {
+        stubCurrentAttempt();
+
+        assertThatThrownBy(() -> service.uploadPodEvidence(
+                50L, 70L, image("goodsImage"), null, null, actor))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("POD_EVIDENCE_INCOMPLETE");
+
+        verify(podStorageService, never()).upload(anyLong(), any(), any());
+    }
+
+    @Test
+    void uploadPodEvidence_deletesFirstFileWhenSecondUploadFails() {
+        stubCurrentAttempt();
+        StoredPodObject goods = new StoredPodObject(
+                "deliveries/80/goods.jpg", "goods.jpg", "image/jpeg", 1024);
+        when(podStorageService.upload(eq(80L), eq("GOODS"), any())).thenReturn(goods);
+        when(podStorageService.upload(eq(80L), eq("SIGNED_DOCUMENT"), any()))
+                .thenThrow(new OutboundDeliveryException(
+                        "POD_STORAGE_UNAVAILABLE", org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                        "Unable to store POD evidence"));
+
+        assertThatThrownBy(() -> service.uploadPodEvidence(
+                50L, 70L, image("goodsImage"), image("signDocumentImage"), null, actor))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("POD_STORAGE_UNAVAILABLE");
+
+        verify(podStorageService).delete(goods.objectKey());
+        verify(deliveryRepository, never()).save(any());
+    }
+
+    @Test
+    void getPodEvidence_readsCompletedDeliveryEvidenceForPlanner() {
+        delivery.setStatus(DeliveryStatus.DELIVERED);
+        delivery.setGoodsImageObjectKey("deliveries/80/goods.jpg");
+        delivery.setGoodsImageOriginalFilename("goods.jpg");
+        delivery.setGoodsImageContentType("image/jpeg");
+        User planner = User.builder().id(11L).role(UserRole.PLANNER).build();
+        StoredPodContent content = new StoredPodContent(new byte[]{1, 2, 3}, "goods.jpg", "image/jpeg");
+        when(deliveryRepository.findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+                70L, DeliveryStatus.DELIVERED)).thenReturn(Optional.of(delivery));
+        when(podStorageService.read("deliveries/80/goods.jpg", "goods.jpg", "image/jpeg"))
+                .thenReturn(content);
+
+        assertThat(service.getPodEvidence(70L, "GOODS", planner)).isEqualTo(content);
+    }
+
+    @Test
+    void getPodEvidence_rejectsWarehouseScopedUserOutsideOrderWarehouse() {
+        delivery.setStatus(DeliveryStatus.DELIVERED);
+        User dispatcher = User.builder().id(12L).role(UserRole.DISPATCHER).build();
+        when(deliveryRepository.findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+                70L, DeliveryStatus.DELIVERED)).thenReturn(Optional.of(delivery));
+        when(assignmentRepository.findWarehouseIdsByUserId(12L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.getPodEvidence(70L, "GOODS", dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+
+        verify(podStorageService, never()).read(any(), any(), any());
+    }
+
+    @Test
+    void getPodEvidence_rejectsInvalidEvidenceType() {
+        delivery.setStatus(DeliveryStatus.DELIVERED);
+        User planner = User.builder().id(11L).role(UserRole.PLANNER).build();
+        when(deliveryRepository.findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+                70L, DeliveryStatus.DELIVERED)).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> service.getPodEvidence(70L, "OTHER", planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("POD_EVIDENCE_NOT_FOUND");
+
+        verify(podStorageService, never()).read(any(), any(), any());
+    }
+
+    @Test
     void uploadPodEvidence_invalidatesActiveOtpOnPodReplacement() {
         // Replacing existing POD while OTP is ACTIVE should expire that OTP.
         delivery.setGoodsImageObjectKey("old/goods.jpg");
@@ -549,6 +666,8 @@ class DriverDeliveryServiceImplTest {
 
         assertThat(activeOtp.getStatus()).isEqualTo(DeliveryOtpStatus.EXPIRED);
         verify(otpRepository).save(activeOtp);
+        verify(podStorageService).delete("old/goods.jpg");
+        verify(podStorageService).delete("old/sign.jpg");
     }
 
     @Test
@@ -570,6 +689,41 @@ class DriverDeliveryServiceImplTest {
         // LOCKED status must be preserved — no save on the locked OTP.
         assertThat(lockedOtp.getStatus()).isEqualTo(DeliveryOtpStatus.LOCKED);
         verify(otpRepository, never()).save(lockedOtp);
+    }
+
+    @Test
+    void uploadPodEvidence_invalidatesSendFailedOtpOnPodReplacement() {
+        DeliveryOtpAttempt sendFailedOtp = otp(
+                DeliveryOtpStatus.SEND_FAILED, OffsetDateTime.now().minusMinutes(1), 0, "222222");
+        stubCurrentAttempt();
+        when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(sendFailedOtp));
+        when(podStorageService.upload(eq(80L), eq("GOODS"), any()))
+                .thenReturn(new StoredPodObject("new/goods.jpg", "goods.jpg", "image/jpeg", 1024));
+        when(podStorageService.upload(eq(80L), eq("SIGNED_DOCUMENT"), any()))
+                .thenReturn(new StoredPodObject("new/sign.jpg", "sign.jpg", "image/jpeg", 512));
+        when(deliveryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.uploadPodEvidence(50L, 70L, image("goodsImage"), image("signDocumentImage"), null, actor);
+
+        assertThat(sendFailedOtp.getStatus()).isEqualTo(DeliveryOtpStatus.EXPIRED);
+        verify(otpRepository).save(sendFailedOtp);
+    }
+
+    @Test
+    void uploadPodEvidence_invalidatesPendingOtpOnPodReplacement() {
+        DeliveryOtpAttempt pendingOtp = otp(
+                DeliveryOtpStatus.PENDING, OffsetDateTime.now().plusMinutes(1), 0, "333333");
+        stubCurrentAttempt();
+        when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(pendingOtp));
+        when(podStorageService.upload(eq(80L), eq("GOODS"), any()))
+                .thenReturn(new StoredPodObject("new/goods.jpg", "goods.jpg", "image/jpeg", 1024));
+        when(podStorageService.upload(eq(80L), eq("SIGNED_DOCUMENT"), any()))
+                .thenReturn(new StoredPodObject("new/sign.jpg", "sign.jpg", "image/jpeg", 512));
+        when(deliveryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.uploadPodEvidence(50L, 70L, image("goodsImage"), image("signDocumentImage"), null, actor);
+
+        assertThat(pendingOtp.getStatus()).isEqualTo(DeliveryOtpStatus.EXPIRED);
     }
 
     @Test
@@ -678,6 +832,11 @@ class DriverDeliveryServiceImplTest {
                 .thenReturn(Optional.of(TripDeliveryOrder.builder().trip(trip).deliveryOrder(order).stopOrder(1).build()));
         when(deliveryRepository.findCurrentAttempt(eq(50L), eq(70L), eq(30L), any()))
                 .thenReturn(Optional.of(delivery));
+    }
+
+    private void setPodEvidence() {
+        delivery.setGoodsImageObjectKey("pod/goods.jpg");
+        delivery.setSignedDocumentObjectKey("pod/sign.jpg");
     }
 
     private MockMultipartFile image(String name) {

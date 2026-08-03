@@ -18,8 +18,8 @@ WORKDIR /app
 
 COPY --from=build --chown=wms:wms /workspace/target/wms-backend-0.0.1-SNAPSHOT.jar app.jar
 
-RUN mkdir -p /app/uploads/pod /app/uploads/transfer \
-    && chown -R wms:wms /app/uploads
+RUN mkdir -p /app/uploads/transfer /var/lib/wms/pod-evidence \
+    && chown -R wms:wms /app/uploads /var/lib/wms
 
 USER wms
 

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.wms.dto.request.SplitDeliveryLegItemRequest;
 import com.wms.dto.request.SplitDeliveryLegRequest;
+import com.wms.dto.request.SplitLegFailureRequest;
 import com.wms.dto.request.SplitDeliveryPlanCreateRequest;
 import com.wms.dto.request.SplitDeliveryPlanUpdateRequest;
 import com.wms.entity.access_control.User;
@@ -33,6 +34,7 @@ import com.wms.enums.access_control.UserRole;
 import com.wms.enums.driver_management.DriverStatus;
 import com.wms.enums.fleet_management.VehicleStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.order_fulfillment.DeliveryStatus;
 import com.wms.enums.order_fulfillment.SplitDeliveryPlanStatus;
 import com.wms.enums.order_fulfillment.TripStatus;
 import com.wms.enums.warehouse_location.WarehouseType;
@@ -222,7 +224,7 @@ class SplitDeliveryPlanServiceImplTest {
     }
 
     @Test
-    void confirmDriverReadiness_departsAllLegsAndMovesStagingStockWhenAllDriversReady() {
+    void departPlan_movesAllReadyLegsAndStagingStockWhenLeadDriverConfirms() {
         SplitDeliveryPlan plan = existingPlan();
         List<SplitDeliveryLeg> legs = existingLegs(plan);
         legs.get(0).setReadinessConfirmedAt(OffsetDateTime.now());
@@ -253,12 +255,96 @@ class SplitDeliveryPlanServiceImplTest {
         when(deliveryRepository.findMaxAttemptNumberByDeliveryOrderId(100L)).thenReturn(0);
         when(deliveryRepository.save(any(Delivery.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = service.confirmDriverReadiness(900L, driver2.getUser());
+        var readiness = service.confirmDriverReadiness(900L, driver2.getUser());
+        assertThat(readiness.getStatus()).isEqualTo(SplitDeliveryPlanStatus.PLANNED);
 
+        var response = service.departPlan(900L, driver1.getUser());
         assertThat(response.getStatus()).isEqualTo(SplitDeliveryPlanStatus.IN_TRANSIT);
         assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.IN_TRANSIT);
         assertThat(stagingInventory.getTotalQty()).isEqualByComparingTo("0.00");
         assertThat(item.getIssuedQty()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void confirmDealerArrival_recordsOnlyTheAssignedDriverLeg() {
+        SplitDeliveryPlan plan = existingPlan();
+        plan.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT);
+        List<SplitDeliveryLeg> legs = existingLegs(plan);
+        legs.forEach(leg -> leg.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT));
+        when(splitPlanRepository.findDetailedById(900L)).thenReturn(Optional.of(plan));
+        when(splitLegRepository.findById(1L)).thenReturn(Optional.of(legs.get(0)));
+        when(splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L)).thenReturn(legs);
+
+        var response = service.confirmDealerArrival(900L, 1L, driver1.getUser());
+
+        assertThat(response.getDealerArrivedAt()).isNotNull();
+        assertThat(legs.get(0).getDealerArrivedAt()).isNotNull();
+        assertThat(legs.get(1).getDealerArrivedAt()).isNull();
+        verify(splitLegRepository).save(legs.get(0));
+    }
+
+    @Test
+    void confirmHandover_waitsUntilEverySplitVehicleArrives() {
+        SplitDeliveryPlan plan = existingPlan();
+        plan.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT);
+        List<SplitDeliveryLeg> legs = existingLegs(plan);
+        legs.forEach(leg -> leg.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT));
+        legs.get(0).setDealerArrivedAt(OffsetDateTime.now());
+        when(splitPlanRepository.findDetailedById(900L)).thenReturn(Optional.of(plan));
+        when(splitLegRepository.findById(1L)).thenReturn(Optional.of(legs.get(0)));
+        when(splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L)).thenReturn(legs);
+
+        assertThatThrownBy(() -> service.confirmHandover(900L, 1L, driver1.getUser()))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code").isEqualTo("SPLIT_DELIVERY_INCOMPLETE");
+
+        assertThat(legs.get(0).getHandoverConfirmedAt()).isNull();
+    }
+
+    @Test
+    void confirmHandover_enablesLeadPodOtpAfterEveryLegHandsOver() {
+        SplitDeliveryPlan plan = existingPlan();
+        plan.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT);
+        List<SplitDeliveryLeg> legs = existingLegs(plan);
+        legs.forEach(leg -> {
+            leg.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT);
+            leg.setDealerArrivedAt(OffsetDateTime.now());
+        });
+        legs.get(1).setHandoverConfirmedAt(OffsetDateTime.now());
+        when(splitPlanRepository.findDetailedById(900L)).thenReturn(Optional.of(plan));
+        when(splitLegRepository.findById(1L)).thenReturn(Optional.of(legs.get(0)));
+        when(splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L)).thenReturn(legs);
+
+        var response = service.confirmHandover(900L, 1L, driver1.getUser());
+
+        assertThat(response.isAllLegsArrived()).isTrue();
+        assertThat(response.isAllLegsHandedOver()).isTrue();
+        assertThat(response.isLeadPodOtpEnabled()).isTrue();
+    }
+
+    @Test
+    void failDeliveryLeg_returnsTheWholeDeliveryOrderAndEveryLeg() {
+        SplitDeliveryPlan plan = existingPlan();
+        plan.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT);
+        order.setStatus(DeliveryOrderStatus.IN_TRANSIT);
+        List<SplitDeliveryLeg> legs = existingLegs(plan);
+        legs.forEach(leg -> leg.setStatus(SplitDeliveryPlanStatus.IN_TRANSIT));
+        Delivery currentAttempt = Delivery.builder().id(800L).deliveryOrder(order)
+                .status(DeliveryStatus.IN_TRANSIT).build();
+        SplitLegFailureRequest request = new SplitLegFailureRequest();
+        request.setFailureReason("One vehicle cannot complete handover");
+        when(splitPlanRepository.findDetailedById(900L)).thenReturn(Optional.of(plan));
+        when(splitLegRepository.findById(1L)).thenReturn(Optional.of(legs.get(0)));
+        when(splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(900L)).thenReturn(legs);
+        when(deliveryRepository.findLatestCurrentAttemptByDeliveryOrderId(eq(100L), any()))
+                .thenReturn(Optional.of(currentAttempt));
+
+        service.failDeliveryLeg(900L, 1L, request, driver1.getUser());
+
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.RETURNED);
+        assertThat(currentAttempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
+        assertThat(plan.getStatus()).isEqualTo(SplitDeliveryPlanStatus.RETURNED);
+        assertThat(legs).allMatch(leg -> leg.getStatus() == SplitDeliveryPlanStatus.RETURNED);
     }
 
     private void baseCreateStubs() {

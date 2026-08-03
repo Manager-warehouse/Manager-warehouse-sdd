@@ -97,4 +97,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
                                                               @Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
 
     Optional<Delivery> findFirstByDeliveryOrderIdOrderByCreatedAtDesc(Long doId);
+
+    @EntityGraph(attributePaths = {
+            "deliveryOrder", "deliveryOrder.warehouse", "trip", "driver", "vehicle"
+    })
+    Optional<Delivery> findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+            Long deliveryOrderId, DeliveryStatus status);
 }

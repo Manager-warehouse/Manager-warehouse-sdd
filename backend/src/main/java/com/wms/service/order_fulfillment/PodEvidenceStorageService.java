@@ -8,8 +8,11 @@ public interface PodEvidenceStorageService {
 
     void delete(String objectKey);
 
-    String createSignedUrl(String objectKey, int expiresInSeconds);
+    StoredPodContent read(String objectKey, String originalFilename, String contentType);
 
     record StoredPodObject(String objectKey, String originalFilename, String contentType, long sizeBytes) {
+    }
+
+    record StoredPodContent(byte[] bytes, String originalFilename, String contentType) {
     }
 }

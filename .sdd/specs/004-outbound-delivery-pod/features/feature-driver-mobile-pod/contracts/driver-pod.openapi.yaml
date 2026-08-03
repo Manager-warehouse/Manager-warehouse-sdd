@@ -132,6 +132,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Persistent local POD storage is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/pod-evidence/{evidenceType}:
+    get:
+      summary: Stream one POD image from persistent local VPS storage
+      operationId: getPodEvidenceImage
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: evidenceType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [GOODS, SIGNED_DOCUMENT]
+      responses:
+        "200":
+          description: Authorized inline POD image response
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: User cannot view the Delivery Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Successful delivery attempt, POD metadata, or local file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp:
     post:
       summary: Generate or resend OTP for the current delivery attempt
@@ -192,6 +247,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
           description: Dealer email missing or OTP is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OTP email delivery failed; the same OTP row is SEND_FAILED and immediately retryable
           content:
             application/json:
               schema:
@@ -262,6 +323,102 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: OTP locked and requires admin reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{planId}/legs/{legId}/dealer-arrival:
+    put:
+      summary: Confirm the assigned split leg arrived at the dealer
+      operationId: confirmSplitLegDealerArrival
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+        - $ref: "#/components/parameters/SplitLegId"
+      responses:
+        "200":
+          description: Dealer arrival recorded for the assigned leg
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitLegMilestoneResponse"
+        "403":
+          description: Driver is not assigned to the split leg
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Split plan or leg is no longer in transit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{planId}/legs/{legId}/handover:
+    put:
+      summary: Confirm handover for the assigned split leg after every leg arrived
+      operationId: confirmSplitLegHandover
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+        - $ref: "#/components/parameters/SplitLegId"
+      responses:
+        "200":
+          description: Handover recorded for the assigned leg
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitLegMilestoneResponse"
+        "403":
+          description: Driver is not assigned to the split leg
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: At least one active split leg has not confirmed dealer arrival
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/split-delivery-plans/{planId}/legs/{legId}/fail-delivery:
+    put:
+      summary: Report one split-leg failure and return the whole Delivery Order
+      operationId: failSplitDeliveryLeg
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SplitPlanId"
+        - $ref: "#/components/parameters/SplitLegId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SplitLegFailureRequest"
+      responses:
+        "200":
+          description: Whole split Delivery Order moved to return handling
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SplitLegMilestoneResponse"
+        "403":
+          description: Driver is not assigned to the split leg
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Delivery Order is already finalized
           content:
             application/json:
               schema:
@@ -626,6 +783,21 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    SplitPlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SplitLegId:
+      name: legId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
   schemas:
     DeliveryOtpRequest:
       type: object
@@ -677,6 +849,45 @@ components:
         notes:
           type: string
           maxLength: 1000
+    SplitLegFailureRequest:
+      type: object
+      required:
+        - failureReason
+      properties:
+        failureReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    SplitLegMilestoneResponse:
+      type: object
+      properties:
+        splitPlanId:
+          type: integer
+          format: int64
+        legId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [IN_TRANSIT, COMPLETED, RETURNED]
+        dealerArrivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        handoverConfirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failureReportedAt:
+          type: string
+          format: date-time
+          nullable: true
+        allLegsArrived:
+          type: boolean
+        allLegsHandedOver:
+          type: boolean
+        leadPodOtpEnabled:
+          type: boolean
     ReturnedGoodsReceiveRequest:
       type: object
       properties:
@@ -930,10 +1141,10 @@ components:
         status:
           type: string
           example: IN_TRANSIT
-        podImageUrl:
-          type: string
-        podSignatureUrl:
-          type: string
+        goodsImageAvailable:
+          type: boolean
+        signedDocumentImageAvailable:
+          type: boolean
         podTimestamp:
           type: string
           format: date-time
@@ -958,6 +1169,7 @@ components:
           type: string
         status:
           type: string
+          enum: [PENDING, ACTIVE, SEND_FAILED, EXPIRED, LOCKED, VERIFIED]
           example: ACTIVE
         expiresAt:
           type: string
@@ -975,6 +1187,8 @@ components:
             - DELIVERY_ATTEMPT_NOT_CURRENT
             - DELIVERY_ALREADY_FINALIZED
             - POD_FILE_INVALID
+            - POD_EVIDENCE_NOT_FOUND
+            - POD_STORAGE_UNAVAILABLE
             - MISSING_POD
             - DEALER_EMAIL_MISSING
             - OTP_NOT_REQUESTED
@@ -983,6 +1197,10 @@ components:
             - OTP_STILL_ACTIVE
             - OTP_MAX_ATTEMPTS_EXCEEDED
             - OTP_RESET_REQUIRED
+            - OTP_DELIVERY_FAILED
+            - SPLIT_LEAD_DRIVER_REQUIRED
+            - SPLIT_DELIVERY_INCOMPLETE
+            - SPLIT_LEG_DRIVER_MISMATCH
             - PARTIAL_DELIVERY_NOT_ALLOWED
             - IN_TRANSIT_STOCK_NOT_FOUND
             - INVOICE_ALREADY_EXISTS

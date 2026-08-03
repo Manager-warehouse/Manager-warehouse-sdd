@@ -32,7 +32,7 @@
 - [X] T009 [P] Add `DeliveryOrderItemAllocationRepository` in `backend/src/main/java/com/wms/repository/DeliveryOrderItemAllocationRepository.java`
 - [X] T010 [P] Add `DeliveryOrderItemReturnToBinRecordRepository` in `backend/src/main/java/com/wms/repository/DeliveryOrderItemReturnToBinRecordRepository.java`
 - [X] T011 [P] Add `DeliveryOrderItemReplacementRepository` in `backend/src/main/java/com/wms/repository/DeliveryOrderItemReplacementRepository.java`
-- [X] T012 Extend `InventoryRepository` with FIFO-ranked valid-stock lookup, concrete reservation lookup, and version-safe helpers in `backend/src/main/java/com/wms/repository/InventoryRepository.java`
+- [X] T012 Extend `InventoryRepository` with received-date-ranked valid-stock lookup, concrete reservation lookup, and version-safe helpers in `backend/src/main/java/com/wms/repository/InventoryRepository.java`
 - [X] T013 [P] Extend `DeliveryOrderRepository` and `DeliveryOrderItemRepository` with detail-loading queries for allocations and outbound statuses in `backend/src/main/java/com/wms/repository/DeliveryOrderRepository.java` and `backend/src/main/java/com/wms/repository/DeliveryOrderItemRepository.java`
 - [X] T014 [P] Extend `WarehouseProductReservationRepository` with optimistic-lock-aware lookup helpers for picking-plan reservation transfer in `backend/src/main/java/com/wms/repository/WarehouseProductReservationRepository.java`
 - [X] T015 Add shared outbound planning helpers for warehouse scope, status validation, per-item allocation totals, and audit snapshots in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
@@ -44,7 +44,7 @@
 
 ## Phase 3: User Story 1 - Storekeeper saves the initial picking plan (Priority: P1) 🎯 MVP
 
-**Goal**: Storekeeper assigned to the Delivery Order warehouse saves a complete FIFO-based concrete picking plan and moves the order from `NEW` to `WAITING_PICKING`.
+**Goal**: Storekeeper assigned to the Delivery Order warehouse saves a complete concrete picking plan by freely choosing valid stock from a received-date-ranked list and moves the order from `NEW` to `WAITING_PICKING`.
 
 **Independent Test**: Submit a valid `PUT /api/v1/delivery-orders/{id}/picking-plan` request for a `NEW` Delivery Order and verify concrete allocations persist, `warehouse_product_reservations.reserved_qty` decreases, selected `inventories.reserved_qty` increases, audit is written, and the order moves to `WAITING_PICKING`.
 
@@ -64,7 +64,7 @@
 - [X] T025 [US1] Extend `DeliveryOrderResponse` and `DeliveryOrderMapper` to include current allocations and planned quantities in `backend/src/main/java/com/wms/dto/response/DeliveryOrderResponse.java` and `backend/src/main/java/com/wms/mapper/DeliveryOrderMapper.java`
 - [X] T026 [US1] Add `saveDeliveryOrderPickingPlan` method contract to `DeliveryOrderService` in `backend/src/main/java/com/wms/service/DeliveryOrderService.java`
 - [X] T027 [US1] Add `PUT /api/v1/delivery-orders/{id}/picking-plan` endpoint with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/DeliveryOrderController.java`
-- [X] T028 [US1] Implement initial picking-plan save with FIFO-valid inventory validation, allocation persistence, planner-reservation transfer, status change, and `PICKING_PLAN_SAVE` audit in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
+- [X] T028 [US1] Implement initial picking-plan save with valid inventory validation, free batch selection, allocation persistence, planner-reservation transfer, status change, and `PICKING_PLAN_SAVE` audit in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [X] T029 [US1] Update `DeliveryOrderItem` summary quantity fields from allocation totals during initial plan save in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 
 **Checkpoint**: US1 is fully functional and testable as the MVP.
@@ -212,7 +212,7 @@ Task: "T044 [P] [US3] Add service unit test for optimistic-lock conflict on repl
 ### Validation Checklist
 
 - Every outbound mutation remains transactional and version-safe.
-- FIFO candidate selection excludes quarantine, staging, In-Transit, inactive, and non-available stock.
+- Candidate listing sorts by received date ascending, excludes quarantine, staging, In-Transit, inactive, and non-available stock, and does not enforce allocation order.
 - Planner-level reservation is converted to concrete reservation without double-counting.
 - Picked allocation changes require return-to-bin only when the allocation is reduced or removed.
 - Replacement planning preserves failed-to-replacement traceability and returns the order to `WAITING_PICKING`.

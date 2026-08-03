@@ -368,8 +368,8 @@ class DriverDeliveryControllerTest {
                 .deliveryId(700L)
                 .attemptNumber(1)
                 .status(status)
-                .podImageUrl("/uploads/pod/goods.jpg")
-                .podSignatureUrl("/uploads/pod/sign.jpg")
+                .goodsImageAvailable(true)
+                .signedDocumentImageAvailable(true)
                 .dispatchedAt(OffsetDateTime.now())
                 .build();
     }

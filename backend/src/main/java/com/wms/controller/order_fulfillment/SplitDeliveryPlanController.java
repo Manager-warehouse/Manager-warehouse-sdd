@@ -92,6 +92,19 @@ public class SplitDeliveryPlanController {
         return splitDeliveryPlanService.confirmDriverReadiness(id, currentUser());
     }
 
+    @PutMapping("/{id}/depart")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "Lead driver confirms coordinated departure for every split delivery leg")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Split delivery plan departed",
+                    content = @Content(schema = @Schema(implementation = SplitDeliveryPlanResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Authenticated driver is not the lead driver", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Split drivers or resources are not ready", content = @Content)
+    })
+    public SplitDeliveryPlanResponse departPlan(@PathVariable Long id) {
+        return splitDeliveryPlanService.departPlan(id, currentUser());
+    }
+
     @PutMapping("/{planId}/legs/{legId}/dealer-arrival")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Confirm assigned split leg arrived at the dealer")

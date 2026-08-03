@@ -76,11 +76,7 @@ import com.wms.repository.TripRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.order_fulfillment.DriverDeliveryService;
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -91,7 +87,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -104,17 +99,22 @@ import com.wms.repository.SplitDeliveryLegRepository;
 import com.wms.repository.SplitDeliveryPlanRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.order_fulfillment.PodEvidenceStorageService;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodContent;
 import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodObject;
 import com.wms.entity.order_fulfillment.SplitDeliveryPlan;
 import com.wms.entity.order_fulfillment.SplitDeliveryLeg;
 import com.wms.enums.order_fulfillment.SplitDeliveryPlanStatus;
-import com.wms.dto.response.PodEvidenceSignedUrlsResponse;
-import com.wms.dto.response.PodEvidenceSignedUrlResponse;
 import com.wms.exception.OtpDeliveryFailedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class DriverDeliveryServiceImpl implements DriverDeliveryService {
+
+    private static final Logger log = LoggerFactory.getLogger(DriverDeliveryServiceImpl.class);
 
     /*
      * Service cho màn "Giao hàng của tôi" của tài xế.
@@ -126,6 +126,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private static final List<DeliveryStatus> CURRENT_ATTEMPT_STATUSES = List.of(DeliveryStatus.IN_TRANSIT);
     private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES =
             List.of(DeliveryOrderStatus.COMPLETED, DeliveryOrderStatus.RETURNED);
+    private static final List<DeliveryOtpStatus> POD_REPLACEMENT_EXPIRABLE_OTP_STATUSES =
+            List.of(DeliveryOtpStatus.PENDING, DeliveryOtpStatus.ACTIVE, DeliveryOtpStatus.SEND_FAILED);
 
     private final TripRepository tripRepository;
     private final TripDeliveryOrderRepository tripDeliveryOrderRepository;
@@ -208,75 +210,70 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         Trip trip = assignedTrip(tripId, actor);
         TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
                 .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN, "Delivery order not in trip"));
-        
-        if (row.getSplitPlan() != null) {
-            SplitDeliveryPlan plan = row.getSplitPlan();
-            if (plan.getLeadDriver() == null || !plan.getLeadDriver().getId().equals(actor.getId())) {
-                throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN, "Only lead driver can upload POD");
-            }
-        }
-        
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         java.util.Map<String, Object> before = attemptSnapshot(delivery);
+        requireCompletePodPair(goodsImage, signDocumentImage);
+        validatePodFile(goodsImage);
+        validatePodFile(signDocumentImage);
 
-        boolean podChanged = false;
-        if (goodsImage != null && !goodsImage.isEmpty()) {
-            validatePodFile(goodsImage);
-            StoredPodObject obj = podStorageService.upload(delivery.getId(), "GOODS", goodsImage);
-            delivery.setGoodsImageObjectKey(obj.objectKey());
-            delivery.setPodImageUrl(podStorageService.createSignedUrl(obj.objectKey(), 3600));
-            podChanged = true;
-        }
-        if (signDocumentImage != null && !signDocumentImage.isEmpty()) {
-            validatePodFile(signDocumentImage);
-            StoredPodObject obj = podStorageService.upload(delivery.getId(), "SIGNED_DOCUMENT", signDocumentImage);
-            delivery.setSignedDocumentObjectKey(obj.objectKey());
-            delivery.setPodSignatureUrl(podStorageService.createSignedUrl(obj.objectKey(), 3600));
-            podChanged = true;
-        }
-        
-        if (podChanged) {
-            delivery.setPodTimestamp(java.time.OffsetDateTime.now());
-            // Invalidate active OTP
-            otpRepository.findByDeliveryId(delivery.getId()).ifPresent(otp -> {
-                if (otp.getStatus() == com.wms.enums.order_fulfillment.DeliveryOtpStatus.ACTIVE) {
-                    otp.setStatus(com.wms.enums.order_fulfillment.DeliveryOtpStatus.EXPIRED);
-                    otpRepository.save(otp);
-                }
-            });
-        }
+        String oldGoodsKey = delivery.getGoodsImageObjectKey();
+        String oldSignKey = delivery.getSignedDocumentObjectKey();
+        StoredPodPair pair = uploadPodPair(delivery.getId(), goodsImage, signDocumentImage);
+        delivery.setGoodsImageObjectKey(pair.goods().objectKey());
+        delivery.setGoodsImageOriginalFilename(pair.goods().originalFilename());
+        delivery.setGoodsImageContentType(pair.goods().contentType());
+        delivery.setGoodsImageSizeBytes(pair.goods().sizeBytes());
+        delivery.setGoodsImageUploadedAt(OffsetDateTime.now());
+        delivery.setSignedDocumentObjectKey(pair.signedDocument().objectKey());
+        delivery.setSignedDocumentOriginalFilename(pair.signedDocument().originalFilename());
+        delivery.setSignedDocumentContentType(pair.signedDocument().contentType());
+        delivery.setSignedDocumentSizeBytes(pair.signedDocument().sizeBytes());
+        delivery.setSignedDocumentUploadedAt(OffsetDateTime.now());
+        delivery.setPodImageUrl(null);
+        delivery.setPodSignatureUrl(null);
+        delivery.setPodTimestamp(java.time.OffsetDateTime.now());
+        registerPodFileLifecycle(oldGoodsKey, oldSignKey, pair);
+        otpRepository.findByDeliveryId(delivery.getId()).ifPresent(otp -> {
+            if (POD_REPLACEMENT_EXPIRABLE_OTP_STATUSES.contains(otp.getStatus())) {
+                otp.setStatus(DeliveryOtpStatus.EXPIRED);
+                otpRepository.save(otp);
+            }
+        });
 
-        Delivery saved = deliveryRepository.save(delivery);
-        auditLogService.log(actor, AuditAction.UPLOAD_POD, "DELIVERY", saved.getId(), saved.getDeliveryNumber(), trip.getWarehouse().getId(), before, attemptSnapshot(saved));
-        return toAttemptResponse(saved);
+        try {
+            Delivery saved = deliveryRepository.save(delivery);
+            auditLogService.log(actor, AuditAction.UPLOAD_POD, "DELIVERY", saved.getId(),
+                    saved.getDeliveryNumber(), trip.getWarehouse().getId(), before, attemptSnapshot(saved));
+            return toAttemptResponse(saved);
+        } catch (RuntimeException ex) {
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                safeDeletePod(pair.goods().objectKey());
+                safeDeletePod(pair.signedDocument().objectKey());
+            }
+            throw ex;
+        }
     }
+
     @Override
     @Transactional(readOnly = true)
-    public PodEvidenceSignedUrlsResponse getPodEvidenceSignedUrls(Long deliveryOrderId, User actor) {
-        Delivery delivery = deliveryRepository.findLatestCurrentAttemptByDeliveryOrderId(deliveryOrderId, java.util.List.of(DeliveryStatus.PENDING, DeliveryStatus.IN_TRANSIT))
-                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_NOT_FOUND", HttpStatus.NOT_FOUND, "Delivery not found"));
-        Trip trip = delivery.getTrip();
-        if (!trip.getDriver().getId().equals(actor.getId())) {
-            throw new OutboundDeliveryException("TRIP_DRIVER_MISMATCH", HttpStatus.FORBIDDEN, "Driver mismatch");
+    public StoredPodContent getPodEvidence(Long deliveryOrderId, String evidenceType, User actor) {
+        Delivery delivery = deliveryRepository
+                .findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+                        deliveryOrderId, DeliveryStatus.DELIVERED)
+                .orElseThrow(() -> new OutboundDeliveryException(
+                        "POD_EVIDENCE_NOT_FOUND", HttpStatus.NOT_FOUND, "POD evidence was not found"));
+        requireDeliveryOrderDetailAccess(actor, delivery.getDeliveryOrder());
+        if ("GOODS".equalsIgnoreCase(evidenceType)) {
+            return podStorageService.read(delivery.getGoodsImageObjectKey(),
+                    delivery.getGoodsImageOriginalFilename(), delivery.getGoodsImageContentType());
         }
-        PodEvidenceSignedUrlResponse goods = null;
-        if (delivery.getGoodsImageObjectKey() != null) {
-            goods = PodEvidenceSignedUrlResponse.builder()
-                .signedUrl(podStorageService.createSignedUrl(delivery.getGoodsImageObjectKey(), 3600))
-                .build();
+        if ("SIGNED_DOCUMENT".equalsIgnoreCase(evidenceType)) {
+            return podStorageService.read(delivery.getSignedDocumentObjectKey(),
+                    delivery.getSignedDocumentOriginalFilename(), delivery.getSignedDocumentContentType());
         }
-        PodEvidenceSignedUrlResponse sign = null;
-        if (delivery.getSignedDocumentObjectKey() != null) {
-            sign = PodEvidenceSignedUrlResponse.builder()
-                .signedUrl(podStorageService.createSignedUrl(delivery.getSignedDocumentObjectKey(), 3600))
-                .build();
-        }
-        return PodEvidenceSignedUrlsResponse.builder()
-            .doId(delivery.getDeliveryOrder().getId())
-            .deliveryId(delivery.getId())
-            .goodsImage(goods)
-            .signDocumentImage(sign)
-            .build();
+        throw new OutboundDeliveryException(
+                "POD_EVIDENCE_NOT_FOUND", HttpStatus.NOT_FOUND, "POD evidence was not found");
     }
 
     @Override
@@ -285,12 +282,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         Trip trip = assignedTrip(tripId, actor);
         TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
                 .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN, "Delivery order not in trip"));
-        if (row.getSplitPlan() != null) {
-            SplitDeliveryPlan plan = row.getSplitPlan();
-            if (plan.getLeadDriver() == null || !plan.getLeadDriver().getId().equals(actor.getId())) {
-                throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN, "Only lead driver can request OTP");
-            }
-        }
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
         Dealer dealer = delivery.getDeliveryOrder().getDealer();
@@ -341,6 +333,10 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Transactional
     public DeliveryAttemptResponse confirmDelivery(Long tripId, Long deliveryOrderId, ConfirmDeliveryRequest request, User actor) {
         Trip trip = assignedTrip(tripId, actor);
+        TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
+                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN,
+                        "Delivery order not in trip"));
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
 
@@ -421,16 +417,15 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
             SplitDeliveryLeg leg = splitLegOpt.get();
             leg.setStatus(SplitDeliveryPlanStatus.COMPLETED);
             splitDeliveryLegRepository.save(leg);
-            
+            trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+            trip.getDriver().setStatus(DriverStatus.AVAILABLE);
+
             SplitDeliveryPlan plan = leg.getSplitPlan();
             boolean allLegsCompleted = splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId()).stream()
                     .allMatch(l -> l.getStatus() == SplitDeliveryPlanStatus.COMPLETED);
-            
             if (allLegsCompleted) {
                 plan.setStatus(SplitDeliveryPlanStatus.COMPLETED);
                 splitDeliveryPlanRepository.save(plan);
-                trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
-                trip.getDriver().setStatus(DriverStatus.AVAILABLE);
             }
         } else {
             trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
@@ -571,13 +566,9 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                         .map(row -> {
                             DeliveryOrder order = row.getDeliveryOrder();
                             Dealer dealer = order.getDealer();
-                            SplitDeliveryPlan splitPlan = row.getSplitPlan();
-                            SplitDeliveryPlanStatus legStatus = null;
-                            if (splitPlan != null) {
-                                legStatus = splitDeliveryLegRepository.findByTripId(trip.getId())
-                                        .map(SplitDeliveryLeg::getStatus)
-                                        .orElse(null);
-                            }
+                       SplitDeliveryPlan splitPlan = row.getSplitPlan();
+                       SplitDeliveryLeg splitLeg = splitPlan == null ? null
+                               : splitDeliveryLegRepository.findByTripId(trip.getId()).orElse(null);
                             return DriverDeliveryOrderResponse.builder()
                                     .doId(order.getId())
                                     .doNumber(order.getDoNumber())
@@ -585,12 +576,16 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                     .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
                                     .status(order.getStatus())
                                     .stopOrder(row.getStopOrder())
-                                    .currentAttempt(toAttemptResponseOrNull(attempts.get(order.getId())))
-                                    .splitPlanId(splitPlan == null ? null : splitPlan.getId())
-                                    .splitPlanStatus(splitPlan == null ? null : splitPlan.getStatus())
-                                    .isSplitLead(splitPlan != null && splitPlan.getLeadDriver() != null && splitPlan.getLeadDriver().getId().equals(trip.getDriver().getId()))
-                                    .splitLegStatus(legStatus)
-                                    .build();
+                               .currentAttempt(toAttemptResponseOrNull(attempts.get(order.getId())))
+                               .splitPlanId(splitPlan == null ? null : splitPlan.getId())
+                               .splitLegId(splitLeg == null ? null : splitLeg.getId())
+                               .splitPlanStatus(splitPlan == null ? null : splitPlan.getStatus())
+                               .isSplitLead(splitPlan != null && splitPlan.getLeadDriver() != null && splitPlan.getLeadDriver().getId().equals(trip.getDriver().getId()))
+                               .splitLegStatus(splitLeg == null ? null : splitLeg.getStatus())
+                               .readinessConfirmedAt(splitLeg == null ? null : splitLeg.getReadinessConfirmedAt())
+                               .dealerArrivedAt(splitLeg == null ? null : splitLeg.getDealerArrivedAt())
+                               .handoverConfirmedAt(splitLeg == null ? null : splitLeg.getHandoverConfirmedAt())
+                               .build();
                         })
                         .toList())
                 .build();
@@ -636,8 +631,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .deliveryId(delivery.getId())
                 .attemptNumber(delivery.getAttemptNumber())
                 .status(delivery.getStatus())
-                .podImageUrl(delivery.getPodImageUrl())
-                .podSignatureUrl(delivery.getPodSignatureUrl())
+                .goodsImageAvailable(delivery.getGoodsImageObjectKey() != null)
+                .signedDocumentImageAvailable(delivery.getSignedDocumentObjectKey() != null)
                 .podTimestamp(delivery.getPodTimestamp())
                 .otpVerifiedAt(delivery.getOtpVerifiedAt())
                 .failureReason(delivery.getFailureReason())
@@ -667,33 +662,11 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         }
     }
 
-    private String storePodFile(MultipartFile file, String prefix) {
-        // Lưu ảnh POD xuống thư mục uploads/pod và trả đường dẫn để frontend hiển thị lại.
-        try {
-            Files.createDirectories(Path.of("uploads", "pod"));
-            String ext = extension(file.getOriginalFilename());
-            String filename = prefix + "-" + UUID.randomUUID() + ext;
-            Path target = Path.of("uploads", "pod", filename);
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-            return "/uploads/pod/" + filename;
-        } catch (IOException ex) {
-            throw new OutboundDeliveryException("POD_STORAGE_FAILED",
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not store POD evidence");
-        }
-    }
-
-    private String extension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return ".bin";
-        }
-        return filename.substring(filename.lastIndexOf('.'));
-    }
-
     private void requirePod(Delivery delivery) {
         // Trước khi xin OTP hoặc xác nhận giao thành công phải có đủ ảnh hàng và ảnh ký nhận/chứng từ.
-        boolean hasObjectKeys = delivery.getGoodsImageObjectKey() != null && delivery.getSignedDocumentObjectKey() != null;
-        boolean hasUrls = delivery.getPodImageUrl() != null && delivery.getPodSignatureUrl() != null;
-        if (!hasObjectKeys && !hasUrls) {
+        boolean hasObjectKeys = delivery.getGoodsImageObjectKey() != null
+                && delivery.getSignedDocumentObjectKey() != null;
+        if (!hasObjectKeys) {
             throw new OutboundDeliveryException("MISSING_POD",
                     HttpStatus.BAD_REQUEST, "Both POD images are required");
         }
@@ -705,6 +678,96 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         message.setSubject("Delivery confirmation OTP");
         message.setText("Your delivery confirmation OTP is: " + otp + "\nThis code is valid for 5 minutes.");
         mailSender.send(message);
+    }
+
+    private void requireSplitLeadAndAllHandovers(TripDeliveryOrder row, User actor) {
+        SplitDeliveryPlan plan = row.getSplitPlan();
+        if (plan == null) {
+            return;
+        }
+        Driver lead = plan.getLeadDriver();
+        if (lead == null || lead.getUser() == null || !lead.getUser().getId().equals(actor.getId())) {
+            throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN,
+                    "Only the lead driver can manage shared POD and OTP");
+        }
+        boolean incomplete = splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId()).stream()
+                .anyMatch(leg -> leg.getHandoverConfirmedAt() == null);
+        if (incomplete) {
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Every split leg must confirm handover first");
+        }
+    }
+
+    private void requireCompletePodPair(MultipartFile goodsImage, MultipartFile signDocumentImage) {
+        if (goodsImage == null || goodsImage.isEmpty()
+                || signDocumentImage == null || signDocumentImage.isEmpty()) {
+            throw rule("POD_EVIDENCE_INCOMPLETE", "Goods and signed-document images are both required");
+        }
+    }
+
+    private StoredPodPair uploadPodPair(Long deliveryId, MultipartFile goodsImage,
+            MultipartFile signDocumentImage) {
+        StoredPodObject goods = podStorageService.upload(deliveryId, "GOODS", goodsImage);
+        try {
+            StoredPodObject signedDocument = podStorageService.upload(
+                    deliveryId, "SIGNED_DOCUMENT", signDocumentImage);
+            return new StoredPodPair(goods, signedDocument);
+        } catch (RuntimeException ex) {
+            podStorageService.delete(goods.objectKey());
+            throw ex;
+        }
+    }
+
+    private void registerPodFileLifecycle(String oldGoodsKey, String oldSignKey, StoredPodPair pair) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteIfReplaced(oldGoodsKey, pair.goods().objectKey());
+            deleteIfReplaced(oldSignKey, pair.signedDocument().objectKey());
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    deleteIfReplaced(oldGoodsKey, pair.goods().objectKey());
+                    deleteIfReplaced(oldSignKey, pair.signedDocument().objectKey());
+                } else {
+                    safeDeletePod(pair.goods().objectKey());
+                    safeDeletePod(pair.signedDocument().objectKey());
+                }
+            }
+        });
+    }
+
+    private void deleteIfReplaced(String oldObjectKey, String newObjectKey) {
+        if (oldObjectKey != null && !oldObjectKey.equals(newObjectKey)) {
+            safeDeletePod(oldObjectKey);
+        }
+    }
+
+    private void safeDeletePod(String objectKey) {
+        try {
+            podStorageService.delete(objectKey);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to clean up POD evidence file {}", objectKey, ex);
+        }
+    }
+
+    private void requireDeliveryOrderDetailAccess(User actor, DeliveryOrder order) {
+        if (actor == null || actor.getRole() == null || actor.getRole() == UserRole.DRIVER) {
+            throw new OutboundDeliveryException(
+                    "WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN, "Delivery Order access denied");
+        }
+        boolean warehouseScoped = actor.getRole() == UserRole.STOREKEEPER
+                || actor.getRole() == UserRole.WAREHOUSE_MANAGER
+                || actor.getRole() == UserRole.WAREHOUSE_STAFF
+                || actor.getRole() == UserRole.DISPATCHER;
+        if (warehouseScoped && !userWarehouseAssignmentRepository
+                .findWarehouseIdsByUserId(actor.getId()).contains(order.getWarehouse().getId())) {
+            throw new OutboundDeliveryException(
+                    "WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN, "Delivery Order access denied");
+        }
+    }
+
+    private record StoredPodPair(StoredPodObject goods, StoredPodObject signedDocument) {
     }
 
     private String sixDigitOtp() {
@@ -739,8 +802,14 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private java.util.Map<String, Object> attemptSnapshot(com.wms.entity.order_fulfillment.Delivery delivery) {
         java.util.Map<String, Object> map = new java.util.HashMap<>();
         map.put("status", delivery.getStatus());
-        map.put("podImageUrl", delivery.getPodImageUrl());
-        map.put("podSignatureUrl", delivery.getPodSignatureUrl());
+        map.put("goodsImageObjectKey", delivery.getGoodsImageObjectKey());
+        map.put("goodsImageOriginalFilename", delivery.getGoodsImageOriginalFilename());
+        map.put("goodsImageContentType", delivery.getGoodsImageContentType());
+        map.put("goodsImageSizeBytes", delivery.getGoodsImageSizeBytes());
+        map.put("signedDocumentObjectKey", delivery.getSignedDocumentObjectKey());
+        map.put("signedDocumentOriginalFilename", delivery.getSignedDocumentOriginalFilename());
+        map.put("signedDocumentContentType", delivery.getSignedDocumentContentType());
+        map.put("signedDocumentSizeBytes", delivery.getSignedDocumentSizeBytes());
         return map;
     }
 
