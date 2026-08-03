@@ -313,6 +313,8 @@ public class GlobalExceptionHandler {
             case "PLANNER_ROLE_REQUIRED": return "Chỉ Planner mới có quyền thực hiện thao tác này.";
             case "CEO_ROLE_REQUIRED": return "Chỉ CEO mới có quyền thực hiện thao tác này.";
             case "REJECTION_REASON_REQUIRED": return "Vui lòng nhập lý do từ chối.";
+            case "WAREHOUSE_HAS_STOCK": return "Không thể tắt kho vì kho vẫn đang còn hàng tồn kho.";
+            case "LOCATION_HAS_STOCK": return "Không thể tắt vị trí lưu trữ (bin) vì vẫn đang còn hàng tồn kho.";
             // ── Source Shipping ───────────────────────────────────────────────────
             case "SOURCE_LOAD_ITEMS_REQUIRED": return "Vui lòng nhập số lượng xếp cho tất cả dòng hàng.";
             case "SOURCE_LOAD_QTY_MUST_MATCH_PLAN": return "Số lượng thực xếp phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra và nhập lại.";
