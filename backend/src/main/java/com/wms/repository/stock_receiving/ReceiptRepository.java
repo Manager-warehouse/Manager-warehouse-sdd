@@ -1,5 +1,4 @@
-package com.wms.repository;
-
+package com.wms.repository.stock_receiving;
 
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.enums.stock_receiving.ReceiptType;

@@ -1,5 +1,4 @@
-package com.wms.repository;
-
+package com.wms.repository.stock_receiving;
 
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_receiving.Receipt;
@@ -32,11 +31,6 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
 
     /**
      * Find an item by receipt and product for batch resolution during approval.
-    @Query("SELECT COALESCE(SUM(i.actualQty), 0) FROM ReceiptItem i WHERE i.receipt.id = :receiptId")
-    BigDecimal sumActualQtyByReceiptId(@Param("receiptId") Long receiptId);
-
-    /**
-     * Find an item by receipt and product for batch resolution during approval.
      */
     Optional<ReceiptItem> findByReceiptIdAndProductId(Long receiptId, Long productId);
 
@@ -54,6 +48,11 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
            "        WHERE a.referenceType = 'RECEIPT' " +
            "          AND a.referenceId = r.id " +
            "          AND a.type = 'RETURN_TO_VENDOR'" +
+           "    ) AND NOT EXISTS (" +
+           "        SELECT 1 FROM Adjustment a " +
+           "        WHERE a.referenceType = 'RECEIPT_ITEM' " +
+           "          AND a.referenceId = ri.id " +
+           "          AND a.type = 'DISPOSAL'" +
            "    )) OR " +
            "    (r.type = 'RETURN' AND r.status = 'APPROVED' AND ri.sampleFailedQty > 0 AND NOT EXISTS (" +
            "        SELECT 1 FROM Adjustment a " +
@@ -84,4 +83,3 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
     @Query("SELECT ri.receipt.supplier.companyName FROM ReceiptItem ri WHERE ri.product.id = :productId AND ri.receipt.supplier IS NOT NULL ORDER BY ri.id DESC")
     List<String> findSupplierNamesByProductId(@Param("productId") Long productId);
 }
-

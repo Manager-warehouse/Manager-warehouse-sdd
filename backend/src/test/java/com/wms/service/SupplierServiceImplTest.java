@@ -5,7 +5,7 @@ import com.wms.dto.response.supplier_management.SupplierResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.supplier_management.Supplier;
 import com.wms.mapper.supplier_management.SupplierMapper;
-import com.wms.repository.ReceiptRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.supplier_management.impl.SupplierServiceImpl;
 import com.wms.util.PartnerAuditUtil;

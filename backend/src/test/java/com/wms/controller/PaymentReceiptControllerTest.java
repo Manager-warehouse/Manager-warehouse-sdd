@@ -172,7 +172,7 @@ class PaymentReceiptControllerTest {
                 PaymentReceiptResponse.builder().id(200L).paymentNumber("PAY-001").amount(BigDecimal.TEN).build()
         );
         when(userRepository.findByEmail("accountant@wms.com")).thenReturn(Optional.of(accountant));
-        when(paymentReceiptService.getPaymentReceipts(null, null, accountant)).thenReturn(list);
+        when(paymentReceiptService.getPaymentReceipts(null, null, null, accountant)).thenReturn(list);
 
         mockMvc.perform(get("/api/v1/payment-receipts").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())

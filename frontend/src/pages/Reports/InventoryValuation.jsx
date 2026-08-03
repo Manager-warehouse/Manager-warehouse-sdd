@@ -89,15 +89,16 @@ const InventoryValuation = () => {
         </div>
 
         <div className="flex gap-2 items-start">
-          {/* Warehouse Filter */}
-          <div className="w-48">
-            <Input
-              type="select"
-              value={selectedWarehouse}
-              onChange={(e) => setSelectedWarehouse(e.target.value)}
-              options={warehouseOptions}
-            />
-          </div>
+          {!isWarehouseManager && (
+            <div className="w-48">
+              <Input
+                type="select"
+                value={selectedWarehouse}
+                onChange={(e) => setSelectedWarehouse(e.target.value)}
+                options={warehouseOptions}
+              />
+            </div>
+          )}
 
           <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Làm mới</Button>
         </div>

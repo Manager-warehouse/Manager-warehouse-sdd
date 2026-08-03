@@ -40,4 +40,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findUnpaidInvoicesByDealer(
             @Param("dealerId") Long dealerId,
             @Param("statuses") List<InvoiceStatus> statuses);
+
+    @Query("SELECT i FROM Invoice i WHERE " +
+           "i.deliveryOrder.warehouse.id IN :warehouseIds " +
+           "AND (:dealerId IS NULL OR i.dealer.id = :dealerId) " +
+           "AND (:status IS NULL OR i.status = :status) " +
+           "ORDER BY i.createdAt DESC")
+    List<Invoice> findFilteredInvoicesWithWarehouses(
+            @Param("warehouseIds") List<Long> warehouseIds,
+            @Param("dealerId") Long dealerId,
+            @Param("status") InvoiceStatus status);
+
+    @Query("SELECT i FROM Invoice i WHERE " +
+           "(:dealerId IS NULL OR i.dealer.id = :dealerId) " +
+           "AND (:status IS NULL OR i.status = :status) " +
+           "ORDER BY i.createdAt DESC")
+    List<Invoice> findFilteredInvoicesWithoutWarehouses(
+            @Param("dealerId") Long dealerId,
+            @Param("status") InvoiceStatus status);
 }

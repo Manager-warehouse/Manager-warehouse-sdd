@@ -54,7 +54,7 @@ public class QuarantineRtvController {
         @ApiResponse(responseCode = "409", description = "RTV_ALREADY_EXISTS — RTV đã tồn tại cho phiếu này"),
         @ApiResponse(responseCode = "422", description = "Phiếu không ở trạng thái QC_FAILED hoặc không có items")
     })
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PostMapping("/{id}/rtv")
     public ResponseEntity<RtvActionResponse> createRtv(
             @Parameter(description = "ID phiếu nhập QC_FAILED") @PathVariable Long id,

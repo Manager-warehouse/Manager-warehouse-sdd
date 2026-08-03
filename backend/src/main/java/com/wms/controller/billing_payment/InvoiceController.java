@@ -54,9 +54,10 @@ public class InvoiceController {
     public ResponseEntity<List<InvoiceResponse>> getInvoices(
             @RequestParam(required = false, name = "dealerId") Long dealerId,
             @RequestParam(required = false, name = "status") String status,
+            @RequestParam(required = false, name = "warehouseId") Long warehouseId,
             Principal principal) {
         User actor = getActor(principal);
-        return ResponseEntity.ok(invoiceService.getInvoices(dealerId, status, actor));
+        return ResponseEntity.ok(invoiceService.getInvoices(dealerId, status, warehouseId, actor));
     }
 
     private User getActor(Principal principal) {

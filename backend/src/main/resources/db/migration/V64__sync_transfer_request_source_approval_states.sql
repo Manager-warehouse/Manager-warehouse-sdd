@@ -1,6 +1,8 @@
--- V62: Allow source-warehouse approval/rejection audit actions for transfer requests.
--- V61 recreated chk_audit_logs_action but missed the new source-manager actions,
--- causing TRQ approve/reject to fail at audit insert time with HTTP 409.
+-- V64: Align transfer request approvals with the source warehouse manager flow.
+-- V62 is already used by delivery OTP hardening on main, so this migration
+-- carries both the source approval audit action sync and the legacy CEO cleanup.
+-- audit_logs are immutable by trigger, so legacy CEO audit rows remain unchanged
+-- and are kept in the constraint as read-only history.
 
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_action;
 
@@ -46,6 +48,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (action IN (
     'INVENTORY_UPDATE',
     'TRANSFER_REQUEST_CREATE', 'TRANSFER_REQUEST_UPDATE',
     'TRANSFER_REQUEST_SUBMIT',
+    'TRANSFER_REQUEST_CEO_APPROVE', 'TRANSFER_REQUEST_CEO_REJECT',
     'TRANSFER_REQUEST_SOURCE_APPROVE', 'TRANSFER_REQUEST_SOURCE_REJECT',
     'TRANSFER_REQUEST_CONVERT',
     'TRANSFER_APPROVE', 'TRANSFER_REJECT', 'TRANSFER_CANCEL',
@@ -68,3 +71,25 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (action IN (
     'PRICE_CREATE', 'PRICE_UPDATE', 'PRICE_IMPORT',
     'PRICE_APPROVE', 'PRICE_CANCEL'
 ));
+
+UPDATE transfer_requests
+SET status = 'APPROVED'
+WHERE status = 'CEO_APPROVED';
+
+UPDATE transfer_requests
+SET status = 'REJECTED'
+WHERE status = 'CEO_REJECTED';
+
+ALTER TABLE transfer_requests
+    DROP CONSTRAINT IF EXISTS transfer_requests_status_check;
+
+ALTER TABLE transfer_requests
+    ADD CONSTRAINT transfer_requests_status_check
+    CHECK (status IN (
+        'DRAFT',
+        'SUBMITTED',
+        'APPROVED',
+        'REJECTED',
+        'CONVERTED',
+        'CANCELLED'
+    ));

@@ -131,6 +131,7 @@ export const financeService = {
     const params = [];
     if (filters.dealerId) params.push(`dealerId=${filters.dealerId}`);
     if (filters.status) params.push(`status=${filters.status}`);
+    if (filters.warehouseId) params.push(`warehouseId=${filters.warehouseId}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     const response = await apiClient.get(url);
     return response.data;
@@ -232,6 +233,7 @@ export const financeService = {
     const params = [];
     if (filters.dealerId) params.push(`dealerId=${filters.dealerId}`);
     if (filters.accountingPeriodId) params.push(`accountingPeriodId=${filters.accountingPeriodId}`);
+    if (filters.warehouseId) params.push(`warehouseId=${filters.warehouseId}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     const response = await apiClient.get(url);
     return response.data;

@@ -8,7 +8,7 @@ import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.repository.SupplierBillingNotificationRepository;
 import com.wms.service.billing_payment.SupplierBillingNotificationService;
 import org.springframework.security.access.AccessDeniedException;

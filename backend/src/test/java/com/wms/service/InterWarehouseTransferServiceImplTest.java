@@ -109,7 +109,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.driver_management.DriverRepository;
-import com.wms.repository.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InterWarehouseTransferAllocationRepository;
 import com.wms.repository.InterWarehouseTransferItemRepository;
@@ -930,7 +930,7 @@ class InterWarehouseTransferServiceImplTest {
                 new InterWarehouseTransferReceiveCheckItemRequest(
                         transferItem.getId(),
                         new BigDecimal("7.00"),
-                        new BigDecimal("5.00"),
+                        new BigDecimal("7.00"),
                         BigDecimal.ZERO,
                         null,
                         null,
@@ -944,7 +944,7 @@ class InterWarehouseTransferServiceImplTest {
                         List.of(new InterWarehouseTransferFinalPutawayItemRequest(
                                 transferItem.getId(),
                                 List.of(new InterWarehouseTransferPutawayAllocationRequest(
-                                        destinationLocation.getId(), new BigDecimal("5.00")))))),
+                                        destinationLocation.getId(), new BigDecimal("7.00")))))),
                 destinationStorekeeper);
 
         assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
@@ -955,7 +955,7 @@ class InterWarehouseTransferServiceImplTest {
 
         assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
         assertThat(destinationInventory).isNotNull();
-        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("5.00");
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("7.00");
     }
 
     @Test

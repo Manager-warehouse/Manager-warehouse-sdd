@@ -23,10 +23,10 @@ import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DamageReportRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.PriceHistoryRepository;
-import com.wms.repository.QuarantineRecordRepository;
-import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.stock_receiving.ReceiptValidationService;
@@ -468,6 +468,46 @@ public class DisposalService {
                 .adjustmentNumber(adjustment.getAdjustmentNumber())
                 .autoApproved(false)
                 .message("Phê duyệt thành công yêu cầu tiêu hủy: " + adjustment.getAdjustmentNumber())
+                .build();
+    }
+
+    @Transactional
+    public DisposalResponse rejectDisposal(Long adjustmentId, User actor) {
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "DISPOSAL_REJECT");
+
+        Adjustment adjustment = adjustmentRepository.findById(adjustmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Adjustment not found: " + adjustmentId));
+
+        if (adjustment.getType() != AdjustmentType.DISPOSAL) {
+            throw new BusinessRuleViolationException("INVALID_TYPE: Adjustment is not of type DISPOSAL");
+        }
+
+        if (adjustment.getApprovedAt() != null) {
+            throw new BusinessRuleViolationException("ALREADY_APPROVED: Cannot reject an already approved disposal");
+        }
+
+        receiptValidationService.assertWarehouseAccess(actor, adjustment.getWarehouse().getId());
+
+        if ("RECEIPT_ITEM".equals(adjustment.getReferenceType()) && adjustment.getReferenceId() != null) {
+            damageReportRepository.findByReceiptItemId(adjustment.getReferenceId())
+                    .ifPresent(damageReportRepository::delete);
+        }
+
+        adjustmentRepository.delete(adjustment);
+
+        auditLogService.log(
+                actor, AuditAction.QUARANTINE_DISPOSAL_APPROVE, ADJUSTMENT_ENTITY,
+                adjustment.getId(), adjustment.getAdjustmentNumber(),
+                adjustment.getWarehouse().getId(),
+                Map.of("approved", "false"),
+                Map.of("rejected", "true", "rejectedBy", actor.getId())
+        );
+
+        return DisposalResponse.builder()
+                .adjustmentId(adjustmentId)
+                .adjustmentNumber(adjustment.getAdjustmentNumber())
+                .autoApproved(false)
+                .message("Đã từ chối yêu cầu tiêu hủy. Sản phẩm đã quay lại Khu vực xử lý quarantine.")
                 .build();
     }
 

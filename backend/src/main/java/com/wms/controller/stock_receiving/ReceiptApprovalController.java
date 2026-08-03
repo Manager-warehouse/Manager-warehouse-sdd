@@ -1,6 +1,5 @@
 package com.wms.controller.stock_receiving;
 
-
 import com.wms.dto.request.ReceiptDecisionRequest;
 import com.wms.dto.request.ReceiptPutawayRequest;
 import com.wms.dto.request.ReceiptReturnConfirmRequest;
