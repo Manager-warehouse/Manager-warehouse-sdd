@@ -57,7 +57,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.wms.dto.response.QuarantineItemResponse;
+import com.wms.dto.response.stock_receiving.QuarantineItemResponse;
 import com.wms.entity.access_control.User;
 import com.wms.enums.access_control.UserRole;
 import com.wms.service.user_context.CurrentUserService;

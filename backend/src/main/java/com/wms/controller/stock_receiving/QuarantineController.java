@@ -1,7 +1,7 @@
 package com.wms.controller.stock_receiving;
 
 
-import com.wms.dto.response.QuarantineItemResponse;
+import com.wms.dto.response.stock_receiving.QuarantineItemResponse;
 import com.wms.entity.access_control.User;
 import com.wms.service.stock_receiving.QuarantineRtvService;
 import com.wms.service.user_context.CurrentUserService;

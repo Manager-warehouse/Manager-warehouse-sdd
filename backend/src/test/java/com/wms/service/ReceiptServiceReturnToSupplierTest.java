@@ -60,9 +60,9 @@ import com.wms.service.fleet_management.impl.*;
 import com.wms.service.warehouse_location.*;
 import com.wms.service.warehouse_location.impl.*;
 
-import com.wms.dto.request.ReceiptDecisionRequest;
-import com.wms.dto.request.ReceiptReturnConfirmRequest;
-import com.wms.dto.response.ReceiptActionResponse;
+import com.wms.dto.request.stock_receiving.ReceiptDecisionRequest;
+import com.wms.dto.request.stock_receiving.ReceiptReturnConfirmRequest;
+import com.wms.dto.response.stock_receiving.ReceiptActionResponse;
 import com.wms.exception.*;
 import com.wms.repository.*;
 import com.wms.repository.stock_receiving.*;

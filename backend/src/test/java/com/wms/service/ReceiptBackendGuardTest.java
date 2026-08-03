@@ -61,9 +61,9 @@ import com.wms.service.fleet_management.impl.*;
 import com.wms.service.warehouse_location.*;
 import com.wms.service.warehouse_location.impl.*;
 
-import com.wms.dto.request.ReceiptDecisionRequest;
-import com.wms.dto.request.ReceiptRtvConfirmRequest;
-import com.wms.dto.request.ReceiptRtvCreateRequest;
+import com.wms.dto.request.stock_receiving.ReceiptDecisionRequest;
+import com.wms.dto.request.stock_receiving.ReceiptRtvConfirmRequest;
+import com.wms.dto.request.stock_receiving.ReceiptRtvCreateRequest;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.access_control.User;
 import com.wms.entity.warehouse_location.Warehouse;

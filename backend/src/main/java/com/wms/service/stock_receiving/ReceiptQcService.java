@@ -1,9 +1,9 @@
 package com.wms.service.stock_receiving;
 
-import com.wms.dto.request.ReceiptQcItemRequest;
-import com.wms.dto.request.ReceiptQcRequest;
-import com.wms.dto.response.ReceiptItemQcResponse;
-import com.wms.dto.response.ReceiptQcResponse;
+import com.wms.dto.request.stock_receiving.ReceiptQcItemRequest;
+import com.wms.dto.request.stock_receiving.ReceiptQcRequest;
+import com.wms.dto.response.stock_receiving.ReceiptItemQcResponse;
+import com.wms.dto.response.stock_receiving.ReceiptQcResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;

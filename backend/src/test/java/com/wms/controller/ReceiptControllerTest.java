@@ -60,9 +60,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.wms.dto.response.ReceiptItemResponse;
-import com.wms.dto.response.ReceiptQcResponse;
-import com.wms.dto.response.ReceiptResponse;
+import com.wms.dto.response.stock_receiving.ReceiptItemResponse;
+import com.wms.dto.response.stock_receiving.ReceiptQcResponse;
+import com.wms.dto.response.stock_receiving.ReceiptResponse;
 import com.wms.entity.access_control.User;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.DuplicateResourceException;

@@ -60,9 +60,9 @@ import com.wms.service.fleet_management.impl.*;
 import com.wms.service.warehouse_location.*;
 import com.wms.service.warehouse_location.impl.*;
 
-import com.wms.dto.request.ReceiptQcItemRequest;
-import com.wms.dto.request.ReceiptQcRequest;
-import com.wms.dto.response.ReceiptQcResponse;
+import com.wms.dto.request.stock_receiving.ReceiptQcItemRequest;
+import com.wms.dto.request.stock_receiving.ReceiptQcRequest;
+import com.wms.dto.response.stock_receiving.ReceiptQcResponse;
 import com.wms.repository.*;
 import com.wms.repository.stock_receiving.*;
 import org.junit.jupiter.api.BeforeEach;

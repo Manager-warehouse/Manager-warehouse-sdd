@@ -1,17 +1,17 @@
 package com.wms.controller.stock_receiving;
 
 
-import com.wms.dto.request.CreateReceiptRequest;
-import com.wms.dto.request.PreReceiveApprovalRequest;
-import com.wms.dto.request.ReceiptCancelRequest;
-import com.wms.dto.request.ReceiptQcRequest;
-import com.wms.dto.request.ReceiptReopenRequest;
-import com.wms.dto.request.ReceiveQcReceiptRequest;
-import com.wms.dto.request.ReceiveReceiptRequest;
-import com.wms.dto.request.ReviseReceiptRequest;
-import com.wms.dto.request.StorekeeperReviewRequest;
-import com.wms.dto.response.ReceiptQcResponse;
-import com.wms.dto.response.ReceiptResponse;
+import com.wms.dto.request.stock_receiving.CreateReceiptRequest;
+import com.wms.dto.request.stock_receiving.PreReceiveApprovalRequest;
+import com.wms.dto.request.stock_receiving.ReceiptCancelRequest;
+import com.wms.dto.request.stock_receiving.ReceiptQcRequest;
+import com.wms.dto.request.stock_receiving.ReceiptReopenRequest;
+import com.wms.dto.request.stock_receiving.ReceiveQcReceiptRequest;
+import com.wms.dto.request.stock_receiving.ReceiveReceiptRequest;
+import com.wms.dto.request.stock_receiving.ReviseReceiptRequest;
+import com.wms.dto.request.stock_receiving.StorekeeperReviewRequest;
+import com.wms.dto.response.stock_receiving.ReceiptQcResponse;
+import com.wms.dto.response.stock_receiving.ReceiptResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.supplier_management.Supplier;
