@@ -257,6 +257,43 @@ class DiscrepancyIncidentServiceTest {
     }
 
     @Test
+    void resolveLegacyOverReceiptAsDestinationCountError_reconstructsMissingHoldEntry() {
+        User ceo = user(20L, UserRole.CEO, "CEO");
+        incident.setIncidentType("OVER_RECEIPT");
+        incident.setQuantity(BigDecimal.valueOf(5));
+        Batch batch = new Batch();
+        batch.setId(77L);
+        WarehouseLocation destinationLocation = location(22L);
+        Inventory destinationInventory = inventory(502L, incident.getTransfer().getDestinationWarehouse(),
+                incident.getProduct(), batch, destinationLocation, BigDecimal.valueOf(12));
+        InterWarehouseTransferItem item = InterWarehouseTransferItem.builder()
+                .id(5L)
+                .transfer(incident.getTransfer())
+                .product(incident.getProduct())
+                .batch(batch)
+                .destinationLocation(destinationLocation)
+                .build();
+
+        when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
+        when(holdEntryRepository.findByIncidentId(99L)).thenReturn(List.of());
+        when(transferHelper.items(incident.getTransfer())).thenReturn(List.of(item));
+        when(inventoryRepository.findByStockKeyForUpdate(2L, 7L, 77L, 22L))
+                .thenReturn(Optional.of(destinationInventory));
+        when(incidentRepository.save(any(DiscrepancyIncident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.resolveIncident(
+                99L,
+                new DiscrepancyIncidentResolveRequest("RESOLVED_DESTINATION_COUNT_ERROR", "Kho đích đếm thừa 5."),
+                ceo
+        );
+
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("7");
+        verify(inventoryRepository).save(destinationInventory);
+        verify(adjustmentRepository).save(any(Adjustment.class));
+    }
+
+    @Test
     void resolveShortageAsSourceFault_returnsMissingQtyToSourceWarehouse() {
         User ceo = user(20L, UserRole.CEO, "CEO");
         incident.setIncidentType("SHORTAGE");

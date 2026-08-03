@@ -161,10 +161,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     private void applySourceFaultOverReceipt(DiscrepancyIncident incident, String reason, User actor) {
         // CEO kết luận kho nguồn gửi thừa: phần thừa đã cất ở kho đích thì không cộng lại lần nữa;
         // chỉ trừ thêm đúng số lượng đó khỏi kho nguồn để tổng tồn hệ thống không tăng ảo.
-        List<DiscrepancyHoldEntry> holds = holdEntryRepository.findByIncidentId(incident.getId());
-        if (holds.isEmpty()) {
-            throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_NOT_FOUND");
-        }
+        List<DiscrepancyHoldEntry> holds = resolveOverReceiptHolds(incident);
         BigDecimal heldQty = holds.stream()
                 .map(DiscrepancyHoldEntry::getHoldQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -318,10 +315,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     private void applyDestinationCountErrorOverReceipt(DiscrepancyIncident incident, String reason, User actor) {
         // CEO kết luận kho đích đếm thừa: final receive đã cất phần over-receipt,
         // nên phải trừ phần hold khỏi kho đích để tổng tồn quay về đúng số nguồn đã gửi.
-        List<DiscrepancyHoldEntry> holds = holdEntryRepository.findByIncidentId(incident.getId());
-        if (holds.isEmpty()) {
-            throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_NOT_FOUND");
-        }
+        List<DiscrepancyHoldEntry> holds = resolveOverReceiptHolds(incident);
         BigDecimal heldQty = holds.stream()
                 .map(DiscrepancyHoldEntry::getHoldQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -351,6 +345,35 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
             createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
                     hold.getHoldQty().negate(), reason, actor);
         }
+    }
+
+    private List<DiscrepancyHoldEntry> resolveOverReceiptHolds(DiscrepancyIncident incident) {
+        List<DiscrepancyHoldEntry> holds = holdEntryRepository.findByIncidentId(incident.getId());
+        if (!holds.isEmpty()) {
+            return holds;
+        }
+
+        InterWarehouseTransferItem item = findIncidentTransferItem(incident);
+        WarehouseLocation destinationLocation = item.getDestinationLocation();
+        com.wms.entity.stock_control.Batch batch = item.getBatch();
+        if (batch == null) {
+            List<InterWarehouseTransferAllocation> allocations = allocationRepository.findByTransferItemId(item.getId());
+            if (!allocations.isEmpty() && allocations.get(0).getInventory() != null) {
+                batch = allocations.get(0).getInventory().getBatch();
+            }
+        }
+        if (batch == null || destinationLocation == null) {
+            throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_NOT_FOUND");
+        }
+
+        return List.of(DiscrepancyHoldEntry.builder()
+                .incident(incident)
+                .warehouse(incident.getTransfer().getDestinationWarehouse())
+                .product(incident.getProduct())
+                .batch(batch)
+                .holdQty(incident.getQuantity())
+                .holdLocation(destinationLocation)
+                .build());
     }
 
     private InterWarehouseTransferItem findIncidentTransferItem(DiscrepancyIncident incident) {
