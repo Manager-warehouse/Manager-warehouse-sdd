@@ -68,7 +68,7 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - `TRANSFER_TRIP_REQUIRED` (HTTP 400): Depart trước khi có đúng một trip `TRANSFER`.
 - `TRANSFER_TRIP_NOT_AVAILABLE` (HTTP 409): Xe/tài xế không khả dụng hoặc trùng lịch.
 - `TRIP_DATE_MUST_NOT_BE_PAST` (HTTP 400): Lịch chuyến ở quá khứ.
-- `TRIP_DEADLINE_EXPIRED` (HTTP 409): Hạn cần hàng đã qua trước dispatch/depart.
+- `TRANSFER_REQUIRED_DATE_EXPIRED` (HTTP 409): Hạn cần hàng đã qua trước dispatch/depart; phiếu chưa `IN_TRANSIT` phải bị cancel/release reservation thay vì mở chặng quay đầu.
 - `TRIP_END_BEFORE_START` (HTTP 400): Giờ kết thúc trước giờ bắt đầu.
 - `VEHICLE_CANNOT_CARRY_TRANSFER_LOAD` (HTTP 422): Xe được chọn không thể chứa tổng tải điều chuyển.
 - `WAREHOUSE_SCOPE_REQUIRED` (HTTP 403): Actor ngoài scope kho nguồn.
@@ -111,7 +111,7 @@ Luồng này chỉ áp dụng cho mã `TRF-*` trong màn **Điều chuyển nộ
 - **Không đủ tồn không reserve một phần**: Nếu chỉ có 1 đơn vị FIFO hợp lệ mà duyệt 2, hệ thống trả `INSUFFICIENT_AVAILABLE_STOCK` và không đổi status/reservation/audit.
 - **Từ chối bắt buộc reason**: Phiếu `NEW` bị từ chối phải lưu reason, status `REJECTED`, audit `TRANSFER_REJECT`, tồn không đổi.
 - **Dispatcher chỉ gán tài xế đúng scope nguồn**: Transfer HP -> HN không hiển thị tài xế chỉ thuộc HN cho Dispatcher HP.
-- **Chặn dispatch quá hạn**: Nếu deadline đã qua trước khi depart, hệ thống trả `TRIP_DEADLINE_EXPIRED`.
+- **Chặn dispatch quá hạn**: Nếu deadline đã qua trước khi depart, hệ thống trả `TRANSFER_REQUIRED_DATE_EXPIRED`, cancel phiếu chưa `IN_TRANSIT` và release reservation nếu có.
 - **Planner hủy `NEW`**: Status thành `CANCELLED`, audit `TRANSFER_CANCEL`, tồn không đổi.
 - **Trưởng kho hủy `APPROVED` chưa ship**: Release reservation và audit `TRANSFER_CANCEL`.
 - **Công nhân báo xếp trước QC**: Sau khi chọn kệ/bin đã giữ hàng, tổng pick đúng `planned_qty` và `loaded_qty = planned_qty`, thủ kho được QC xuất.

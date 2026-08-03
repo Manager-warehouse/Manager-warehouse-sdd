@@ -78,7 +78,7 @@
     - Kỳ vọng `total/reserved` nguồn giảm, `IN_TRANSIT` tăng và status thành `IN_TRANSIT`.
 
 11. Tài xế đến và kho nhận bàn giao:
-   - `POST /api/v1/inter-warehouse-transfers/{id}/arrive`
+   - `POST /api/v1/inter-warehouse-transfers/{id}/driver-arrive`
    - `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover`
    - Thủ kho kho đích bấm xác nhận nhận bàn giao, không cần chọn/chụp ảnh.
    - Receive-count phải tiếp tục bị chặn trước khi cả hai mốc này được ghi nhận.

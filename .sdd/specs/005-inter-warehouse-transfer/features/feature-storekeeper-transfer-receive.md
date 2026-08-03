@@ -79,7 +79,7 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 
 ## 4. API endpoint
 
-- `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế ghi nhận đến kho nhận.
+- `POST /api/v1/inter-warehouse-transfers/{id}/driver-arrive` - Tài xế ghi nhận đến kho nhận.
 - `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover` - Kho nhận ghi bàn giao vật lý từ tài xế.
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count` - Công nhân nhập/sửa số lượng nhận ban đầu.
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check` - Thủ kho kiểm count, QC và chọn vị trí.
@@ -110,10 +110,10 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
     {
       "transferItemId": 1001,
       "confirmedReceivedQty": 28,
-      "qcPassedQty": 26,
-      "qcFailedQty": 2,
+      "qcPassedQty": 28,
+      "qcFailedQty": 0,
       "destinationLocationId": 201,
-      "qcFailureReason": "2 sản phẩm bị móp vỏ hộp"
+      "qcFailureReason": null
     }
   ],
   "qcPhotoRef": "transfer/receive-qc/1.jpg"
@@ -144,7 +144,7 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - `RECEIVE_ISSUE_REASON_REQUIRED` (HTTP 400): Thiếu `issueReason` khi số lượng lệch hoặc có issue.
 - `DUPLICATE_RECEIVE_COUNT_ITEM` (HTTP 400): Trùng item trong receive-count.
 - `RECEIVE_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): Số nhận không nguyên.
-- `RECEIVED_QTY_EXCEEDS_SENT` (HTTP 422): Số nhận vượt số gửi.
+- `ISSUE_REASON_REQUIRED` (HTTP 400): Số nhận thiếu/thừa so với số gửi nhưng thiếu lý do.
 - `RECEIVE_CHECK_REQUIRED` (HTTP 409): Final receive trước receive-check.
 - `CHECKER_NOTE_REQUIRED` (HTTP 400): Thủ kho sửa số lượng nhưng thiếu note.
 - `DUPLICATE_RECEIVE_CHECK_ITEM` (HTTP 400): Trùng item trong receive-check.
