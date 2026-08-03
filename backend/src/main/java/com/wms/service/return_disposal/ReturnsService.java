@@ -1,56 +1,47 @@
 package com.wms.service.return_disposal;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-
-import com.wms.dto.request.*;
+import com.wms.dto.request.CreateCreditNoteRequest;
+import com.wms.dto.request.CreateReturnItemRequest;
+import com.wms.dto.request.CreateReturnRequest;
+import com.wms.dto.request.ReturnQcItemRequest;
+import com.wms.dto.request.ReturnQcRequest;
 import com.wms.dto.response.CreditNoteResponse;
 import com.wms.dto.response.ReceiptActionResponse;
+import com.wms.entity.access_control.User;
+import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.billing_payment.CreditNote;
+import com.wms.entity.billing_payment.Invoice;
+import com.wms.entity.billing_payment.PaymentReceipt;
+import com.wms.entity.dealer_management.Dealer;
+import com.wms.entity.order_fulfillment.Delivery;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
+import com.wms.entity.order_fulfillment.DeliveryOrderItem;
+import com.wms.entity.product_catalog.Product;
+import com.wms.entity.stock_control.Batch;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.stock_receiving.ReceiptItem;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.dealer_management.CreditStatus;
+import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.stock_receiving.QcResult;
+import com.wms.enums.stock_receiving.ReceiptStatus;
+import com.wms.enums.stock_receiving.ReceiptType;
 import com.wms.exception.BusinessRuleViolationException;
-import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.*;
-import com.wms.repository.stock_receiving.*;
+import com.wms.repository.CreditNoteRepository;
+import com.wms.repository.DeliveryOrderItemRepository;
+import com.wms.repository.DeliveryOrderRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.stock_receiving.ReceiptValidationService;
 import com.wms.service.user_configuration.SystemConfigService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -59,7 +50,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ReturnsService {
@@ -468,7 +462,11 @@ public class ReturnsService {
         BigDecimal totalRefundAmount = BigDecimal.ZERO;
 
         for (ReceiptItem item : items) {
-            BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
+            // Refund only the QC-passed (shelved) portion - samplePassedQty, not actualQty.
+            // A dealer return that fails QC goes to Quarantine, not regular stock, so it was
+            // never actually accepted back; crediting the full actualQty would refund for units
+            // we didn't take ownership of.
+            BigDecimal qty = item.getSamplePassedQty() != null ? BigDecimal.valueOf(item.getSamplePassedQty()) : BigDecimal.ZERO;
             BigDecimal returnPrice = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO; // unitCost contains the original DO unitPrice
             totalRefundAmount = totalRefundAmount.add(qty.multiply(returnPrice));
         }

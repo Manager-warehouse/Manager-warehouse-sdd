@@ -1,38 +1,28 @@
 package com.wms.service.reporting_alerting.impl;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-
 import com.wms.dto.response.CeoDashboardResponse;
 import com.wms.dto.response.InventoryValuationResponse;
-import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.entity.access_control.User;
+import com.wms.entity.billing_payment.Invoice;
+import com.wms.entity.dealer_management.Dealer;
+import com.wms.entity.order_fulfillment.Delivery;
+import com.wms.entity.order_fulfillment.DeliveryOrderItem;
+import com.wms.entity.order_fulfillment.OutboundQcRecord;
+import com.wms.entity.order_fulfillment.Trip;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.stock_receiving.ReceiptItem;
+import com.wms.enums.access_control.UserRole;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.order_fulfillment.TripStatus;
-import com.wms.enums.access_control.UserRole;
-import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.*;
+import com.wms.repository.DeliveryOrderItemRepository;
+import com.wms.repository.DeliveryRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.InvoiceRepository;
+import com.wms.repository.OutboundQcRecordRepository;
+import com.wms.repository.TripRepository;
+import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.service.reporting_alerting.ReportService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -41,8 +31,16 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -57,6 +55,7 @@ public class ReportServiceImpl implements ReportService {
     private final OutboundQcRecordRepository outboundQcRecordRepository;
     private final ReceiptItemRepository receiptItemRepository;
     private final DeliveryRepository deliveryRepository;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     @Override
     @Transactional
@@ -222,7 +221,14 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("ACCESS_DENIED");
         }
 
-        // Ghi Audit Log ngoại lệ
+        List<Long> assignedWarehouseIds = null;
+        if (user.getRole() == UserRole.WAREHOUSE_MANAGER) {
+            assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(currentUserId);
+            if (warehouseId != null && !assignedWarehouseIds.contains(warehouseId)) {
+                throw new IllegalArgumentException("FORBIDDEN_WAREHOUSE");
+            }
+        }
+
         List<Inventory> inventories = inventoryRepository.findAll().stream()
                 .filter(i -> i.getLocation() != null && !i.getLocation().getIsQuarantine() && i.getTotalQty().compareTo(BigDecimal.ZERO) > 0)
                 .collect(Collectors.toList());
@@ -230,6 +236,11 @@ public class ReportServiceImpl implements ReportService {
         if (warehouseId != null) {
             inventories = inventories.stream()
                     .filter(i -> i.getWarehouse().getId().equals(warehouseId))
+                    .collect(Collectors.toList());
+        } else if (assignedWarehouseIds != null) {
+            final List<Long> finalAssignedIds = assignedWarehouseIds;
+            inventories = inventories.stream()
+                    .filter(i -> finalAssignedIds.contains(i.getWarehouse().getId()))
                     .collect(Collectors.toList());
         }
 

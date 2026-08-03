@@ -1,40 +1,8 @@
 package com.wms.exception;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
+import com.wms.entity.order_fulfillment.Delivery;
+import com.wms.entity.order_fulfillment.Trip;
 import com.wms.exception.ForbiddenReceiptWarehouseException;
 import com.wms.exception.ReceiptAlreadyDecidedException;
 import com.wms.exception.RtvAlreadyExistsException;
@@ -42,19 +10,20 @@ import jakarta.validation.ConstraintViolationException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.TransactionSystemException;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Xử lý exception toàn cục — trả về ApiErrorResponse chuẩn cho mọi lỗi REST API (Spec 001). */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -309,11 +278,15 @@ public class GlobalExceptionHandler {
             case "INSUFFICIENT_AVAILABLE_STOCK": return "Tồn kho khả dụng không đủ để giữ chỗ cho số lượng yêu cầu. Vui lòng kiểm tra lại tồn kho.";
             case "WAREHOUSE_SCOPE_REQUIRED": return "Bạn không thuộc kho liên quan, không thể thực hiện thao tác này.";
             case "WAREHOUSE_MANAGER_ROLE_REQUIRED": return "Chỉ Quản lý kho mới có quyền thực hiện thao tác này.";
+            case "SOURCE_MANAGER_ROLE_REQUIRED": return "Chỉ Quản lý kho nguồn mới có quyền thực hiện thao tác này.";
             case "PLANNER_ROLE_REQUIRED": return "Chỉ Planner mới có quyền thực hiện thao tác này.";
             case "CEO_ROLE_REQUIRED": return "Chỉ CEO mới có quyền thực hiện thao tác này.";
             case "REJECTION_REASON_REQUIRED": return "Vui lòng nhập lý do từ chối.";
+            case "WAREHOUSE_HAS_STOCK": return "Không thể tắt kho vì kho vẫn đang còn hàng tồn kho.";
+            case "LOCATION_HAS_STOCK": return "Không thể tắt vị trí lưu trữ (bin) vì vẫn đang còn hàng tồn kho.";
             // ── Source Shipping ───────────────────────────────────────────────────
             case "SOURCE_LOAD_ITEMS_REQUIRED": return "Vui lòng nhập số lượng xếp cho tất cả dòng hàng.";
+            case "SOURCE_LOAD_QTY_MUST_MATCH_PLAN": return "Số lượng thực xếp phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra và nhập lại.";
             case "TRANSFER_ITEM_NOT_FOUND": return "Không tìm thấy dòng hàng trong phiếu điều chuyển.";
             case "SOURCE_LOAD_REPORT_REQUIRED": return "Công nhân cần báo số lượng thực xếp trước khi thủ kho QC.";
             case "SENT_QTY_MISMATCH": return "Số lượng thực xếp chưa khớp kế hoạch. Cần công nhân chỉnh lại trước khi QC đạt.";
@@ -341,6 +314,7 @@ public class GlobalExceptionHandler {
             case "CHECKER_NOTE_REQUIRED": return "Cần nhập ghi chú khi số lượng chốt khác số lượng công nhân đã báo.";
             case "OVER_RECEIPT_BLOCKED": return "Số lượng thực nhận không được lớn hơn số lượng đã gửi đi.";
             case "QC_TOTAL_MUST_MATCH_CONFIRMED_QTY": return "Tổng số lượng QC đạt và QC lỗi phải bằng số lượng thực nhận.";
+            case "COUNT_DISCREPANCY_QC_MUST_MATCH_VALID_RECEIVED_QTY": return "Khi số count lệch số gửi, chỉ được cất phần hàng hợp lệ; phần thiếu/thừa sẽ vào hồ sơ chênh lệch.";
             case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
             case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
             case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly. Vui lòng chọn bin lưu trữ thông thường.";
@@ -363,6 +337,7 @@ public class GlobalExceptionHandler {
             case "DISCREPANCY_HOLD_QUANTITY_MISMATCH": return "Số lượng hàng tạm giữ không khớp với hồ sơ chênh lệch.";
             case "DISCREPANCY_HOLD_ENTRY_INCOMPLETE": return "Hàng tạm giữ thiếu lô hàng hoặc vị trí, không thể nhập tồn.";
             case "SOURCE_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION": return "Kho nguồn không còn đủ tồn khả dụng để trừ phần hàng thừa.";
+            case "TRANSFER_ALLOCATION_NOT_FOUND": return "Không tìm thấy thông tin giữ hàng ban đầu của phiếu điều chuyển để xử lý chênh lệch.";
             case "DUPLICATE_PUTAWAY_ITEM": return "Có dòng hàng bị trùng lặp trong kế hoạch cất kệ.";
             case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
             case "DUPLICATE_PUTAWAY_LOCATION": return "Không được chọn cùng một Bin cho hai dòng phân bổ của cùng mặt hàng.";
@@ -400,9 +375,9 @@ public class GlobalExceptionHandler {
             case "ONLY_DRAFT_CAN_BE_UPDATED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được sửa.";
             case "ONLY_DRAFT_CAN_BE_CANCELLED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được hủy.";
             case "ONLY_DRAFT_CAN_BE_SUBMITTED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được gửi duyệt.";
-            case "ONLY_SUBMITTED_CAN_BE_APPROVED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO phê duyệt.";
-            case "ONLY_SUBMITTED_CAN_BE_REJECTED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO từ chối.";
-            case "ONLY_APPROVED_CAN_BE_CONVERTED": return "Chỉ yêu cầu điều chuyển đã được CEO duyệt mới được lập phiếu điều chuyển.";
+            case "ONLY_SUBMITTED_CAN_BE_APPROVED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được Quản lý kho nguồn phê duyệt.";
+            case "ONLY_SUBMITTED_CAN_BE_REJECTED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được Quản lý kho nguồn từ chối.";
+            case "ONLY_APPROVED_CAN_BE_CONVERTED": return "Chỉ yêu cầu điều chuyển đã được Quản lý kho nguồn duyệt mới được lập phiếu điều chuyển.";
             case "TRANSFER_REQUEST_ALREADY_CONVERTED": return "Yêu cầu điều chuyển này đã được lập phiếu điều chuyển trước đó.";
             case "TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE": return "Tồn kho nguồn không đủ cho số lượng yêu cầu bổ sung. Vui lòng chọn kho nguồn khác hoặc giảm số lượng.";
             case "NEEDED_BY_DATE_MUST_NOT_BE_PAST": return "Ngày cần hàng không được ở quá khứ.";

@@ -215,3 +215,90 @@
 - `TRIP_DEPART`: staged-to-`IN_TRANSIT` stock movement, Delivery Order status changes, vehicle/driver status changes.
 - `DELIVERY_ATTEMPT_CREATE`: one event or nested detail per created departure attempt.
 - `COMPLETE_TRIP`: trip completion plus vehicle/driver release after all Delivery Orders are terminal.
+- `SPLIT_DELIVERY_PLAN_CREATE`: split plan header, full quantity allocation, legs, resources, and linked planned trips.
+- `SPLIT_DELIVERY_PLAN_UPDATE`: revised split plan leg allocation, lead driver, planned departure, resources, and cancellation of old planned leg trips.
+- `SPLIT_DELIVERY_PLAN_CANCEL`: split plan cancellation reason and release of planned active assignment.
+- `SPLIT_DELIVERY_DRIVER_READY`: individual split driver readiness confirmation.
+- `SPLIT_DELIVERY_DEPART`: coordinated departure for every split leg plus Delivery Order move to `IN_TRANSIT`.
+
+## SplitDeliveryPlan
+
+**Purpose**: Aggregate root for one overloaded Delivery Order delivered by multiple vehicles in one coordinated departure.
+
+**Fields**
+
+- `id`
+- `plan_number`
+- `delivery_order_id`
+- `warehouse_id`
+- `dispatcher_id`
+- `lead_driver_id`
+- `planned_departure_at`
+- `status`
+- `total_weight_kg`
+- `total_volume_m3`
+- `cancel_reason`
+- `departed_at`
+- `completed_at`
+- `notes`
+
+**Validation rules**
+
+- Exactly one Delivery Order per split plan.
+- The Delivery Order must be `WAREHOUSE_APPROVED` for create/update/departure.
+- The Delivery Order cannot belong to another active regular trip or active split plan.
+- Create/update require at least two active legs.
+- All requested item quantities must be fully allocated in one request.
+- `lead_driver_id` must be one of the active split-leg drivers.
+
+**State transitions**
+
+- `PLANNED -> PLANNED`: valid dispatcher update.
+- `PLANNED -> CANCELLED`: dispatcher cancels before departure.
+- `PLANNED -> IN_TRANSIT`: all drivers ready and lead driver confirms coordinated departure.
+- `IN_TRANSIT -> COMPLETED`: all leg trips are completed after downstream delivery terminal outcome.
+
+## SplitDeliveryLeg
+
+**Purpose**: One vehicle/driver leg inside a split delivery plan.
+
+**Fields**
+
+- `id`
+- `split_plan_id`
+- `trip_id`
+- `vehicle_id`
+- `driver_id`
+- `stop_order`
+- `status`
+- `driver_ready_at`
+- `departed_at`
+- `completed_at`
+
+**Validation rules**
+
+- Vehicle and driver must be active, `AVAILABLE`, in the split plan warehouse, and unique within the plan.
+- The leg cannot exceed its vehicle weight capacity or configured volume capacity.
+- The leg trip is a planned internal delivery trip linked back to the split plan.
+- A leg cannot depart independently; departure happens for all active legs in one transaction.
+
+## SplitDeliveryLegItem
+
+**Purpose**: Quantity allocation for one Delivery Order item on one split leg.
+
+**Fields**
+
+- `id`
+- `split_leg_id`
+- `delivery_order_item_id`
+- `product_id`
+- `batch_id`
+- `quantity`
+- `weight_kg`
+- `volume_m3`
+
+**Validation rules**
+
+- Quantity must be positive.
+- Product/batch must match the Delivery Order item and staged allocation.
+- Sum by Delivery Order item across all active legs must equal requested quantity.

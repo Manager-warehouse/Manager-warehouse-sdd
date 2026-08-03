@@ -54,7 +54,7 @@
 | **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                              |
 | **Quarantine**    | Khu cách ly hàng lỗi QC — không available                                                       |
 | **In-Transit**    | Kho ảo — hàng đang vận chuyển giữa 2 kho                                                        |
-| **TRQ**           | Yêu cầu điều chuyển do Trưởng kho kho thiếu lập, CEO duyệt trước khi Planner tạo `TRF-*`         |
+| **TRQ**           | Yêu cầu điều chuyển do Trưởng kho kho thiếu lập, Trưởng kho nguồn duyệt/giữ hàng trước khi Planner tạo `TRF-*` |
 | **TRF**           | Phiếu điều chuyển nội bộ thực thi, luôn đi qua In-Transit và một chuyến `TTR-*` riêng             |
 | **TTR**           | Chuyến xe điều chuyển nội bộ, `trip_type = TRANSFER`, gắn đúng một phiếu `TRF-*` trong Sprint 1  |
 | **POD**           | Proof of Delivery — `goodsImage` + `signDocumentImage` + timestamp + OTP email 6 số đã xác thực |
@@ -138,9 +138,9 @@ Outbound delivery trips use `trip_type = DELIVERY` and group at least one `WAREH
 ### Transfer (Điều chuyển)
 
 ```
-TRANSFER_REQUEST: DRAFT → SUBMITTED → CEO_APPROVED → CONVERTED
+TRANSFER_REQUEST: DRAFT → SUBMITTED → APPROVED → CONVERTED
                       ↓          ↓
-                 CANCELLED   CEO_REJECTED
+                 CANCELLED   REJECTED
 
 TRF: NEW → APPROVED → IN_TRANSIT → COMPLETED
       ↓       ↓            ↓            ↓
@@ -149,10 +149,10 @@ TRF: NEW → APPROVED → IN_TRANSIT → COMPLETED
 
 Transfer-specific invariants:
 
-- Luồng chuẩn: `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
+- Luồng chuẩn: `TRQ draft -> submit -> Source manager approve + reserve FIFO eligible -> Planner revalidate & convert once -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 - Trưởng kho nguồn approval reserves planned quantity immediately.
-- Trưởng kho kho thiếu hàng may view cross-warehouse availability read-only and submit a transfer request to CEO; CEO approval does not reserve or move stock.
-- Planner creates `TRF-*` from an external instruction or at most one CEO-approved transfer request.
+- Trưởng kho kho thiếu hàng may view cross-warehouse availability read-only and submit a transfer request to the source warehouse manager; CEO only monitors read-only.
+- Planner creates `TRF-*` from an external instruction or at most one source-manager-approved transfer request.
 - Reservation must use FIFO-eligible stock only: active source warehouse/location, non-quarantine, non-locked, positive available quantity.
 - Each transfer has exactly one dedicated internal trip; multi-transfer trips are out of scope.
 - Transfer trip assignment must calculate weight/volume from transfer lines, check source-scoped vehicle/driver, overlapping assignments, vehicle weight capacity, and volume only when configured.

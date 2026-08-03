@@ -1,53 +1,27 @@
 package com.wms.service.billing_payment.impl;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-
 import com.wms.dto.request.AccountingPeriodCloseRequest;
-import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
-import com.wms.exception.DuplicateResourceException;
+import com.wms.entity.access_control.User;
+import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.billing_payment.Invoice;
+import com.wms.entity.order_fulfillment.Delivery;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
+import com.wms.entity.stock_control.Adjustment;
+import com.wms.entity.stock_counting.StockTake;
+import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.billing_payment.AccountingPeriodStatus;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AccountingPeriodRepository;
-import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.audit_trail.AuditLogService;
+import com.wms.service.billing_payment.AccountingPeriodService;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -84,26 +58,6 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
 
     @Override
     @Transactional
-    public AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor) {
-        requireAccountantManager(actor);
-
-        if (accountingPeriodRepository.findByPeriodName(request.getPeriodName()).isPresent()) {
-            throw new DuplicateResourceException("Accounting period already exists: " + request.getPeriodName());
-        }
-
-        AccountingPeriod saved = accountingPeriodRepository.save(buildPeriod(
-                YearMonth.parse(request.getPeriodName()), request.getNotes()));
-
-        auditLogService.log(actor, AuditAction.CREATE, "ACCOUNTING_PERIOD",
-                saved.getId(), saved.getPeriodName(), null, null,
-                Map.of("periodName", saved.getPeriodName(),
-                        "startDate", saved.getStartDate(), "endDate", saved.getEndDate()));
-
-        return toResponse(saved);
-    }
-
-    @Override
-    @Transactional
     public AccountingPeriodResponse closePeriod(Long id, AccountingPeriodCloseRequest request, User actor) {
         requireAccountantManager(actor);
 
@@ -125,6 +79,16 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
             throw new UnprocessableEntityException(
                     "PERIOD_NOT_YET_ENDED: Accounting period " + period.getPeriodName()
                             + " has not ended yet (end date " + period.getEndDate() + ") and cannot be closed");
+        }
+
+        // Periods must close in chronological order: an out-of-order close would let a
+        // later period's reported figures look final while an earlier, still-open period
+        // can still accept postings (including corrections) that never make it into any
+        // report anyone will look at again.
+        if (accountingPeriodRepository.existsByStatusAndStartDateBefore(
+                AccountingPeriodStatus.OPEN, period.getStartDate())) {
+            throw new UnprocessableEntityException(
+                    "PREVIOUS_PERIOD_NOT_CLOSED: An earlier accounting period is still OPEN and must be closed first");
         }
 
         // Kiểm tra tính toàn vẹn: không còn chứng từ dở dang trong kỳ
@@ -265,7 +229,12 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
                     .setParameter("periodId", periodId)
                     .setMaxResults(PENDING_SAMPLE_LIMIT)
                     .getResultList();
-            throw new UnprocessableEntityException("Cannot close period: " + count + " " + docLabel
+            // PENDING_DOCUMENTS_EXIST prefix lets GlobalExceptionHandler.extractLeadingCode
+            // pull out a real error code instead of falling back to generic
+            // UNPROCESSABLE_ENTITY - this message had never had one since the original
+            // Spec 008 implementation, so every rejection here showed the same unhelpful
+            // "Dữ liệu không đủ điều kiện để xử lý." toast regardless of which check fired.
+            throw new UnprocessableEntityException("PENDING_DOCUMENTS_EXIST: " + count + " " + docLabel
                     + " exist in this period (e.g. " + String.join(", ", sample) + ").");
         }
     }

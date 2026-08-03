@@ -4,7 +4,6 @@ import com.wms.dto.request.CreateSupplierInvoiceRequest;
 import com.wms.dto.response.SupplierInvoiceResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.AccountingPeriod;
-import com.wms.entity.billing_payment.SupplierBillingNotification;
 import com.wms.entity.billing_payment.SupplierInvoice;
 import com.wms.entity.billing_payment.SupplierPayment;
 import com.wms.entity.document_numbering.DocumentSequence;
@@ -19,17 +18,17 @@ import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
-import com.wms.repository.*;
-import com.wms.repository.stock_receiving.*;
+import com.wms.repository.AccountingPeriodRepository;
+import com.wms.repository.DocumentSequenceRepository;
+import com.wms.repository.SupplierBillingNotificationRepository;
+import com.wms.repository.SupplierInvoiceRepository;
+import com.wms.repository.SupplierPaymentRepository;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.billing_payment.SupplierInvoiceService;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -37,6 +36,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
@@ -83,6 +86,15 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     public SupplierInvoiceResponse createSupplierInvoice(CreateSupplierInvoiceRequest request, User actor) {
         requireAccountant(actor);
 
+        // Validated up front, before any mutation (supplier balance, document sequence),
+        // since it depends only on the request itself.
+        LocalDate issueDate = request.getDocumentDate();
+        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
+        if (dueDate.isBefore(issueDate)) {
+            throw new UnprocessableEntityException(
+                    "DUE_DATE_BEFORE_DOCUMENT_DATE: Due date cannot be before the document date");
+        }
+
         // 1. Validate date in open period
         accountingPeriodService.validateDateInOpenPeriod(request.getDocumentDate());
 
@@ -101,13 +113,23 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         Supplier supplier = receipt.getSupplier();
         if (supplier == null) {
-            throw new UnprocessableEntityException("Receipt does not have an associated supplier");
+            throw new UnprocessableEntityException("RECEIPT_NO_SUPPLIER: Receipt does not have an associated supplier");
+        }
+
+        // Catches the realistic failure mode (double-submit, pasted the wrong invoice's
+        // number) before it becomes a permanent, uneditable duplicate record.
+        if (supplierInvoiceRepository.existsBySupplierIdAndSupplierInvoiceNumber(
+                supplier.getId(), request.getSupplierInvoiceNumber())) {
+            throw new BusinessRuleViolationException(
+                    "SUPPLIER_INVOICE_NUMBER_ALREADY_USED: Supplier invoice number "
+                            + request.getSupplierInvoiceNumber() + " already recorded for this supplier");
         }
 
         // 3. Find Open Accounting Period
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
-                .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for date " + request.getDocumentDate()));
+                .orElseThrow(() -> new UnprocessableEntityException(
+                        "NO_OPEN_PERIOD: No open accounting period found for date " + request.getDocumentDate()));
 
         // 4. Calculate total amount from approved, putaway-unlocked quantity x unit cost per line.
         BigDecimal calculatedAmount = calculateTotalAmount(receipt.getId());
@@ -128,9 +150,6 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         // 6. Generate invoice number
         String invoiceNumber = generateSupplierInvoiceNumber(request.getDocumentDate());
-
-        LocalDate issueDate = request.getDocumentDate();
-        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
 
         OffsetDateTime now = OffsetDateTime.now();
         SupplierInvoice invoice = SupplierInvoice.builder()
@@ -206,7 +225,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     private BigDecimal calculateTotalAmount(Long receiptId) {
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
         if (items.isEmpty()) {
-            throw new UnprocessableEntityException("Receipt has no items to invoice");
+            throw new UnprocessableEntityException("RECEIPT_NO_ITEMS: Receipt has no items to invoice");
         }
         BigDecimal total = BigDecimal.ZERO;
         for (ReceiptItem item : items) {

@@ -148,7 +148,7 @@ export const financeService = {
     return response.data;
   },
 
-  createInvoice: async (doId, documentDate, notes) => {
+  createInvoice: async (doId, documentDate) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const notifications = getDb(KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
@@ -214,7 +214,7 @@ export const financeService = {
       addMockAuditLog('INVOICE_CREATED', 'Invoice', newInvoice.id, `Lập hóa đơn ${invoiceNumber} cho đơn hàng ${notification.do_number} - Số tiền: ${totalAmount.toLocaleString()} VND`);
       return newInvoice;
     }
-    const response = await apiClient.post('/invoices', { do_id: doId, document_date: documentDate, notes });
+    const response = await apiClient.post('/invoices', { do_id: doId, document_date: documentDate });
     return response.data;
   },
 
@@ -427,33 +427,6 @@ export const financeService = {
     return response.data;
   },
 
-  createAccountingPeriod: async (periodName, notes) => {
-    if (useMock) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const list = getDb(KEYS.PERIODS, INITIAL_PERIODS);
-      if (list.some(p => (p.period_name || p.periodName) === periodName)) {
-        throw new Error(`Kỳ kế toán ${periodName} đã tồn tại`);
-      }
-      const [year, month] = periodName.split('-').map(Number);
-      const startDate = new Date(Date.UTC(year, month - 1, 1));
-      const endDate = new Date(Date.UTC(year, month, 0));
-      const newPeriod = {
-        id: Date.now(),
-        period_name: periodName,
-        start_date: startDate.toISOString().slice(0, 10),
-        end_date: endDate.toISOString().slice(0, 10),
-        status: 'OPEN',
-        closed_by_name: null,
-        closed_at: null,
-        notes: notes || null
-      };
-      saveDb(KEYS.PERIODS, [newPeriod, ...list]);
-      return newPeriod;
-    }
-    const response = await apiClient.post('/accounting-periods', { periodName, notes });
-    return response.data;
-  },
-
   closeAccountingPeriod: async (id, notes) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));
@@ -467,6 +440,38 @@ export const financeService = {
     }
     const response = await apiClient.put(`/accounting-periods/${id}/close`, { notes });
     return response.data;
+  },
+
+  getPeriodSummary: async (periodId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const period = getDb(KEYS.PERIODS, INITIAL_PERIODS).find(p => p.id === Number(periodId)) || {};
+      return {
+        period_id: Number(periodId),
+        period_name: period.period_name,
+        start_date: period.start_date,
+        end_date: period.end_date,
+        status: period.status,
+        invoice_count: 0, invoice_total: 0, invoices: [],
+        payment_count: 0, payment_total: 0, payments: [],
+        supplier_invoice_count: 0, supplier_invoice_total: 0, supplier_invoices: [],
+        supplier_payment_count: 0, supplier_payment_total: 0, supplier_payments: [],
+        cogs: 0, gross_margin: 0,
+        price_change_count: 0, price_changes: []
+      };
+    }
+    const response = await apiClient.get(`/accounting-periods/${periodId}/summary`);
+    return response.data;
+  },
+
+  exportPeriodSummaryXlsx: async (periodId) => {
+    const response = await apiClient.get(`/accounting-periods/${periodId}/summary/export`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ky-ke-toan-${periodId}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   },
 
   // --- SUPPLIER INVOICES & PAYMENTS (US-WMS-28) ---
@@ -500,7 +505,6 @@ export const financeService = {
       supplierInvoiceNumber: data.supplierInvoiceNumber,
       documentDate: data.documentDate,
       dueDate: data.dueDate,
-      notes: data.notes,
       confirmedTotalAmount: data.confirmedTotalAmount !== '' && data.confirmedTotalAmount != null
         ? Number(data.confirmedTotalAmount)
         : null
@@ -531,7 +535,6 @@ export const financeService = {
       amount: data.amount,
       paymentDate: data.paymentDate,
       paymentMethod: data.paymentMethod,
-      documentDate: data.documentDate,
       notes: data.notes
     });
     return response.data;

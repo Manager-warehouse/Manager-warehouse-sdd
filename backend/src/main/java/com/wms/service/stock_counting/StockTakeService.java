@@ -1,55 +1,42 @@
 package com.wms.service.stock_counting;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-
 import com.wms.dto.request.CreateStockTakeRequest;
-import com.wms.dto.request.StockTakeCountRequest;
 import com.wms.dto.request.StockTakeCountItemRequest;
+import com.wms.dto.request.StockTakeCountRequest;
 import com.wms.dto.request.StockTakeRejectRequest;
 import com.wms.dto.response.StockTakeItemResponse;
 import com.wms.dto.response.StockTakeResponse;
 import com.wms.dto.response.StockTakeSummaryResponse;
-import com.wms.exception.*;
-import com.wms.repository.*;
+import com.wms.entity.access_control.User;
+import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.document_numbering.DocumentSequence;
+import com.wms.entity.stock_control.Adjustment;
+import com.wms.entity.stock_control.Batch;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.stock_counting.StockTake;
+import com.wms.entity.stock_counting.StockTakeItem;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.billing_payment.AccountingPeriodStatus;
+import com.wms.enums.order_fulfillment.ApprovalLevel;
+import com.wms.enums.stock_control.AdjustmentStatus;
+import com.wms.enums.stock_control.AdjustmentType;
+import com.wms.enums.stock_counting.StockTakeStatus;
+import com.wms.exception.BusinessRuleViolationException;
+import com.wms.exception.ResourceNotFoundException;
+import com.wms.exception.StockTakeException;
+import com.wms.exception.UnprocessableEntityException;
+import com.wms.repository.AccountingPeriodRepository;
+import com.wms.repository.AdjustmentRepository;
+import com.wms.repository.DocumentSequenceRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.StockTakeItemRepository;
+import com.wms.repository.StockTakeRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.service.audit_trail.AuditLogService;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -62,7 +49,25 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service xử lý toàn bộ nghiệp vụ Kiểm kê hàng hóa (Spec 006).
+ *
+ * Luồng trạng thái phiếu kiểm kê:
+ *   DRAFT → IN_PROGRESS → PENDING_APPROVAL → APPROVED / REJECTED → (REJECTED có thể quay lại IN_PROGRESS)
+ *   DRAFT / IN_PROGRESS → CANCELLED
+ *
+ * Vai trò:
+ *   - Thủ kho (STOREKEEPER): tạo, bắt đầu, đếm hàng, hoàn tất, hủy
+ *   - Trưởng kho (WAREHOUSE_MANAGER): phê duyệt, trả lại kiểm tra, hủy
+ *
+ * Được gọi từ: StockTakeController (/api/v1/stocktakes)
+ */
 @Service
 public class StockTakeService {
 
@@ -101,8 +106,15 @@ public class StockTakeService {
         this.auditLogService = auditLogService;
     }
 
-    // ─── Queries ──────────────────────────────────────────────────────────────
+    // ─── Truy vấn ─────────────────────────────────────────────────────────────
 
+    /**
+     * Lấy danh sách phiếu kiểm kê (không phân trang).
+     * Dùng bởi: GET /api/v1/stocktakes (khi không truyền page/size)
+     * @param warehouseId ID kho cần xem
+     * @param status      lọc theo trạng thái (null = tất cả)
+     * @param actor       người dùng hiện tại — kiểm tra quyền truy cập kho
+     */
     @Transactional(readOnly = true)
     public List<StockTakeSummaryResponse> getStockTakes(Long warehouseId, StockTakeStatus status, User actor) {
         requireWarehouseAccess(actor, warehouseId);
@@ -112,6 +124,11 @@ public class StockTakeService {
         return list.stream().map(StockTakeSummaryResponse::from).collect(Collectors.toList());
     }
 
+    /**
+     * Lấy danh sách phiếu kiểm kê (có phân trang).
+     * Dùng bởi: GET /api/v1/stocktakes?page=0&size=10
+     * Ghi audit STOCKTAKE_REPORT_VIEW mỗi lần gọi.
+     */
     @Transactional
     public Page<StockTakeSummaryResponse> getStockTakes(Long warehouseId, StockTakeStatus status, User actor, Pageable pageable) {
         requireWarehouseAccess(actor, warehouseId);
@@ -128,6 +145,11 @@ public class StockTakeService {
         return page.map(StockTakeSummaryResponse::from);
     }
 
+    /**
+     * Xem chi tiết 1 phiếu kiểm kê kèm danh sách items.
+     * Dùng bởi: GET /api/v1/stocktakes/{id}
+     * Ghi audit STOCKTAKE_REPORT_VIEW.
+     */
     @Transactional
     public StockTakeResponse getStockTakeById(Long id, User actor) {
         StockTake st = stockTakeRepository.findByIdWithDetails(id)
@@ -143,8 +165,20 @@ public class StockTakeService {
         return StockTakeResponse.from(st, items);
     }
 
-    // ─── Create ───────────────────────────────────────────────────────────────
+    // ─── Tạo phiếu ────────────────────────────────────────────────────────────
 
+    /**
+     * Thủ kho tạo phiếu kiểm kê mới (trạng thái DRAFT).
+     * Dùng bởi: POST /api/v1/stocktakes
+     *
+     * Xử lý:
+     * 1. Kiểm tra role STOREKEEPER/ADMIN + quyền truy cập kho
+     * 2. Kiểm tra kỳ kế toán đang mở (OPEN)
+     * 3. Kiểm tra ngày hợp lệ (stock_take_date <= document_date, nằm trong kỳ kế toán)
+     * 4. Kiểm tra không trùng phiếu kiểm kê đang hoạt động cùng kho
+     * 5. Sinh mã phiếu ST-yyyyMMdd-xxxxxx
+     * 6. Tạo StockTakeItem từ tồn kho hiện tại (non-quarantine), actual_qty = null
+     */
     @Transactional
     public StockTakeResponse createStockTake(CreateStockTakeRequest req, User actor) {
         requireStockTakeRole(actor);
@@ -159,7 +193,7 @@ public class StockTakeService {
         assertPeriodOpen(period);
         validateCreateDates(req, period);
 
-        // S4: check for overlapping active stocktake in same warehouse BEFORE creating a new one
+        // S4: kiểm tra trùng phiếu kiểm kê đang hoạt động trong cùng kho TRƯỚC khi tạo mới
         boolean hasActive = stockTakeRepository.existsByWarehouseIdAndStatusIn(
                 req.getWarehouseId(),
                 List.of(StockTakeStatus.DRAFT, StockTakeStatus.IN_PROGRESS, StockTakeStatus.PENDING_APPROVAL));
@@ -189,7 +223,7 @@ public class StockTakeService {
         // Populate items from current non-quarantine inventory
         List<Inventory> inventories = inventoryRepository.findActiveNonQuarantineByWarehouseId(req.getWarehouseId());
 
-        // V4: validate stocktake has items
+        // V4: kiểm tra phiếu kiểm kê có ít nhất 1 dòng hàng tồn kho
         if (inventories.isEmpty()) {
             throw new StockTakeException("EMPTY_STOCKTAKE", HttpStatus.UNPROCESSABLE_ENTITY,
                     "No inventory found in warehouse " + req.getWarehouseId() + " to create stocktake");
@@ -219,8 +253,15 @@ public class StockTakeService {
         return StockTakeResponse.from(st, itemResponses);
     }
 
-    // ─── Start ────────────────────────────────────────────────────────────────
+    // ─── Bắt đầu kiểm kê ──────────────────────────────────────────────────────
 
+    /**
+     * Bắt đầu kiểm kê: DRAFT → IN_PROGRESS.
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/start
+     *
+     * Khóa tất cả vị trí kệ (location) của các item trong phiếu
+     * để ngăn nhập/xuất hàng tại các vị trí đang kiểm kê.
+     */
     @Transactional
     public StockTakeResponse startStockTake(Long id, User actor) {
         requireStockTakeRole(actor);
@@ -246,18 +287,27 @@ public class StockTakeService {
         return buildResponse(st);
     }
 
-    // ─── Record Count ─────────────────────────────────────────────────────────
+    // ─── Nhập số đếm ──────────────────────────────────────────────────────────
 
+    /**
+     * Thủ kho nhập số lượng đếm thực tế cho từng item.
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/count
+     *
+     * Xử lý:
+     * 1. Chỉ cho phép khi phiếu IN_PROGRESS hoặc REJECTED (sửa lại sau khi bị trả)
+     * 2. Nếu phiếu REJECTED → chuyển về IN_PROGRESS, khóa lại location
+     * 3. Validate: không trùng itemId, actual_qty >= 0, ghi chú bắt buộc khi chênh lệch
+     * 4. Tính variance_qty = actual_qty - system_qty, variance_value = variance_qty × cost_price
+     * 5. Nếu có is_employee_fault = true thì bắt buộc có notes (lý do)
+     */
     @Transactional
     public StockTakeResponse recordCount(Long id, StockTakeCountRequest req, User actor) {
         requireStockTakeRole(actor);
         StockTake st = loadStockTake(id);
         requireWarehouseAccess(actor, st.getWarehouse().getId());
 
-        // After a REJECTED stocktake, the storekeeper may edit counts and re-submit
-        // (Spec 006,
-        // feature-manager EARS + Scenario 6), so REJECTED is also a valid editing
-        // state.
+        // Sau khi phiếu bị REJECTED, Thủ kho có thể sửa số đếm và nộp lại
+        // (Spec 006, feature-manager EARS + Scenario 6), nên REJECTED cũng là trạng thái hợp lệ để chỉnh sửa.
         if (st.getStatus() != StockTakeStatus.IN_PROGRESS && st.getStatus() != StockTakeStatus.REJECTED) {
             throw new StockTakeException("INVALID_STATE",
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -307,7 +357,7 @@ public class StockTakeService {
                                 + countReq.getItemId());
             }
 
-            // Load inventory to get cost price
+            // Lấy tồn kho để tra giá vốn (cost price)
             Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
                     st.getWarehouse().getId(), item.getProduct().getId(),
                     item.getBatch().getId(), item.getLocation().getId())
@@ -340,15 +390,26 @@ public class StockTakeService {
         return buildResponse(st);
     }
 
-    // ─── Complete ─────────────────────────────────────────────────────────────
+    // ─── Hoàn tất đếm ─────────────────────────────────────────────────────────
 
+    /**
+     * Thủ kho hoàn tất đếm và gửi phiếu chờ Trưởng kho duyệt.
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/complete
+     *
+     * Xử lý:
+     * 1. Kiểm tra tất cả items đã có actual_qty (không còn null)
+     * 2. Refresh system_qty từ inventory hiện tại → tính lại variance chính xác
+     * 3. Tính tổng total_variance_value cho toàn phiếu
+     * 4. Chuyển trạng thái → PENDING_APPROVAL, approval_level = MANAGER
+     * 5. Tạo các Adjustment (PENDING_APPROVAL) cho từng item có chênh lệch
+     */
     @Transactional
     public StockTakeResponse completeStockTake(Long id, User actor) {
         requireStockTakeRole(actor);
         StockTake st = loadStockTake(id);
         requireWarehouseAccess(actor, st.getWarehouse().getId());
 
-        // A REJECTED stocktake can be re-submitted after the storekeeper edits counts
+        // Phiếu REJECTED có thể nộp lại sau khi Thủ kho sửa số đếm
         // (Spec 006, feature-manager EARS + Scenario 6).
         if (st.getStatus() != StockTakeStatus.IN_PROGRESS && st.getStatus() != StockTakeStatus.REJECTED) {
             throw new StockTakeException("INVALID_STATE",
@@ -398,8 +459,20 @@ public class StockTakeService {
         return buildResponse(st);
     }
 
-    // ─── Approve (Manager) ────────────────────────────────────────────────────
+    // ─── Phê duyệt (Trưởng kho) ───────────────────────────────────────────────
 
+    /**
+     * Trưởng kho phê duyệt phiếu kiểm kê.
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/approve
+     *
+     * Xử lý (ủy quyền cho executeApproval):
+     * 1. Cập nhật inventory.total_qty = actual_qty cho từng item có chênh lệch
+     * 2. Nếu actual_qty < reserved_qty → cap total_qty = reserved_qty + trả warning
+     *    (không throw lỗi, để bảo vệ đơn hàng đang xử lý)
+     * 3. Duyệt Adjustment tương ứng
+     * 4. Chuyển phiếu → APPROVED, mở khóa location
+     * 5. Trả response kèm approval_warnings (nếu có)
+     */
     @Transactional
     public StockTakeResponse approveStockTake(Long id, User actor) {
         if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
@@ -412,12 +485,23 @@ public class StockTakeService {
 
         assertPendingApproval(st);
         assertPeriodOpen(st.getAccountingPeriod());
-        executeApproval(st, actor, AuditAction.STOCKTAKE_APPROVE);
-        return buildResponse(st);
+        List<String> warnings = executeApproval(st, actor, AuditAction.STOCKTAKE_APPROVE);
+        StockTakeResponse response = buildResponse(st);
+        if (!warnings.isEmpty()) {
+            response.setApprovalWarnings(warnings);
+        }
+        return response;
     }
 
-    // ─── Reject (Manager) ─────────────────────────────────────────────────────
+    // ─── Trả lại (Trưởng kho) ──────────────────────────────────────────────────
 
+    /**
+     * Trưởng kho trả lại phiếu kiểm kê (REJECTED).
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/reject
+     *
+     * Thủ kho sau đó có thể sửa số đếm (recordCount) và nộp lại (completeStockTake).
+     * Mở khóa location khi reject để cho phép nhập/xuất hàng bình thường.
+     */
     @Transactional
     public StockTakeResponse rejectStockTake(Long id, StockTakeRejectRequest req, User actor) {
         if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
@@ -431,8 +515,15 @@ public class StockTakeService {
         return doReject(st, req.getRejectionReason(), actor);
     }
 
-    // ─── Cancel ───────────────────────────────────────────────────────────────
+    // ─── Hủy phiếu ────────────────────────────────────────────────────────────
 
+    /**
+     * Hủy phiếu kiểm kê (chỉ khi DRAFT hoặc IN_PROGRESS).
+     * Dùng bởi: PUT /api/v1/stocktakes/{id}/cancel
+     *
+     * Nếu đang IN_PROGRESS → mở khóa tất cả location đã bị lock.
+     * Roles: STOREKEEPER, WAREHOUSE_MANAGER, ADMIN.
+     */
     @Transactional
     public StockTakeResponse cancelStockTake(Long id, User actor) {
         requireCancelRole(actor);
@@ -459,9 +550,15 @@ public class StockTakeService {
         return buildResponse(st);
     }
 
-    // ─── Private helpers ──────────────────────────────────────────────────────
+    // ─── Hàm nội bộ (private helpers) ──────────────────────────────────────────
 
-    private void executeApproval(StockTake st, User approver, AuditAction auditAction) {
+    /**
+     * Thực thi phê duyệt: cập nhật tồn kho, duyệt adjustment, đổi trạng thái, mở khóa location.
+     * Gọi bởi: approveStockTake()
+     * @return danh sách cảnh báo nếu có item bị cap qty do reserved_qty
+     */
+    private List<String> executeApproval(StockTake st, User approver, AuditAction auditAction) {
+        List<String> warnings = new ArrayList<>();
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeIdWithDetails(st.getId());
         List<Adjustment> adjustments = adjustmentRepository.findByReferenceTypeAndReferenceIdAndTypeOrderByIdAsc(
                 STOCK_TAKE_REFERENCE_TYPE, st.getId(), AdjustmentType.STOCK_TAKE);
@@ -479,10 +576,14 @@ public class StockTakeService {
                                     + item.getProduct().getSku() + " at location " + item.getLocation().getId()));
 
             BigDecimal newQty = item.getActualQty();
-            if (newQty.subtract(inv.getReservedQty()).compareTo(BigDecimal.ZERO) < 0) {
-                throw new BusinessRuleViolationException(
-                        "INVENTORY_INVARIANT_VIOLATED: Cannot set qty below reserved for product "
-                                + item.getProduct().getSku());
+            BigDecimal reservedQty = inv.getReservedQty();
+            if (newQty.subtract(reservedQty).compareTo(BigDecimal.ZERO) < 0) {
+                warnings.add("Sản phẩm " + item.getProduct().getSku() + " (" + item.getProduct().getName()
+                        + "): số lượng kiểm kê thực tế (" + newQty
+                        + ") thấp hơn số lượng đang giữ chỗ (" + reservedQty
+                        + "). Tồn kho được đặt bằng số giữ chỗ (" + reservedQty
+                        + ") để bảo vệ các đơn hàng đang xử lý. Vui lòng kiểm tra và xử lý các đơn liên quan.");
+                newQty = reservedQty;
             }
             inv.setTotalQty(newQty);
             inv.setUpdatedAt(OffsetDateTime.now());
@@ -507,8 +608,14 @@ public class StockTakeService {
         auditLogService.log(approver, auditAction,
                 ENTITY_TYPE, st.getId(), st.getStockTakeNumber(),
                 st.getWarehouse().getId(), null, snapshotHeader(st));
+
+        return warnings;
     }
 
+    /**
+     * Tạo Adjustment (PENDING_APPROVAL) cho mỗi item có chênh lệch.
+     * Gọi bởi: completeStockTake() — khi thủ kho hoàn tất đếm và gửi duyệt.
+     */
     private void createPendingStockTakeAdjustments(StockTake st, List<StockTakeItem> items) {
         for (StockTakeItem item : items) {
             if (item.getVarianceQty() == null || item.getVarianceQty().compareTo(BigDecimal.ZERO) == 0) {
@@ -525,6 +632,7 @@ public class StockTakeService {
         }
     }
 
+    /** Tìm Adjustment đã tạo trước đó cho cùng product/batch/location. Gọi bởi: executeApproval() */
     private Optional<Adjustment> findStockTakeAdjustment(List<Adjustment> adjustments, StockTakeItem item) {
         return adjustments.stream()
                 .filter(adj -> adj.getProduct().getId().equals(item.getProduct().getId()))
@@ -533,6 +641,7 @@ public class StockTakeService {
                 .findFirst();
     }
 
+    /** Tạo entity Adjustment mới cho item kiểm kê. Gọi bởi: createPendingStockTakeAdjustments(), executeApproval() */
     private Adjustment buildStockTakeAdjustment(StockTake st, StockTakeItem item) {
         return Adjustment.builder()
                 .adjustmentNumber(stockTakeAdjustmentNumber(st, item))
@@ -573,6 +682,7 @@ public class StockTakeService {
         return null;
     }
 
+    /** Thực thi reject: đổi status REJECTED, reject adjustment, mở khóa location. Gọi bởi: rejectStockTake() */
     private StockTakeResponse doReject(StockTake st, String reason, User actor) {
         st.setStatus(StockTakeStatus.REJECTED);
         st.setRejectionReason(reason);
@@ -588,6 +698,7 @@ public class StockTakeService {
         return buildResponse(st);
     }
 
+    /** Chuyển tất cả Adjustment PENDING_APPROVAL → REJECTED. Gọi bởi: doReject() */
     private void rejectPendingStockTakeAdjustments(StockTake st) {
         List<Adjustment> adjustments = adjustmentRepository.findByReferenceTypeAndReferenceIdAndTypeOrderByIdAsc(
                 STOCK_TAKE_REFERENCE_TYPE, st.getId(), AdjustmentType.STOCK_TAKE);
@@ -599,6 +710,7 @@ public class StockTakeService {
         }
     }
 
+    /** Khóa tất cả location liên quan đến phiếu kiểm kê — ngăn nhập/xuất tại các vị trí đang kiểm. Gọi bởi: startStockTake(), recordCount() (khi REJECTED → IN_PROGRESS) */
     private void lockLocations(StockTake st) {
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeId(st.getId());
         List<Long> locationIds = items.stream()
@@ -616,6 +728,7 @@ public class StockTakeService {
         locationRepository.saveAll(locations);
     }
 
+    /** Mở khóa tất cả location đã bị lock bởi phiếu kiểm kê. Gọi bởi: executeApproval(), doReject(), cancelStockTake() */
     private void unlockLocations(Long stockTakeId) {
         List<WarehouseLocation> locations = locationRepository.findByLockedByStockTakeId(stockTakeId);
         for (WarehouseLocation loc : locations) {
@@ -625,6 +738,7 @@ public class StockTakeService {
         locationRepository.saveAll(locations);
     }
 
+    /** Sinh mã phiếu ST-yyyyMMdd-xxxxxx (tuần tự, dùng bảng document_sequences). Gọi bởi: createStockTake() */
     private String generateStockTakeNumber() {
         DocumentSequence seq = documentSequenceRepository.findBySequenceKeyForUpdate("ST")
                 .orElseGet(() -> {
@@ -642,6 +756,7 @@ public class StockTakeService {
         return String.format("ST-%s-%06d", date, next);
     }
 
+    /** Kiểm tra kỳ kế toán phải đang OPEN — throw nếu đã đóng. Gọi bởi: createStockTake(), approveStockTake() */
     private void assertPeriodOpen(AccountingPeriod period) {
         if (period == null || period.getStatus() != AccountingPeriodStatus.OPEN) {
             throw new BusinessRuleViolationException(
@@ -649,6 +764,7 @@ public class StockTakeService {
         }
     }
 
+    /** Validate ngày tạo phiếu: stock_take_date <= document_date, cả hai nằm trong kỳ kế toán. Gọi bởi: createStockTake() */
     private void validateCreateDates(CreateStockTakeRequest req, AccountingPeriod period) {
         if (req.getStockTakeDate().isAfter(req.getDocumentDate())) {
             throw new UnprocessableEntityException(
@@ -666,6 +782,7 @@ public class StockTakeService {
         }
     }
 
+    /** Kiểm tra phiếu phải ở PENDING_APPROVAL trước khi duyệt/reject. Gọi bởi: approveStockTake(), rejectStockTake() */
     private void assertPendingApproval(StockTake st) {
         if (st.getStatus() == StockTakeStatus.APPROVED) {
             throw new StockTakeException("STOCK_TAKE_ALREADY_APPROVED", HttpStatus.CONFLICT,
@@ -677,6 +794,7 @@ public class StockTakeService {
         }
     }
 
+    /** Kiểm tra actor phải là STOREKEEPER hoặc ADMIN — dùng cho tạo/bắt đầu/đếm/hoàn tất phiếu */
     private void requireStockTakeRole(User actor) {
         UserRole role = actor.getRole();
         if (role != UserRole.STOREKEEPER && role != UserRole.ADMIN) {
@@ -685,6 +803,7 @@ public class StockTakeService {
         }
     }
 
+    /** Kiểm tra actor phải là STOREKEEPER, WAREHOUSE_MANAGER hoặc ADMIN — dùng cho hủy phiếu */
     private void requireCancelRole(User actor) {
         UserRole role = actor.getRole();
         if (role != UserRole.STOREKEEPER && role != UserRole.WAREHOUSE_MANAGER && role != UserRole.ADMIN) {
@@ -693,6 +812,7 @@ public class StockTakeService {
         }
     }
 
+    /** Kiểm tra actor có quyền truy cập kho (ADMIN/CEO bỏ qua, còn lại phải được assign). Dùng cho tất cả operations */
     private void requireWarehouseAccess(User actor, Long warehouseId) {
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return;
@@ -705,11 +825,13 @@ public class StockTakeService {
         }
     }
 
+    /** Tải phiếu kiểm kê với khóa bi quan (FOR UPDATE) — tránh chỉnh sửa đồng thời */
     private StockTake loadStockTake(Long id) {
         return stockTakeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
     }
 
+    /** Tạo DTO response từ entity + tải items kèm chi tiết (sản phẩm, lô, vị trí kệ) */
     private StockTakeResponse buildResponse(StockTake st) {
         List<StockTakeItemResponse> items = stockTakeItemRepository
                 .findByStockTakeIdWithDetails(st.getId())
@@ -717,6 +839,7 @@ public class StockTakeService {
         return StockTakeResponse.from(st, items);
     }
 
+    /** Tạo snapshot header để ghi vào audit log — lưu trạng thái phiếu tại thời điểm thao tác */
     private Map<String, Object> snapshotHeader(StockTake st) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stock_take_number", st.getStockTakeNumber());

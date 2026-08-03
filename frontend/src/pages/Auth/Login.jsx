@@ -1,3 +1,9 @@
+/**
+ * Trang đăng nhập hệ thống (Spec 001).
+ * Nhập email + mật khẩu → gọi authService.login → lưu token vào store → chuyển trang theo role.
+ * Xử lý lỗi: sai mật khẩu, tài khoản bị khóa.
+ * Có link "Quên mật khẩu" dẫn đến ForgotPassword.
+ */
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
@@ -18,6 +24,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Xử lý submit form đăng nhập — gọi API, lưu token, chuyển trang theo role
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
@@ -34,15 +41,16 @@ const Login = () => {
       addToast('Đăng nhập thành công', 'success');
       navigate(getDefaultRouteByRole(data.user.role));
     } catch (err) {
-      const message = err.message || '';
-      if (message.includes('INVALID_CREDENTIALS')) {
-        setError('Email hoặc mật khẩu không chính xác');
+      const code = err.response?.data?.code || err.response?.data?.message || err.message || '';
+      if (code.includes('INVALID_CREDENTIALS')) {
+        setError('Email hoặc mật khẩu không chính xác.');
         addToast('Đăng nhập thất bại', 'error');
-      } else if (message.includes('USER_INACTIVE')) {
+      } else if (code.includes('USER_INACTIVE')) {
         setError('Tài khoản này đã bị khóa. Vui lòng liên hệ Admin.');
         addToast('Tài khoản bị khóa', 'error');
       } else {
-        setError('Đã có lỗi hệ thống xảy ra. Vui lòng thử lại.');
+        setError('Email hoặc mật khẩu không chính xác.');
+        addToast('Đăng nhập thất bại', 'error');
       }
     } finally {
       setLoading(false);

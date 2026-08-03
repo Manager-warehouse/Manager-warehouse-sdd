@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { financeService } from '../../services/finance.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 import { getLocalDateString } from '../../utils/format';
 import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
-import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Wrench, Plus } from 'lucide-react';
+import { Calendar, Lock, Unlock, AlertCircle, ChevronDown, ChevronRight, Wrench, Eye } from 'lucide-react';
 
 const REFERENCE_TYPE_LABELS = {
   INVOICE: 'Hóa đơn Bán',
   PAYMENT_RECEIPT: 'Phiếu thu AR',
   SUPPLIER_INVOICE: 'Hóa đơn Mua',
-  SUPPLIER_PAYMENT: 'Phiếu chi AP'
+  SUPPLIER_PAYMENT: 'Phiếu chi AP',
+  CREDIT_NOTE: 'Phiếu ghi giảm công nợ'
 };
 
 const PeriodClosing = () => {
+  const navigate = useNavigate();
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
   const isAccountantManager = hasRole(ROLES.ACCOUNTANT_MANAGER) || hasRole(ROLES.ADMIN);
@@ -26,9 +28,6 @@ const PeriodClosing = () => {
   const [closingPeriodId, setClosingPeriodId] = useState(null);
   const [confirmModalPeriod, setConfirmModalPeriod] = useState(null);
   const [expandedPeriodId, setExpandedPeriodId] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState({ periodName: '', notes: '' });
 
   const loadPeriods = useCallback(async () => {
     setLoading(true);
@@ -79,31 +78,6 @@ const PeriodClosing = () => {
     }
   };
 
-  const handleOpenCreateModal = () => {
-    setCreateForm({ periodName: '', notes: '' });
-    setShowCreateModal(true);
-  };
-
-  const handleCreatePeriod = async (e) => {
-    e.preventDefault();
-    if (!createForm.periodName) {
-      addToast('Vui lòng chọn Tháng/Năm cho kỳ kế toán', 'error');
-      return;
-    }
-    setCreating(true);
-    try {
-      await financeService.createAccountingPeriod(createForm.periodName, createForm.notes);
-      addToast(`Tạo Kỳ kế toán ${createForm.periodName} thành công!`, 'success');
-      setShowCreateModal(false);
-      loadPeriods();
-    } catch (err) {
-      console.error('Failed to create accounting period:', err);
-      addToast(err.message || 'Không thể tạo kỳ kế toán', 'error');
-    } finally {
-      setCreating(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -116,20 +90,9 @@ const PeriodClosing = () => {
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
             Theo dõi trạng thái các kỳ kế toán phát sinh và thực hiện chốt sổ định kỳ (Month-end Closing) để khóa dữ liệu tài chính.
+            Kỳ mới được hệ thống tự động tạo khi có chứng từ đầu tiên phát sinh trong tháng đó.
           </p>
         </div>
-        {isAccountantManager && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Tạo Kỳ Kế Toán
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
@@ -192,7 +155,7 @@ const PeriodClosing = () => {
                         </button>
                         {p.period_name || p.periodName}
                         {periodVouchers.length > 0 && (
-                          <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold">
+                          <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold whitespace-nowrap inline-flex items-center leading-none">
                             {periodVouchers.length} điều chỉnh
                           </span>
                         )}
@@ -227,26 +190,36 @@ const PeriodClosing = () => {
                         {p.closed_at || p.closedAt ? new Date(p.closed_at || p.closedAt).toLocaleString() : '—'}
                       </td>
                       <td className="p-4 text-center">
-                        {p.status === 'OPEN' && isAccountantManager && (
-                          periodHasEnded(p) ? (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => setConfirmModalPeriod(p)}
-                              disabled={closingPeriodId === p.id}
-                            >
-                              <Lock className="w-3.5 h-3.5 mr-1" />
-                              Khóa kỳ kế toán
-                            </Button>
-                          ) : (
-                            <span
-                              className="text-[10px] text-shade-40 italic"
-                              title="Chỉ được khóa sau khi kỳ đã kết thúc, để tránh khóa nhầm kỳ đang diễn ra"
-                            >
-                              Kỳ chưa kết thúc
-                            </span>
-                          )
-                        )}
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => navigate(`/finance/periods/${p.id}`)}
+                          >
+                            <Eye className="w-3.5 h-3.5 mr-1" />
+                            Xem chi tiết
+                          </Button>
+                          {p.status === 'OPEN' && isAccountantManager && (
+                            periodHasEnded(p) ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setConfirmModalPeriod(p)}
+                                disabled={closingPeriodId === p.id}
+                              >
+                                <Lock className="w-3.5 h-3.5 mr-1" />
+                                Khóa kỳ kế toán
+                              </Button>
+                            ) : (
+                              <span
+                                className="text-[10px] text-shade-40 italic"
+                                title="Chỉ được khóa sau khi kỳ đã kết thúc, để tránh khóa nhầm kỳ đang diễn ra"
+                              >
+                                Kỳ chưa kết thúc
+                              </span>
+                            )
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && (
@@ -278,7 +251,9 @@ const PeriodClosing = () => {
                                     <tr key={v.id}>
                                       <td className="py-1.5 pr-4 font-bold text-ink">{v.adjustment_number || v.adjustmentNumber}</td>
                                       <td className="py-1.5 pr-4 text-shade-60">
-                                        {REFERENCE_TYPE_LABELS[v.reference_type || v.referenceType] || v.reference_type} #{v.reference_id || v.referenceId}
+                                        {v.reference_number || v.referenceNumber
+                                          ? `${REFERENCE_TYPE_LABELS[v.reference_type || v.referenceType] || v.reference_type}: ${v.reference_number || v.referenceNumber}`
+                                          : `${REFERENCE_TYPE_LABELS[v.reference_type || v.referenceType] || v.reference_type} #${v.reference_id || v.referenceId}`}
                                       </td>
                                       <td className="py-1.5 pr-4 text-shade-70">
                                         {v.dealer_name || v.dealerName || v.supplier_name || v.supplierName || '—'}
@@ -333,49 +308,6 @@ const PeriodClosing = () => {
                 {closingPeriodId === confirmModalPeriod.id ? 'Đang xử lý...' : 'Xác nhận Khóa sổ'}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE PERIOD MODAL */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-md p-6 flex flex-col gap-4">
-            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light">
-              Tạo Kỳ Kế Toán Mới
-            </h2>
-
-            <form onSubmit={handleCreatePeriod} className="flex flex-col gap-4 text-xs">
-              <Input
-                id="periodName"
-                label="Tháng / Năm (VD: 2026-05)"
-                type="month"
-                value={createForm.periodName}
-                onChange={e => setCreateForm(prev => ({ ...prev, periodName: e.target.value }))}
-                required
-              />
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Ghi chú</label>
-                <textarea
-                  value={createForm.notes}
-                  onChange={e => setCreateForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
-                  placeholder="VD: Kỳ kế toán dùng để kiểm thử khóa sổ và bút toán điều chỉnh"
-                />
-              </div>
-              <p className="text-[11px] text-shade-40 italic">
-                Kỳ mới được tạo ở trạng thái Đang Mở (OPEN); có thể chọn tháng trong quá khứ để kiểm thử khóa sổ.
-              </p>
-
-              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
-                  Hủy bỏ
-                </Button>
-                <Button type="submit" variant="primary" disabled={creating}>
-                  {creating ? 'Đang tạo...' : 'Tạo Kỳ Kế Toán'}
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}

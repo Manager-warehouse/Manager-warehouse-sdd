@@ -245,6 +245,41 @@ class SupplierInvoiceServiceImplTest {
     }
 
     @Test
+    @DisplayName("Lập hóa đơn mua hàng thất bại - Số hóa đơn VAT đã được ghi nhận cho NCC này")
+    void createSupplierInvoice_failsWhenSupplierInvoiceNumberAlreadyUsed() {
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .build();
+
+        when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
+        when(supplierInvoiceRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
+        when(supplierInvoiceRepository.existsBySupplierIdAndSupplierInvoiceNumber(10L, "VAT-NCC-001"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SUPPLIER_INVOICE_NUMBER_ALREADY_USED");
+    }
+
+    @Test
+    @DisplayName("Lập hóa đơn mua hàng thất bại - Hạn thanh toán trước ngày hạch toán")
+    void createSupplierInvoice_failsWhenDueDateBeforeDocumentDate() {
+        // Validated before any repository lookup, so nothing else needs stubbing here.
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .dueDate(LocalDate.of(2026, 7, 20))
+                .build();
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessageContaining("DUE_DATE_BEFORE_DOCUMENT_DATE");
+    }
+
+    @Test
     @DisplayName("Lập hóa đơn mua hàng thất bại - Quyền truy cập không hợp lệ")
     void createSupplierInvoice_failsForNonAccountant() {
         CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()

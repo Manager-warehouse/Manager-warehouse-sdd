@@ -1,45 +1,11 @@
 package com.wms.service.user_configuration.impl;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.SystemConfigUpdateRequest;
 import com.wms.dto.response.SystemConfigResponse;
+import com.wms.entity.access_control.User;
 import com.wms.entity.audit_trail.AuditLog;
 import com.wms.entity.user_configuration.SystemConfig;
-import com.wms.entity.access_control.User;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.user_configuration.SystemConfigKey;
 import com.wms.exception.ResourceNotFoundException;
@@ -49,16 +15,20 @@ import com.wms.repository.SystemConfigRepository;
 import com.wms.repository.UserRepository;
 import com.wms.service.user_configuration.SystemConfigService;
 import com.wms.util.AuditLogUtil;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Triển khai quản lý cấu hình hệ thống (Spec 001).
+ * CRUD tham số hệ thống (bảng system_configs), validate giá trị theo từng key, ghi audit log.
+ * Cung cấp getIntValue/getDecimalValue cho các service khác đọc config an toàn.
+ */
 @Service
 @RequiredArgsConstructor
 public class SystemConfigServiceImpl implements SystemConfigService {
@@ -70,6 +40,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Lấy tất cả tham số cấu hình hệ thống. */
     public List<SystemConfigResponse> getAllConfigs() {
         return systemConfigRepository.findAll()
                 .stream()
@@ -79,6 +50,10 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional
+    /**
+     * Cập nhật giá trị cấu hình theo key. Validate giá trị theo loại key.
+     * Nếu key chưa tồn tại trong DB → tạo mới. Ghi audit log.
+     */
     public SystemConfigResponse updateConfig(String configKey, SystemConfigUpdateRequest request, Long adminUserId) {
         String newValue = request.getConfigValue();
         SystemConfigKey configEnum;
@@ -126,6 +101,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Đọc config dạng số nguyên — trả defaultValue nếu key chưa có hoặc format sai. */
     public int getIntValue(String configKey, int defaultValue) {
         return systemConfigRepository.findByConfigKey(configKey)
                 .map(SystemConfig::getConfigValue)
@@ -141,6 +117,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Đọc config dạng BigDecimal — trả defaultValue nếu key chưa có hoặc format sai. */
     public BigDecimal getDecimalValue(String configKey, BigDecimal defaultValue) {
         return systemConfigRepository.findByConfigKey(configKey)
                 .map(SystemConfig::getConfigValue)
@@ -154,6 +131,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                 .orElse(defaultValue);
     }
 
+    /** Tạo mô tả mặc định tiếng Việt cho config key — dùng khi tạo config mới. */
     private String resolveDefaultDescription(String configKey) {
         try {
             SystemConfigKey key = SystemConfigKey.valueOf(configKey);
@@ -170,6 +148,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         }
     }
 
+    /** Validate giá trị config theo từng key: kiểm tra kiểu dữ liệu, phạm vi hợp lệ. */
     private void validateConfigValue(SystemConfigKey key, String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Value cannot be empty");

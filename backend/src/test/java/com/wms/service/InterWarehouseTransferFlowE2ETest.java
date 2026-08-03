@@ -108,8 +108,6 @@ class InterWarehouseTransferFlowE2ETest {
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private DiscrepancyIncidentRepository discrepancyIncidentRepository;
     @Mock private DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
-    @Mock private WrongSkuReportRepository wrongSkuReportRepository;
-    @Mock private WrongSkuReportItemRepository wrongSkuReportItemRepository;
 
     // Services under test
     private TransferRequestServiceImpl requestService;
@@ -326,10 +324,7 @@ class InterWarehouseTransferFlowE2ETest {
                 helper,
                 quarantineRecordRepository,
                 discrepancyIncidentRepository,
-                discrepancyHoldEntryRepository,
-                productRepository,
-                wrongSkuReportRepository,
-                wrongSkuReportItemRepository
+                discrepancyHoldEntryRepository
         );
 
         disposalService = new DisposalService(
@@ -385,29 +380,31 @@ class InterWarehouseTransferFlowE2ETest {
         TransferRequestResponse draftResponse = requestService.createRequest(createReq, manager);
         assertThat(draftResponse.status()).isEqualTo(TransferRequestStatus.DRAFT);
 
-        // --- 2. Manager submits for CEO approval (SUBMITTED) ---
+        // --- 2. Manager submits for source warehouse approval (SUBMITTED) ---
         when(requestRepository.findById(transferRequest.getId())).thenReturn(Optional.of(transferRequest));
         when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
                 .thenReturn(new BigDecimal("50.00"));
         TransferRequestResponse submittedResponse = requestService.submitRequest(transferRequest.getId(), manager);
         assertThat(submittedResponse.status()).isEqualTo(submittedResponse.status());
 
-        // --- 3. CEO Approves (APPROVED) ---
-        TransferRequestResponse approvedResponse = requestService.approveRequest(transferRequest.getId(), ceo);
-        assertThat(approvedResponse.status()).isEqualTo(TransferRequestStatus.APPROVED);
-
-        // --- 4. Planner converts to actual TRF (CONVERTED) ---
+        // --- 3. Source manager approves and reserves stock (APPROVED) ---
         InterWarehouseTransferResponse mockTrfRes = new InterWarehouseTransferResponse(
                 800L, "TRF-20260628-0001", "TRQ-20260628-0001",
                 sourceWarehouse.getId(), sourceWarehouse.getCode(),
                 destinationWarehouse.getId(), destinationWarehouse.getCode(),
-                InterWarehouseTransferStatus.NEW, null, null, null, null, null, null, null,
+                InterWarehouseTransferStatus.APPROVED, null, null, null, null, null, null, null,
                 LocalDate.now(), LocalDate.now(), null, null, false, false, null, null, null,
                 null, "Cần chảo gấp cho Hà Nội", false, OffsetDateTime.now(), OffsetDateTime.now(), List.of()
         );
-        when(mockTransferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
+        when(assignmentRepository.findWarehouseIdsByUserId(sourceManager.getId())).thenReturn(List.of(sourceWarehouse.getId()));
+        when(mockTransferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(sourceManager)))
                 .thenReturn(mockTrfRes);
+        when(mockTransferService.approveTransfer(800L, sourceManager)).thenReturn(mockTrfRes);
         when(transferRepository.findById(800L)).thenReturn(Optional.of(transfer));
+        TransferRequestResponse approvedResponse = requestService.approveRequest(transferRequest.getId(), sourceManager);
+        assertThat(approvedResponse.status()).isEqualTo(TransferRequestStatus.APPROVED);
+
+        // --- 4. Planner converts the prepared TRF (CONVERTED) ---
         TransferRequestResponse convertedResponse = requestService.convertToTransfer(transferRequest.getId(), planner);
         assertThat(convertedResponse.status()).isEqualTo(TransferRequestStatus.CONVERTED);
         assertThat(convertedResponse.convertedTransferId()).isEqualTo(transfer.getId());
@@ -562,44 +559,6 @@ class InterWarehouseTransferFlowE2ETest {
                 && incident.getQuantity().compareTo(new BigDecimal("2.00")) == 0
                 && "Thiếu 2 cái chảo".equals(incident.getResolutionNote())
         ));
-    }
-
-    @Test
-    void testE2ETransferFlow_wrongSkuReturnLeg() {
-        transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
-        transfer.setDriverArrivedAt(OffsetDateTime.now());
-        transfer.setArrivalHandoverAt(null);
-        transferItem.setSentQty(new BigDecimal("30.00"));
-        Product actualProduct = new Product();
-        actualProduct.setId(501L);
-        actualProduct.setSku("POT-001");
-        actualProduct.setName("Nồi inox");
-        when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
-        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
-        when(assignmentRepository.findWarehouseIdsByUserId(storekeeper.getId())).thenReturn(List.of(destinationWarehouse.getId()));
-        when(productRepository.findById(actualProduct.getId())).thenReturn(Optional.of(actualProduct));
-        when(wrongSkuReportRepository.findByTransferId(transfer.getId())).thenReturn(Collections.emptyList());
-
-        // 1. Destination storekeeper requests return to source because of wrong SKU at handover.
-        InterWarehouseTransferResponse returnRequested = receivingService.requestReturn(
-                transfer.getId(),
-                new TransferReturnRequest("Giao sai mã SKU chảo", List.of(new WrongSkuItemRequest(
-                        transferItem.getId(),
-                        product.getId(),
-                        actualProduct.getId(),
-                        new BigDecimal("5.00"),
-                        "Hàng thực tế không đúng SKU dự kiến",
-                        null))),
-                storekeeper
-        );
-        assertThat(transfer.isReturnRequested()).isTrue();
-        assertThat(transfer.getReturnReason()).isEqualTo("Giao sai mã SKU chảo");
-
-        // 2. Destination Manager approves the return trip
-        InterWarehouseTransferResponse returnApproved = receivingService.approveReturn(transfer.getId(), manager);
-        assertThat(transfer.isReturnRequested()).isFalse();
-        assertThat(transfer.isReturned()).isTrue();
-        assertThat(transfer.getStatus()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
     }
 
     @Test

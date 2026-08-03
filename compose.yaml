@@ -13,11 +13,13 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
       MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
+      POD_STORAGE_ROOT: /var/lib/wms/pod-evidence
       TZ: Asia/Ho_Chi_Minh
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:
       - uploads:/app/uploads
+      - pod-evidence:/var/lib/wms/pod-evidence
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/v3/api-docs"]
       interval: 10s
@@ -41,3 +43,4 @@ services:
 
 volumes:
   uploads:
+  pod-evidence:

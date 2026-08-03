@@ -1,6 +1,5 @@
 package com.wms.entity.order_fulfillment;
 
-
 import com.wms.entity.access_control.*;
 import com.wms.entity.audit_trail.*;
 import com.wms.entity.billing_payment.*;
@@ -36,15 +35,22 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.persistence.*;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import java.time.OffsetDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import com.wms.enums.order_fulfillment.DeliveryOtpStatus;
 
 @Entity
 @Table(name = "delivery_otp_attempts")
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DeliveryOtpAttempt {
 
     @Id
@@ -76,4 +82,26 @@ public class DeliveryOtpAttempt {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @Column(name = "issued_at")
+    private OffsetDateTime issuedAt;
+
+    @PrePersist
+    void initializeTimestamps() {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void refreshUpdatedAt() {
+        updatedAt = OffsetDateTime.now();
+    }
 }

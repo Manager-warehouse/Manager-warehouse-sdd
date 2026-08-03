@@ -1,40 +1,6 @@
 package com.wms.service.order_fulfillment.impl;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.DeliveryOrderAllocationRequest;
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
@@ -61,44 +27,46 @@ import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.dto.response.ReturnedGoodsFlowItemResponse;
 import com.wms.dto.response.ReturnedGoodsFlowResponse;
-import com.wms.entity.stock_control.Adjustment;
-import com.wms.entity.stock_control.Batch;
+import com.wms.entity.access_control.User;
+import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.dealer_management.Dealer;
+import com.wms.entity.order_fulfillment.Delivery;
 import com.wms.entity.order_fulfillment.DeliveryOrder;
 import com.wms.entity.order_fulfillment.DeliveryOrderItem;
 import com.wms.entity.order_fulfillment.DeliveryOrderItemAllocation;
 import com.wms.entity.order_fulfillment.DeliveryOrderItemReplacement;
 import com.wms.entity.order_fulfillment.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.order_fulfillment.DeliveryOrderWarehouseApproval;
-import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.order_fulfillment.OutboundQcRecord;
 import com.wms.entity.order_fulfillment.ReturnedDeliveryFlow;
 import com.wms.entity.order_fulfillment.ReturnedDeliveryFlowItem;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.product_catalog.Product;
+import com.wms.entity.stock_control.Adjustment;
+import com.wms.entity.stock_control.Batch;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.stock_control.WarehouseProductReservation;
 import com.wms.entity.stock_receiving.QuarantineRecord;
-import com.wms.entity.access_control.User;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
-import com.wms.entity.stock_control.WarehouseProductReservation;
+import com.wms.enums.access_control.UserRole;
 import com.wms.enums.audit_trail.AuditAction;
-import com.wms.enums.stock_control.AdjustmentType;
-import com.wms.enums.stock_control.AllocationStatus;
-import com.wms.enums.order_fulfillment.ApprovalResult;
+import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.dealer_management.CreditStatus;
+import com.wms.enums.order_fulfillment.ApprovalResult;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.order_fulfillment.DeliveryOrderType;
 import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
 import com.wms.enums.order_fulfillment.ReturnedGoodsQcDecision;
-import com.wms.enums.billing_payment.InvoiceStatus;
+import com.wms.enums.stock_control.AdjustmentType;
+import com.wms.enums.stock_control.AllocationStatus;
 import com.wms.enums.warehouse_location.LocationType;
-import com.wms.enums.access_control.UserRole;
 import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.PriceHistoryException;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.mapper.DeliveryOrderMapper.AllocationQcSummary;
-import com.wms.repository.dealer_management.DealerRepository;
+import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DeliveryOrderItemAllocationRepository;
 import com.wms.repository.DeliveryOrderItemReplacementRepository;
@@ -111,15 +79,16 @@ import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.ReturnedDeliveryFlowRepository;
-import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
-import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.repository.dealer_management.DealerRepository;
+import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.billing_payment.AccountingPeriodService;
-import com.wms.service.order_fulfillment.DeliveryOrderService;
 import com.wms.service.dealer_management.PartnerEligibilityService;
+import com.wms.service.order_fulfillment.DeliveryOrderService;
 import com.wms.service.price_management.PriceHistoryService;
 import com.wms.service.user_configuration.SystemConfigService;
 import com.wms.util.PartnerAuditUtil;
@@ -132,20 +101,19 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -168,6 +136,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DealerRepository dealerRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductRepository productRepository;
+    private final VehicleRepository vehicleRepository;
     private final InventoryRepository inventoryRepository;
     private final InvoiceRepository invoiceRepository;
     private final OutboundQcRecordRepository outboundQcRecordRepository;
@@ -194,6 +163,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DealerRepository dealerRepository,
             WarehouseRepository warehouseRepository,
             ProductRepository productRepository,
+            VehicleRepository vehicleRepository,
             InventoryRepository inventoryRepository,
             InvoiceRepository invoiceRepository,
             OutboundQcRecordRepository outboundQcRecordRepository,
@@ -219,6 +189,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.dealerRepository = dealerRepository;
         this.warehouseRepository = warehouseRepository;
         this.productRepository = productRepository;
+        this.vehicleRepository = vehicleRepository;
         this.inventoryRepository = inventoryRepository;
         this.invoiceRepository = invoiceRepository;
         this.outboundQcRecordRepository = outboundQcRecordRepository;
@@ -387,6 +358,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         List<ItemPlan> itemPlans = buildItemPlans(request);
+        validateWarehouseFleetCapacity(warehouse.getId(), itemPlans);
         BigDecimal orderValue = itemPlans.stream()
                 .map(ItemPlan::lineAmount)
                 .reduce(ZERO, BigDecimal::add);
@@ -479,6 +451,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             List<DeliveryOrderItem> oldItems = items(order.getId());
             Map<String, Object> before = snapshot(order, null, List.of(), oldItems, List.of());
             List<ItemPlan> itemPlans = buildItemPlans(createLikeRequest);
+            validateWarehouseFleetCapacity(newWarehouse.getId(), itemPlans);
             BigDecimal orderValue = itemPlans.stream()
                     .map(ItemPlan::lineAmount)
                     .reduce(ZERO, BigDecimal::add);
@@ -618,7 +591,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 request.getAllocations());
         List<ResolvedAllocationSelection> requestedSelections = resolvePickingSelections(order, orderItems,
                 existingAllocations, allocationRequests, actor);
-        validateFifoSelections(order, orderItems, existingAllocations, requestedSelections);
         validateRequestedItemTotals(orderItems, requestedSelections);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -728,7 +700,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false,
                     "staging");
-            if (!Boolean.TRUE.equals(stagingLocation.getIsStaging())) {
+            if (!isEffectiveStaging(stagingLocation)) {
                 throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
                         "Staging location must have isStaging flag set to true");
@@ -1660,6 +1632,33 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return plans;
     }
 
+    private void validateWarehouseFleetCapacity(Long warehouseId, List<ItemPlan> itemPlans) {
+        List<Long> productsWithoutWeight = itemPlans.stream()
+                .filter(plan -> plan.product().getWeightKg() == null
+                        || plan.product().getWeightKg().compareTo(BigDecimal.ZERO) <= 0)
+                .map(plan -> plan.product().getId())
+                .distinct()
+                .toList();
+        if (!productsWithoutWeight.isEmpty()) {
+            throw new OutboundDeliveryException("PRODUCT_WEIGHT_MISSING", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Sản phẩm chưa có trọng lượng hợp lệ, vui lòng cập nhật trọng lượng trước khi tạo phiếu xuất kho.",
+                    Map.of("productIds", productsWithoutWeight));
+        }
+
+        BigDecimal orderWeightKg = itemPlans.stream()
+                .map(plan -> plan.product().getWeightKg().multiply(plan.requestedQty()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal fleetCapacityKg = vehicleRepository.findByWarehouseIdAndIsActiveTrue(warehouseId).stream()
+                .map(vehicle -> value(vehicle.getMaxWeightKg()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (orderWeightKg.compareTo(fleetCapacityKg) > 0) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Tải trọng quá lớn để giao trong 1 lần, vui lòng chia nhỏ đơn thành nhiều phiếu xuất kho để có thể giao hàng.",
+                    Map.of("orderWeightKg", orderWeightKg, "fleetCapacityKg", fleetCapacityKg));
+        }
+    }
+
     private void validateCredit(Dealer dealer, BigDecimal orderValue) {
         if (dealer.getCreditStatus() == CreditStatus.CREDIT_HOLD) {
             throw creditHold("Dealer is on credit hold");
@@ -2029,7 +2028,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             if (remainingQty.compareTo(ZERO) > 0) {
                 throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
                         HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Insufficient FIFO inventory to auto-build the picking plan for product "
+                        "Insufficient available inventory to auto-build the picking plan for product "
                                 + item.getProduct().getId());
             }
         }
@@ -2080,11 +2079,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 || !inventory.getBatch().getId().equals(request.getBatchId())
                 || !inventory.getLocation().getId().equals(request.getLocationId())
                 || inventory.getLocation().getType() != LocationType.BIN
-                || !Boolean.TRUE.equals(inventory.getLocation().getIsActive())
-                || Boolean.TRUE.equals(inventory.getLocation().getIsLocked())
                 || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())
-                || !Boolean.TRUE.equals(zone.getIsActive())
-                || Boolean.TRUE.equals(inventory.getLocation().getIsQuarantine())) {
+                || !isRegularPickingLocation(inventory.getLocation(), zone)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match the requested product/batch/bin");
@@ -2094,48 +2090,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not have enough available quantity");
-        }
-    }
-
-    private void validateFifoSelections(DeliveryOrder order,
-            List<DeliveryOrderItem> items,
-            List<DeliveryOrderItemAllocation> existingAllocations,
-            List<ResolvedAllocationSelection> selections) {
-        Map<Long, Map<Long, BigDecimal>> selectedByItem = selections.stream()
-                .collect(Collectors.groupingBy(selection -> selection.item().getId(),
-                        Collectors.toMap(selection -> selection.inventory().getId(),
-                                ResolvedAllocationSelection::plannedQty, BigDecimal::add)));
-        for (DeliveryOrderItem item : items) {
-            BigDecimal remaining = value(item.getRequestedQty());
-            Map<Long, BigDecimal> selected = selectedByItem.getOrDefault(item.getId(), Map.of());
-            Map<Long, BigDecimal> existingByInventory = existingAllocations.stream()
-                    .filter(allocation -> allocation.getDeliveryOrderItem().getId().equals(item.getId()))
-                    .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(),
-                            DeliveryOrderItemAllocation::getPlannedQty, BigDecimal::add));
-            Map<LocalDate, List<Inventory>> candidatesByDate = inventoryRepository.findFifoRowsForPlanning(
-                    order.getWarehouse().getId(), item.getProduct().getId()).stream()
-                    .collect(Collectors.groupingBy(candidate -> Optional.ofNullable(
-                                    candidate.getBatch().getReceivedDate()).orElse(LocalDate.MAX),
-                            LinkedHashMap::new, Collectors.toList()));
-            for (List<Inventory> sameDateCandidates : candidatesByDate.values()) {
-                BigDecimal availableOnDate = sameDateCandidates.stream()
-                        .map(candidate -> value(candidate.getTotalQty())
-                                .subtract(value(candidate.getReservedQty()))
-                                .add(value(existingByInventory.get(candidate.getId()))))
-                        .reduce(ZERO, this::valueAdd);
-                BigDecimal selectedOnDate = sameDateCandidates.stream()
-                        .map(candidate -> value(selected.get(candidate.getId())))
-                        .reduce(ZERO, this::valueAdd);
-                BigDecimal expectedOnDate = remaining.min(availableOnDate);
-                if (selectedOnDate.compareTo(expectedOnDate) != 0) {
-                    throw new OutboundDeliveryException("FIFO_VIOLATION", HttpStatus.UNPROCESSABLE_ENTITY,
-                            "Picking allocations must consume available inventory in FIFO order");
-                }
-                remaining = remaining.subtract(expectedOnDate);
-                if (remaining.compareTo(ZERO) <= 0) {
-                    break;
-                }
-            }
         }
     }
 
@@ -2392,10 +2346,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 || !location.getId().equals(request.getReplacementLocationId())
                 || (request.getReplacementZoneId() != null && !zone.getId().equals(request.getReplacementZoneId()))
                 || location.getType() != LocationType.BIN
-                || !Boolean.TRUE.equals(location.getIsActive())
-                || Boolean.TRUE.equals(location.getIsLocked())
-                || Boolean.TRUE.equals(location.getIsQuarantine())
-                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())) {
+                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())
+                || !isRegularPickingLocation(location, zone)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory row is invalid");
@@ -2425,6 +2377,28 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             }
         }
         return ZERO;
+    }
+
+    private boolean isRegularPickingLocation(WarehouseLocation bin, WarehouseLocation zone) {
+        return bin != null
+                && !Boolean.TRUE.equals(bin.getIsQuarantine())
+                && !Boolean.TRUE.equals(bin.getIsStaging())
+                && !Boolean.TRUE.equals(bin.getIsLocked())
+                && Boolean.TRUE.equals(bin.getIsActive())
+                && zone != null
+                && !Boolean.TRUE.equals(zone.getIsQuarantine())
+                && !Boolean.TRUE.equals(zone.getIsStaging())
+                && Boolean.TRUE.equals(zone.getIsActive());
+    }
+
+    private boolean isEffectiveQuarantine(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsQuarantine())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsQuarantine()));
+    }
+
+    private boolean isEffectiveStaging(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsStaging())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsStaging()));
     }
 
     private void validateFailedReplacementSource(DeliveryOrderItemAllocation failedAllocation,
@@ -2558,7 +2532,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Invalid " + label + " location for the delivery order warehouse");
         }
-        if (quarantineRequired != Boolean.TRUE.equals(location.getIsQuarantine())) {
+        if (quarantineRequired != isEffectiveQuarantine(location)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Location does not match the required " + label + " rules");
@@ -2579,7 +2553,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Inventory sourceInventory,
             boolean quarantineRow,
             OffsetDateTime now) {
-        if (quarantineRow != Boolean.TRUE.equals(location.getIsQuarantine())) {
+        if (quarantineRow != isEffectiveQuarantine(location)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row location does not match the required quarantine rule");

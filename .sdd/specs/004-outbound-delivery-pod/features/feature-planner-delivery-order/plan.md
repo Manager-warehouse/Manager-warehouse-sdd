@@ -1,12 +1,12 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Planner Delivery Order Fleet Capacity Guard
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `fix/update_return_flow` | **Date**: 2026-08-03 | **Spec**: [feature-planner-delivery-order.md](./feature-planner-delivery-order.md)
 
-**Input**: Feature specification from `.sdd/specs/[###-feature-name]/spec.md`
+**Input**: Feature specification from `.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/feature-planner-delivery-order.md`
 
 ## Summary
 
-[Primary business outcome + affected WMS flow/state transition.]
+Prevent Planner from creating or updating a `NEW` Delivery Order whose calculated goods weight cannot fit in one coordinated delivery wave even when every active vehicle assigned to the selected warehouse is counted. The guard runs before persistence or reservation mutation and returns a clear instruction to split the demand into multiple Delivery Orders.
 
 ## Technical Context
 
@@ -22,7 +22,7 @@
 
 **Project Type**: Backend + frontend web application
 
-**Performance Goals**: [Use spec NFRs, e.g. <= 500ms search, <= 2s inventory mutation]
+**Performance Goals**: Fleet-capacity validation completes within the existing create/update response target and adds at most one aggregate fleet lookup per request.
 
 **Constraints**: Must preserve WMS invariants: no negative inventory, QC gates, audit logs, role + warehouse authorization, no raw SQL in application code
 
@@ -32,53 +32,54 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- [ ] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
-- [ ] Write endpoints use request DTOs with Jakarta Validation.
-- [ ] Service methods own business rules, transactions, authorization, and audit logging.
-- [ ] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
-- [ ] Inventory invariants preserved if touched: `total_qty >= 0`, `reserved_qty >= 0`, `available = total_qty - reserved_qty >= 0`, `@Version`.
-- [ ] QC/quarantine/transfer/accounting state rules listed when touched.
-- [ ] Audit action, entity type, before/after payload, and warehouse scope identified.
-- [ ] OpenAPI/Swagger impact identified for every new or changed endpoint.
-- [ ] Flyway migration impact identified; no duplicate migration version in runnable history.
-- [ ] Unit and integration test strategy covers happy path and error paths.
+- [x] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
+- [x] Write endpoints use existing request DTOs with Jakarta Validation.
+- [x] Service methods own fleet-capacity business rules and transaction ordering.
+- [x] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
+- [x] Inventory invariants are preserved because rejection occurs before reservation mutation.
+- [x] QC/quarantine/transfer/accounting state rules are unchanged.
+- [x] Existing successful create/update audit actions remain unchanged; rejected requests write no success audit.
+- [x] OpenAPI/Swagger impact is identified for changed 422 responses.
+- [x] No Flyway migration is required because existing Product and Vehicle fields are reused.
+- [x] Unit, controller, and frontend test strategy covers boundary and error paths.
 
 ## Domain Impact
 
-**Actors/Roles**: [Roles and warehouse scope]
+**Actors/Roles**: Planner creating or updating a Delivery Order for an assigned warehouse.
 
-**State Changes**: [Entity statuses before -> after]
+**State Changes**: Successful create remains `null -> NEW`; successful update remains `NEW -> NEW`; rejected requests create no state transition.
 
-**Inventory Impact**: [None or exact total/reserved/quarantine/In-Transit mutation]
+**Inventory Impact**: Rejected requests must not mutate `warehouse_product_reservations`, `delivery_order_items.reserved_qty`, or concrete inventory.
 
-**Audit Actions**: [Action names and payload]
+**Audit Actions**: Existing `DELIVERY_ORDER_CREATE` and `DELIVERY_ORDER_UPDATE` apply only after validation succeeds. No success audit is written for capacity rejection.
 
-**Security/Authorization**: [JWT role + warehouse checks]
+**Security/Authorization**: Existing JWT Planner role and warehouse-assignment checks remain mandatory before warehouse fleet data is used.
 
-**Accounting Impact**: [None or invoice/payment/period/debt effect]
+**Accounting Impact**: None; existing credit and accounting-period validation remains unchanged.
 
 ## Data Model / Migration Impact
 
-- Entities/tables touched: [list]
-- New/changed columns or constraints: [list]
-- Flyway plan: [new migration / no migration / pre-shared cleanup]
-- Backfill/seed data: [none or list]
+- Entities/tables read: `products.weight_kg`, `vehicles.warehouse_id`, `vehicles.max_weight_kg`, `vehicles.is_active`.
+- Entities/tables mutated: existing Delivery Order and reservation entities only after all validations pass.
+- New/changed columns or constraints: none.
+- Flyway plan: no migration.
+- Backfill/seed data: none; products without a valid positive weight are rejected with `PRODUCT_WEIGHT_MISSING`.
 
 ## API / Contract Impact
 
-- Endpoints added/changed: [list]
-- Request DTOs: [list validation rules]
-- Response DTOs: [list]
-- Error codes/statuses: [400/401/403/404/409/422/500 as applicable]
-- OpenAPI path/schema updates: [list]
+- Endpoints changed: `POST /api/v1/delivery-orders`, `PUT /api/v1/delivery-orders/{id}`.
+- Request DTOs: existing create/update item quantities; no new request fields.
+- Response DTOs: unchanged.
+- Error codes/statuses: `422 DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY`, `422 PRODUCT_WEIGHT_MISSING`.
+- OpenAPI path/schema updates: document fleet-capacity and missing-weight rejection on create/update responses.
 
 ## Test Strategy
 
-- Service unit tests: [business rules and edge cases]
-- Repository/query tests: [if needed]
-- Controller/API integration tests: [happy + error paths]
-- Frontend tests: [if UI business logic touched]
-- Regression tests for invariants: [inventory/QC/audit/auth/accounting]
+- Service unit tests: exceeds total fleet capacity, equals capacity, busy/maintenance vehicles included, inactive/other-warehouse vehicles excluded, missing product weight, update revalidation, and no persistence/reservation/audit on rejection.
+- Repository/query tests: active warehouse fleet lookup or aggregate behavior.
+- Controller/API tests: create and update return HTTP 422 with stable error code/message.
+- Frontend tests: Planner receives and displays the backend business message on create failure.
+- Regression tests for invariants: existing credit, stock, reservation, audit, and warehouse-scope tests remain passing.
 
 ## Project Structure
 
@@ -123,7 +124,7 @@ frontend/src/
 └── utils/
 ```
 
-**Structure Decision**: [Specific files for this feature]
+**Structure Decision**: Extend `DeliveryOrderServiceImpl` validation using `VehicleRepository`; reuse Product weight and Vehicle maximum payload fields; update `DeliveryOrderServiceImplTest`, `DeliveryOrderControllerTest`, Planner create UI tests, and the existing OpenAPI contract.
 
 ## Complexity Tracking
 
@@ -131,4 +132,4 @@ frontend/src/
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| [None] | [N/A] | [N/A] |
+| None | N/A | N/A |

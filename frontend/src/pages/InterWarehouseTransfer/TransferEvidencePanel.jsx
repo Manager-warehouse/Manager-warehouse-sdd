@@ -4,7 +4,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 
 const FLOW_STYLES = {
-  // Điều chuyển nội bộ tách ảnh theo chặng để truy vết trách nhiệm khi có thiếu/thừa/sai SKU.
+  // Điều chuyển nội bộ tách ảnh theo chặng để truy vết trách nhiệm khi có thiếu/thừa hoặc hàng quay đầu.
   source: {
     icon: ShieldCheck,
     label: 'Xuất kho nguồn',
@@ -149,7 +149,7 @@ const TransferEvidencePanel = ({ transfer }) => {
       {
         flow: 'return',
         title: 'Ảnh bàn giao hàng quay đầu',
-        description: 'Bằng chứng hàng/xe quay về kho nguồn khi wrong SKU, quá hạn hoặc return-to-source.',
+        description: 'Bằng chứng hàng/xe quay về kho nguồn khi quá hạn hoặc return-to-source.',
         photoRef: transfer.returnPhotoRef,
         actorName: transfer.returnArrivalHandoverByName,
         timestamp: transfer.returnArrivalHandoverAt || transfer.returnArrivedAt,

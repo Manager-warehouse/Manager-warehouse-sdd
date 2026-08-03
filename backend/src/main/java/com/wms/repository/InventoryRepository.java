@@ -1,51 +1,20 @@
 package com.wms.repository;
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
+import com.wms.entity.order_fulfillment.DeliveryOrderItemAllocation;
 import com.wms.entity.stock_control.Inventory;
+import com.wms.enums.stock_control.AllocationStatus;
+import com.wms.enums.warehouse_location.LocationType;
+import com.wms.enums.warehouse_location.WarehouseType;
+import jakarta.persistence.LockModeType;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.math.BigDecimal;
 
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
@@ -83,13 +52,20 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 coalesce(sum(i.reservedQty), 0) as reservedQty,
                 coalesce(sum(i.totalQty - i.reservedQty), 0) as availableQty
             from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
               and i.location.type = com.wms.enums.warehouse_location.LocationType.BIN
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
               and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
             """)
     AvailabilitySummary summarizeAvailability(@Param("warehouseId") Long warehouseId,
             @Param("productId") Long productId);
@@ -101,12 +77,19 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 coalesce(sum(i.reservedQty), 0) as reservedQty,
                 coalesce(sum(i.totalQty - i.reservedQty), 0) as availableQty
             from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
               and i.location.type = com.wms.enums.warehouse_location.LocationType.BIN
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
               and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
             group by i.product.id
             """)
     List<ProductAvailabilitySummary> summarizeAllAvailability(@Param("warehouseId") Long warehouseId);
@@ -115,12 +98,19 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @Query("""
             select i from Inventory i
             join fetch i.batch b
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
               and (i.totalQty - i.reservedQty) > 0
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
               and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
             order by b.receivedDate asc, i.id asc
             """)
     List<Inventory> findReservableForUpdate(@Param("warehouseId") Long warehouseId,
@@ -194,10 +184,17 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @Query("""
             select coalesce(sum(i.totalQty - i.reservedQty), 0)
             from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
               and i.totalQty > i.reservedQty
             """)
     BigDecimal sumValidAvailableQty(@Param("warehouseId") Long warehouseId,
@@ -208,12 +205,19 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 i.warehouse.id as warehouseId,
                 i.product.id as productId
             from Inventory i
+            left join i.location.parent parentLocation
             where (:warehouseId is null or i.warehouse.id = :warehouseId)
               and (:productId is null or i.product.id = :productId)
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
               and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
             group by i.warehouse.id, i.product.id
             """)
     List<StockAlertCandidate> findStockAlertCandidates(@Param("warehouseId") Long warehouseId,
@@ -222,11 +226,18 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @Query("""
             select coalesce(sum(i.totalQty - i.reservedQty), 0)
             from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
               and i.location.isActive = true
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
               and i.location.isLocked = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
               and i.totalQty > i.reservedQty
             """)
     BigDecimal sumValidAvailableQtyByWarehouse(@Param("warehouseId") Long warehouseId);
@@ -234,6 +245,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @EntityGraph(attributePaths = { "warehouse", "product", "batch", "location", "location.parent" })
     @Query("""
             select i from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
@@ -241,6 +253,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
               and i.location.isActive = true
               and i.location.isLocked = false
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
               and (i.totalQty > i.reservedQty or i.id in (
                   select a.inventory.id from DeliveryOrderItemAllocation a
                   where a.deliveryOrderItem.deliveryOrder.id = :doId
@@ -255,6 +273,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @EntityGraph(attributePaths = { "warehouse", "product", "batch", "location", "location.parent" })
     @Query("""
             select i from Inventory i
+            left join i.location.parent parentLocation
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
               and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
@@ -262,6 +281,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
               and i.location.isActive = true
               and i.location.isLocked = false
               and i.location.isQuarantine = false
+              and i.location.isStaging = false
+              and (parentLocation is null or (
+                  parentLocation.isActive = true
+                  and parentLocation.isQuarantine = false
+                  and parentLocation.isStaging = false
+              ))
               and i.totalQty > 0
             order by i.batch.receivedDate asc, i.id asc
             """)

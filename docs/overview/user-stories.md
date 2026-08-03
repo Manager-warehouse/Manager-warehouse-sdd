@@ -194,9 +194,9 @@
 
 ---
 
-### US-WMS-11A: Trưởng kho đề xuất điều chuyển từ tồn kho kho khác và CEO duyệt (Priority: P1)
+### US-WMS-11A: Trưởng kho đề xuất điều chuyển từ tồn kho kho khác và kho nguồn duyệt (Priority: P1)
 
-**Mô tả:** Là Trưởng kho của kho đang thiếu hàng, tôi muốn xem tồn kho khả dụng của các kho khác ở chế độ chỉ đọc và gửi yêu cầu điều chuyển để CEO duyệt trước khi Planner kho nguồn tạo phiếu `TRF-*`.
+**Mô tả:** Là Trưởng kho của kho đang thiếu hàng, tôi muốn xem tồn kho khả dụng của các kho khác ở chế độ chỉ đọc và gửi yêu cầu điều chuyển để Trưởng kho nguồn duyệt/giữ hàng trước khi Planner chốt phiếu `TRF-*`.
 
 **Tiêu chí nghiệm thu:**
 
@@ -204,10 +204,10 @@
 2. Trưởng kho chỉ được tạo yêu cầu cho kho mình phụ trách; kho yêu cầu trở thành kho đích, kho còn hàng là kho nguồn đề xuất.
 3. Yêu cầu điều chuyển phải có kho nguồn, kho đích, SKU/số lượng, ngày cần hàng, lý do nghiệp vụ, số tồn khả dụng quan sát tại kho nguồn và kho yêu cầu.
 4. Hệ thống chặn ngày cần hàng trong quá khứ, SKU trùng dòng, số lượng không nguyên/dưới hoặc bằng 0, thiếu lý do nghiệp vụ và yêu cầu vượt tồn khả dụng hiện tại của kho nguồn.
-5. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
-6. CEO duyệt yêu cầu **không** reserve tồn và **không** tạo/trừ/cộng inventory. Việc giữ chỗ chỉ xảy ra khi Trưởng kho nguồn duyệt phiếu `TRF-*`.
-7. Sau khi CEO duyệt, hệ thống tạo/gửi mẫu yêu cầu đã duyệt cho Planner kho nguồn hoặc Planner trung tâm để chuyển thành một phiếu `TRF-*`.
-8. Một yêu cầu đã CEO duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
+5. Trưởng kho nguồn có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit. CEO chỉ xem/giám sát read-only.
+6. Trưởng kho nguồn duyệt yêu cầu thì hệ thống giữ hàng nguồn ngay theo FIFO hợp lệ; nếu tồn khả dụng không đủ thì không duyệt và không tạo reservation một phần.
+7. Sau khi Trưởng kho nguồn duyệt, Planner kho nguồn hoặc Planner trung tâm chuyển yêu cầu đã duyệt/đã giữ hàng thành một phiếu `TRF-*`.
+8. Một yêu cầu đã được Trưởng kho nguồn duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
 
 ---
 
@@ -243,10 +243,10 @@
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn nhập kho thường và ghi nhận discrepancy hold/incident cho phần hàng vật lý thừa.
    - Nếu QC lỗi/hư hỏng → Phần lỗi được đưa vào Quarantine Zone với nguồn `INTERNAL_TRANSFER`, không tính vào tồn kho khả dụng, chỉ xử lý tiêu hủy theo Spec 009 và không tạo trả NCC/Debit Note.
    - Nếu thiếu hàng → Phần thiếu không được tạo Quarantine hoặc disposal candidate vì không có hàng vật lý.
-   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU` theo từng line với SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có; Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit, tài xế ghi nhận return departure/source arrival/handover và kho nguồn thực hiện lại count/check/QC/final receive.
-   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source với lý do/bằng chứng.
+   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Kho đích tiếp tục count/QC và xử lý theo chênh lệch hoặc quarantine theo trạng thái vật lý; không còn nhánh yêu cầu quay đầu do sai SKU.
+   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu `is_returned = true`, chặn nhận tại kho đích và yêu cầu tài xế chạy chặng quay đầu về kho nguồn.
    - Hàng đạt QC chỉ được cộng vào Bin hợp lệ của kho nhận sau khi kiểm tra sức chứa Bin.
-   - Payload receive-count, receive-check, putaway và wrong-SKU phải đủ dòng hợp lệ, không trùng dòng, số lượng nguyên/dương đúng ngữ cảnh; lỗi validate phải trả message rõ ràng và không mutate tồn kho/trạng thái nếu chưa đi vào nhánh nghiệp vụ hợp lệ.
+   - Payload receive-count, receive-check và putaway phải đủ dòng hợp lệ, không trùng dòng, số lượng nguyên/dương đúng ngữ cảnh; lỗi validate phải trả message rõ ràng và không mutate tồn kho/trạng thái nếu chưa đi vào nhánh nghiệp vụ hợp lệ.
 6. Frontend hiển thị lỗi theo đúng ngữ cảnh: lỗi ô nhập hiển thị ngay tại form, lỗi backend hiển thị toast tiếng Việt, chống trùng/chồng message, và chỉ refresh dữ liệu sau mutation thành công.
 7. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 8. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.

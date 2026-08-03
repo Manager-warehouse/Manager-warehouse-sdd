@@ -2,7 +2,7 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Ngày tạo**: 2026-05-30
-**Cập nhật**: 2026-07-31
+**Cập nhật**: 2026-08-03
 **Trạng thái**: Đã chuẩn hóa tiếng Việt có dấu, giữ nguyên mã kỹ thuật/API/status
 **User stories**: US-WMS-11, US-WMS-11A, US-WMS-12
 
@@ -25,24 +25,24 @@ Luồng nghiệp vụ đầy đủ:
 
 1. Trưởng kho đang thiếu hàng xem tồn khả dụng tại các kho khác.
 2. Trưởng kho tạo yêu cầu điều chuyển `TRQ` ở trạng thái `DRAFT`.
-3. Trưởng kho gửi `TRQ` cho CEO duyệt.
-4. CEO duyệt hoặc từ chối `TRQ`.
-5. Planner chuyển `TRQ` đã duyệt thành phiếu điều chuyển `TRF`, hoặc tạo `TRF` thủ công từ lệnh điều phối bên ngoài.
-6. Trưởng kho nguồn duyệt `TRF` và hệ thống giữ hàng theo FIFO.
+3. Trưởng kho gửi `TRQ` cho trưởng kho nguồn duyệt.
+4. Trưởng kho nguồn duyệt hoặc từ chối `TRQ`; khi duyệt, hệ thống giữ hàng nguồn theo FIFO ngay.
+5. Planner chuyển `TRQ` đã duyệt/đã giữ hàng thành phiếu điều chuyển `TRF`, hoặc tạo `TRF` thủ công từ lệnh điều phối bên ngoài.
+6. Với `TRF` sinh từ `TRQ`, không reserve lần hai; với `TRF` thủ công, trưởng kho nguồn có thể duyệt và giữ hàng theo rule riêng nếu nhánh này còn hỗ trợ.
 7. Dispatcher gán chuyến xe `TTR` loại `TRANSFER`.
 8. Kho nguồn xếp hàng, QC xuất, chốt số lượng gửi và bàn giao hàng cho tài xế.
 9. Tài xế xác nhận rời kho; hàng chuyển sang kho ảo `IN_TRANSIT`.
 10. Tài xế đến kho nhận, kho nhận xác nhận bàn giao, đếm hàng, QC nhận và đề xuất vị trí nhập.
-11. Quản lý kho/CEO/Admin xác nhận nhập kho cuối cùng; hệ thống ghi tồn, xử lý chênh lệch và đóng phiếu.
+11. Quản lý kho đích/Admin xác nhận nhập kho cuối cùng; hệ thống ghi tồn, xử lý chênh lệch và đóng phiếu.
 
 ## 2. Tác Nhân
 
 | Tác nhân | Vai trò nghiệp vụ |
 | :--- | :--- |
-| Planner | Tạo `TRF` từ lệnh điều phối bên ngoài hoặc từ `TRQ` đã được CEO duyệt |
-| Trưởng kho đang thiếu hàng | Xem tồn kho khác, tạo/sửa/hủy mềm `TRQ`, gửi CEO duyệt |
-| CEO | Duyệt hoặc từ chối `TRQ`; có quyền xem/toàn quyền xử lý ngoại lệ theo phân quyền |
-| Trưởng kho nguồn | Duyệt/từ chối `TRF`, giữ hàng nguồn, có thể hủy phiếu đã duyệt nhưng chưa xếp/xuất |
+| Planner | Tạo `TRF` từ lệnh điều phối bên ngoài hoặc từ `TRQ` đã được trưởng kho nguồn duyệt/giữ hàng |
+| Trưởng kho đang thiếu hàng | Xem tồn kho khác, tạo/sửa/hủy mềm `TRQ`, gửi trưởng kho nguồn duyệt |
+| CEO | Chỉ xem/giám sát luồng yêu cầu điều chuyển; không duyệt `TRQ` trong luồng mới |
+| Trưởng kho nguồn | Duyệt/từ chối `TRQ` và giữ hàng nguồn; duyệt/từ chối `TRF` thủ công nếu nhánh này còn hỗ trợ; có thể hủy phiếu đã duyệt nhưng chưa xếp/xuất |
 | Dispatcher | Gán xe, tài xế và lịch chuyến `TTR` cho phiếu điều chuyển |
 | Công nhân kho nguồn | Xếp hàng và báo cáo số lượng thực tế đã xếp |
 | Thủ kho nguồn | QC xuất, yêu cầu xếp lại nếu QC fail, chốt số lượng gửi và bàn giao cho tài xế |
@@ -57,23 +57,22 @@ Luồng nghiệp vụ đầy đủ:
 ```mermaid
 flowchart TD
     A[Trưởng kho xem tồn kho khác] --> B[Tạo TRQ DRAFT]
-    B --> C[Gửi CEO duyệt]
-    C --> D{CEO duyệt?}
+    B --> C[Gửi trưởng kho nguồn duyệt]
+    C --> D{Trưởng kho nguồn duyệt?}
     D -->|Không| X[TRQ REJECTED]
-    D -->|Có| E[TRQ APPROVED]
-    E --> F[Planner convert thành TRF NEW]
-    F --> G[Trưởng kho nguồn duyệt TRF và giữ hàng FIFO]
-    G --> H[Dispatcher gán TTR trip]
+    D -->|Có| E[TRQ APPROVED + giữ hàng FIFO]
+    E --> F[Planner convert thành TRF sẵn sàng dispatch]
+    F --> H[Dispatcher gán TTR trip]
     H --> I[Công nhân kho nguồn báo cáo loadedQty]
     I --> J[Thủ kho nguồn QC xuất]
     J -->|Fail| I
     J -->|Pass| K[Chốt sentQty và bàn giao ảnh]
     K --> L[Tài xế depart: hàng sang IN_TRANSIT]
-    L --> M[Tài xế arrive + kho nhận handover]
+    L --> M[Tài xế arrive + thủ kho nhận handover không ảnh]
     M --> N[Công nhân kho nhận đếm hàng]
     N --> O[Thủ kho nhận QC + chọn vị trí]
     O --> P[Thủ kho nộp putaway plan]
-    P --> Q[Quản lý kho/CEO/Admin final receive]
+    P --> Q[Quản lý kho đích/Admin final receive]
     Q --> R[COMPLETED hoặc COMPLETED_WITH_DISCREPANCY]
 ```
 
@@ -86,26 +85,27 @@ flowchart TD
 - Kho nguồn và kho đích phải khác nhau và đều là kho vật lý, không được là kho ảo `IN_TRANSIT`.
 - Ngày cần hàng `needed_by_date` không được ở quá khứ.
 - Số lượng yêu cầu phải là số nguyên dương; không cho trùng SKU trong cùng yêu cầu.
-- Khi submit hoặc CEO approve, hệ thống phải kiểm tra lại tồn khả dụng tại kho nguồn.
+- Khi submit hoặc trưởng kho nguồn approve, hệ thống phải kiểm tra lại tồn khả dụng tại kho nguồn.
 - `TRQ` chỉ được sửa hoặc hủy mềm khi còn `DRAFT`.
-- CEO có thể duyệt hoặc từ chối `TRQ`; từ chối bắt buộc có lý do.
+- Trưởng kho nguồn có thể duyệt hoặc từ chối `TRQ`; từ chối bắt buộc có lý do.
+- Khi trưởng kho nguồn duyệt `TRQ`, hệ thống phải giữ hàng trong kho nguồn theo FIFO, chỉ lấy tồn khả dụng ở vị trí active, không quarantine; nếu không đủ hàng thì không reserve một phần và không approve.
 - `TRQ` đã duyệt chỉ được chuyển thành tối đa một `TRF` còn hiệu lực.
 - Nếu quá ngày cần hàng mà `TRQ` chưa được chuyển thành `TRF`, hệ thống hủy `TRQ` để Planner không thể chuyển đơn trễ.
 
 ### 4.2. Lập phiếu điều chuyển `TRF`
 
-- Planner có thể tạo `TRF` thủ công từ lệnh điều phối bên ngoài hoặc chuyển từ `TRQ` đã duyệt.
+- Planner có thể tạo `TRF` thủ công từ lệnh điều phối bên ngoài hoặc chuyển từ `TRQ` đã duyệt/đã giữ hàng.
 - `TRF` phải có `external_instruction_code` không rỗng để truy vết.
 - Các `TRF` còn hiệu lực phải duy nhất theo `external_instruction_code`, kho nguồn, kho đích và `document_date`.
 - Planner chỉ được sửa `TRF` khi trạng thái còn `NEW`.
 - Khi sửa `TRF`, danh sách item gửi lên được xem là trạng thái đầy đủ mới nhất của phiếu.
 - Không cho sửa `TRF` sau khi đã `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED` hoặc `QUARANTINED`.
 - `document_date` và `planned_date` không được ở quá khứ; `planned_date` không được trước `document_date`.
-- Với `TRF` sinh từ `TRQ`, `planned_date` phải bám ngày cần hàng `needed_by_date`.
+- Với `TRF` sinh từ `TRQ`, `planned_date` phải bám ngày cần hàng `needed_by_date` và không được reserve tồn nguồn lần hai.
 
 ### 4.3. Duyệt kho nguồn và giữ hàng
 
-- Trưởng kho nguồn chỉ được duyệt `TRF` ở trạng thái `NEW`.
+- Trưởng kho nguồn chỉ duyệt `TRF` ở trạng thái `NEW` khi phiếu được tạo thủ công và chưa có reservation từ `TRQ`.
 - Khi duyệt, hệ thống giữ hàng trong kho nguồn theo FIFO, chỉ lấy tồn khả dụng ở vị trí đang hoạt động, không phải quarantine.
 - Hàng ở vị trí cách ly, vị trí inactive, vị trí bị khóa hoặc tồn không còn available phải bị loại khỏi reservation.
 - Nếu tồn khả dụng không đủ, duyệt phải fail và không được để lại reservation một phần.
@@ -137,7 +137,7 @@ flowchart TD
 ### 4.6. Nhận hàng tại kho đích
 
 - Tài xế phải ghi nhận đến kho đích trước.
-- Kho nhận phải ghi nhận bàn giao kèm ảnh trước khi công nhân được nhập số đếm.
+- Kho nhận chỉ cần thủ kho bấm xác nhận bàn giao trước khi công nhân được nhập số đếm; không bắt ảnh ở bước bàn giao kho đích.
 - Công nhân kho nhận phải nhập đủ mọi dòng hàng; nếu số đếm lệch `sent_qty` thì phải có lý do dòng hàng.
 - Thủ kho kho nhận kiểm lại số đếm và QC nhận; nếu số xác nhận lệch số công nhân đếm thì phải có ghi chú.
 - `qc_passed_qty + qc_failed_qty` phải bằng số lượng thủ kho xác nhận.
@@ -171,16 +171,16 @@ flowchart TD
 ### 5.2. Xe quay đầu về kho nguồn
 
 - Return to Source chỉ áp dụng khi phiếu còn `IN_TRANSIT`.
-- Với lỗi vận hành/quá hạn, WAREHOUSE_MANAGER có phạm vi kho nguồn hoặc kho đích, CEO hoặc ADMIN có thể cho quay đầu; Planner không có quyền.
-- Với sai SKU, thủ kho kho đích phải báo cáo sai SKU, sau đó trưởng kho đích duyệt hoặc từ chối yêu cầu quay đầu.
-- Khi quay đầu được duyệt, tài xế ghi `return-depart`, `return-arrive`, kho nguồn ghi `return-handover`.
+- Nhánh quay đầu do sai SKU tại kho đích không còn được hỗ trợ trong API/service.
+- Khi phiếu bị quá deadline trong lúc `IN_TRANSIT`, hệ thống đánh dấu `is_returned = true` với lý do `TRANSFER_REQUIRED_DATE_EXPIRED`.
+- Khi phiếu đã ở nhánh quay đầu, tài xế ghi `return-depart`, `return-arrive`, kho nguồn ghi `return-handover`.
 - Sau khi xe về, kho nguồn thực hiện lại flow nhận: count, check/QC, putaway plan, final receive.
 - Hàng đạt được nhập lại kho nguồn; hàng lỗi vào quarantine nguồn; thiếu hàng tạo discrepancy.
 
 ### 5.3. Sai SKU
 
-- Sai SKU còn nguyên vẹn được phép return to source.
-- Báo cáo sai SKU phải có dòng hàng kỳ vọng, sản phẩm thực tế, số lượng, lý do và ảnh nếu có.
+- Sai SKU không còn tạo yêu cầu quay đầu trong luồng điều chuyển Sprint 1.
+- Nếu phát hiện sai SKU ở kho đích, kho đích tiếp tục flow nhận/count/QC và xử lý qua chênh lệch hoặc quarantine theo trạng thái vật lý.
 - Hàng đã xác nhận hư hỏng vật lý không dùng return to source làm xử lý cuối; phải đi theo quarantine/disposal của Spec 009.
 
 ### 5.4. Hàng lỗi QC và quarantine
@@ -286,9 +286,6 @@ flowchart TD
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count`
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check`
 - `POST /api/v1/inter-warehouse-transfers/{id}/final-receive`
-- `POST /api/v1/inter-warehouse-transfers/{id}/request-return`
-- `POST /api/v1/inter-warehouse-transfers/{id}/approve-return`
-- `POST /api/v1/inter-warehouse-transfers/{id}/reject-return`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-to-source`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-depart`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive`
@@ -314,18 +311,18 @@ flowchart TD
 | `DUPLICATE_PRODUCT_IN_TRANSFER` | Trùng sản phẩm trong cùng phiếu/yêu cầu |
 | `DUPLICATE_EXTERNAL_INSTRUCTION` | Trùng mã lệnh ngoài cho phiếu còn hiệu lực |
 | `WAREHOUSE_SCOPE_REQUIRED` | Người dùng không thuộc phạm vi kho cần thao tác |
-| `CEO_ROLE_REQUIRED` | Thao tác yêu cầu CEO/Admin |
+| `SOURCE_MANAGER_ROLE_REQUIRED` | Thao tác yêu cầu trưởng kho nguồn/Admin |
 | `PLANNER_ROLE_REQUIRED` | Thao tác yêu cầu Planner/Admin |
 | `WAREHOUSE_MANAGER_ROLE_REQUIRED` | Thao tác yêu cầu trưởng kho hoặc quyền override |
 | `ONLY_DRAFT_CAN_BE_UPDATED` | Chỉ `TRQ DRAFT` mới được sửa |
 | `ONLY_DRAFT_CAN_BE_CANCELLED` | Chỉ `TRQ DRAFT` mới được hủy mềm |
 | `ONLY_DRAFT_CAN_BE_SUBMITTED` | Chỉ `TRQ DRAFT` mới được gửi duyệt |
-| `ONLY_SUBMITTED_CAN_BE_APPROVED` | Chỉ `TRQ SUBMITTED` mới được CEO duyệt |
-| `ONLY_SUBMITTED_CAN_BE_REJECTED` | Chỉ `TRQ SUBMITTED` mới được CEO từ chối |
+| `ONLY_SUBMITTED_CAN_BE_APPROVED` | Chỉ `TRQ SUBMITTED` mới được trưởng kho nguồn duyệt |
+| `ONLY_SUBMITTED_CAN_BE_REJECTED` | Chỉ `TRQ SUBMITTED` mới được trưởng kho nguồn từ chối |
 | `ONLY_APPROVED_CAN_BE_CONVERTED` | Chỉ `TRQ APPROVED` mới được convert |
 | `TRANSFER_REQUEST_ALREADY_CONVERTED` | Yêu cầu đã được convert thành phiếu điều chuyển |
 | `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` | Kho nguồn không đủ tồn khả dụng cho yêu cầu |
-| `INSUFFICIENT_AVAILABLE_STOCK` | Kho nguồn không đủ tồn khả dụng khi duyệt `TRF` |
+| `INSUFFICIENT_AVAILABLE_STOCK` | Kho nguồn không đủ tồn khả dụng khi duyệt/giữ hàng |
 | `INVALID_TRANSFER_STATUS` | Trạng thái phiếu không hợp lệ cho thao tác hiện tại |
 | `TRANSFER_CANCEL_NOT_ALLOWED` | Không được hủy phiếu ở trạng thái hiện tại |
 | `TRANSFER_REQUIRED_DATE_EXPIRED` | Đã quá ngày cần hàng |
@@ -369,12 +366,10 @@ flowchart TD
 | `DISCREPANCY_REASON_REQUIRED` | Có chênh lệch nhưng thiếu lý do |
 | `TRANSFER_TRIP_OVERDUE` | Chuyến điều chuyển đã quá hạn |
 | `RETURN_REASON_REQUIRED` | Quay đầu xe thiếu lý do |
-| `RETURN_REQUEST_PENDING` | Đang chờ quyết định return, không được nhận thường |
 | `TRANSFER_NOT_RETURNED_LEG` | Thao tác return leg khi phiếu chưa được duyệt quay đầu |
 | `RETURN_DEPART_REQUIRED` | Chưa có mốc xe rời kho để quay đầu |
 | `RETURN_ARRIVE_REQUIRED` | Chưa có mốc xe quay về kho nguồn |
 | `RETURN_HANDOVER_REQUIRED` | Chưa có bàn giao hàng quay về |
-| `WRONG_SKU_REASON_REQUIRED` | Báo sai SKU thiếu lý do/dòng hàng |
 | `REJECTION_REASON_REQUIRED` | Từ chối/cách ly thiếu lý do |
 | `TRANSFER_PHOTO_FILE_INVALID` | File ảnh thiếu, không phải ảnh hoặc quá dung lượng |
 | `TRANSFER_PHOTO_STORAGE_FAILED` | Không lưu được ảnh bằng chứng |
@@ -390,13 +385,13 @@ Các action chính:
 
 - `TRANSFER_REQUEST_CREATE`: tạo `TRQ`.
 - `TRANSFER_REQUEST_UPDATE`: sửa `TRQ`.
-- `TRANSFER_REQUEST_SUBMIT`: gửi `TRQ` cho CEO.
-- `TRANSFER_REQUEST_CEO_APPROVE`: CEO duyệt `TRQ`.
-- `TRANSFER_REQUEST_CEO_REJECT`: CEO từ chối `TRQ`.
+- `TRANSFER_REQUEST_SUBMIT`: gửi `TRQ` cho trưởng kho nguồn.
+- `TRANSFER_REQUEST_SOURCE_APPROVE`: trưởng kho nguồn duyệt `TRQ` và giữ hàng.
+- `TRANSFER_REQUEST_SOURCE_REJECT`: trưởng kho nguồn từ chối `TRQ`.
 - `TRANSFER_REQUEST_CONVERT`: Planner convert `TRQ` thành `TRF`.
 - `CREATE`: Planner tạo `TRF`.
 - `UPDATE`: Planner sửa `TRF NEW`.
-- `TRANSFER_APPROVE`: trưởng kho nguồn duyệt và giữ hàng.
+- `TRANSFER_APPROVE`: trưởng kho nguồn duyệt và giữ hàng cho `TRF` thủ công nếu nhánh này còn hỗ trợ.
 - `TRANSFER_REJECT`: trưởng kho nguồn từ chối.
 - `TRANSFER_TRIP_ASSIGN`: Dispatcher gán chuyến xe.
 - `TRANSFER_SOURCE_LOAD_REPORT`: kho nguồn báo cáo xếp hàng.
@@ -412,9 +407,6 @@ Các action chính:
 - `TRANSFER_RECEIVE_CHECK`: thủ kho kiểm đếm/QC.
 - `TRANSFER_FINAL_RECEIVE`: xác nhận nhập kho cuối.
 - `TRANSFER_DISCREPANCY_CREATE`: tạo adjustment/hồ sơ chênh lệch.
-- `TRANSFER_RETURN_REQUEST`: báo cáo sai SKU/yêu cầu quay đầu.
-- `TRANSFER_RETURN_APPROVE`: duyệt quay đầu.
-- `TRANSFER_RETURN_REJECT`: từ chối quay đầu.
 - `TRANSFER_RETURN_TO_SOURCE`: chuyển phiếu sang nhánh quay đầu.
 - `TRANSFER_RETURN_DEPART`: tài xế rời điểm nhận để quay về.
 - `TRANSFER_RETURN_ARRIVE`: tài xế về tới kho nguồn.
@@ -434,16 +426,16 @@ Các action chính:
 
 ### 10.2. Phạm vi test bắt buộc
 
-- Luồng `TRQ -> CEO approve -> Planner convert -> TRF`.
+- Luồng `TRQ -> trưởng kho nguồn approve/reserve -> Planner convert -> TRF`.
 - Planner tạo `TRF` thủ công.
-- Trưởng kho nguồn duyệt và giữ hàng FIFO, loại trừ quarantine/inactive location.
+- Trưởng kho nguồn duyệt và giữ hàng FIFO ngay tại `TRQ`, loại trừ quarantine/inactive location.
 - Dispatcher gán xe/tài xế hợp lệ, kiểm trùng lịch, tải trọng, giấy phép và deadline.
 - Kho nguồn xếp hàng, QC xuất bằng ảnh, chốt gửi và bàn giao.
 - Tài xế depart, hàng sang `IN_TRANSIT`.
-- Tài xế arrive, kho nhận handover.
+- Tài xế arrive, thủ kho kho nhận xác nhận handover không ảnh, công nhân kho đích thấy count ngay.
 - Kho nhận count, check/QC, validate bin capacity.
 - Quản lý final receive, ghi tồn và audit.
-- Blocking paths: thiếu tồn, sai quyền kho, tài xế sai scope, xe quá tải, trip quá deadline, cancel sau ship chưa unship, receive trước arrival, sai SKU thiếu dòng, quarantine thiếu cấu hình, chênh lệch thiếu reason, stale concurrent update.
+- Blocking paths: thiếu tồn, sai quyền kho, tài xế sai scope, xe quá tải, trip quá deadline, cancel sau ship chưa unship, receive trước arrival, quarantine thiếu cấu hình, chênh lệch thiếu reason, stale concurrent update.
 - Migration/Flyway test phải đảm bảo status/schema đúng với spec và không có migration trùng version.
 
 ## 11. Ngoài Phạm Vi Sprint 1

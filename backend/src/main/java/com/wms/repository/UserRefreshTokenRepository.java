@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/** Repository quản lý refresh token — tìm/xóa token theo user hoặc giá trị token (Spec 001). */
 @Repository
 public interface UserRefreshTokenRepository extends JpaRepository<UserRefreshToken, Long> {
 

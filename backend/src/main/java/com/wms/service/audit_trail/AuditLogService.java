@@ -1,45 +1,11 @@
 package com.wms.service.audit_trail;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.response.AuditLogDetailResponse;
 import com.wms.dto.response.AuditLogListItemResponse;
 import com.wms.dto.response.AuditLogPageResponse;
-import com.wms.entity.audit_trail.AuditLog;
 import com.wms.entity.access_control.User;
+import com.wms.entity.audit_trail.AuditLog;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.repository.AuditLogRepository;
@@ -47,6 +13,16 @@ import com.wms.repository.UserRepository;
 import com.wms.util.AuditLogUtil;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -60,17 +36,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * Service nhật ký hoạt động hệ thống (Spec 001).
+ * Cung cấp 2 chức năng chính:
+ * 1. Ghi log: các service nghiệp vụ gọi log() khi thực hiện mutation
+ * 2. Đọc log: AuditLogController gọi getAuditLogs/getAuditLogById cho ADMIN xem
+ * Mỗi entry ghi: actor, role, action, entity, warehouse, trạng thái trước/sau, IP client.
+ */
 @Service
 public class AuditLogService {
 
@@ -94,6 +66,7 @@ public class AuditLogService {
         this.httpServletRequestProvider = httpServletRequestProvider;
     }
 
+    /** Ghi audit log — tự động lấy actor từ SecurityContext. Dùng khi không có sẵn User entity. */
     @Transactional
     public void log(AuditAction action,
                     String entityType,
@@ -106,6 +79,7 @@ public class AuditLogService {
                 warehouseId, oldValue, newValue);
     }
 
+    /** Ghi audit log — truyền actor trực tiếp. Dùng bởi các service đã có User entity sẵn. */
     @Transactional
     public void log(User actor,
                     AuditAction action,
@@ -127,6 +101,7 @@ public class AuditLogService {
                 warehouseId, oldValue, newValue);
     }
 
+    /** Truy vấn danh sách audit log có phân trang, lọc theo thời gian và kho. Gọi bởi: AuditLogController */
     @Transactional(readOnly = true)
     public AuditLogPageResponse getAuditLogs(
             Integer page,
@@ -156,6 +131,7 @@ public class AuditLogService {
         return buildPageResponse(result, resolvedPage, resolvedPageSize, !hasFilter);
     }
 
+    /** Xem chi tiết 1 audit log (kèm trạng thái trước/sau). Gọi bởi: AuditLogController */
     @Transactional(readOnly = true)
     public AuditLogDetailResponse getAuditLogById(Long id) {
         AuditLog auditLog = auditLogRepository.findById(id)
@@ -164,6 +140,7 @@ public class AuditLogService {
         return AuditLogDetailResponse.from(auditLog);
     }
 
+    /** Tạo và lưu 1 entry audit log vào DB. Lọc trường nhạy cảm (password, token) trước khi lưu. */
     private void saveAuditLog(User actor,
                               AuditAction action,
                               String entityType,
@@ -195,6 +172,7 @@ public class AuditLogService {
                 action, entityType, entityId, actor.getId());
     }
 
+    /** Tạo JPA Specification cho filter: from/to (timestamp) và warehouseId. */
     private Specification<AuditLog> buildSpecification(
             OffsetDateTime from,
             OffsetDateTime to,
@@ -231,6 +209,7 @@ public class AuditLogService {
                 result.hasPrevious(), requiresFilter);
     }
 
+    /** Lấy User entity của người đang đăng nhập từ SecurityContext — dùng cho ghi audit log tự động. */
     private User resolveCurrentActor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
@@ -320,6 +299,7 @@ public class AuditLogService {
         return values;
     }
 
+    /** Lấy IP client từ header X-Forwarded-For hoặc remoteAddr — ghi vào audit log. */
     private String resolveClientIp() {
         try {
             HttpServletRequest request = httpServletRequestProvider.getIfAvailable();

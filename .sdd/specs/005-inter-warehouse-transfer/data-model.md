@@ -79,9 +79,9 @@ Validation:
 - Bắt buộc có lý do nghiệp vụ trước khi submit.
 - Quản lý kho yêu cầu chỉ được sửa request `DRAFT` trong phạm vi kho đích được phân công.
 - Quản lý kho yêu cầu chỉ được soft-cancel request `DRAFT`; hủy đặt `status = CANCELLED` và không được xóa vật lý request hoặc items.
-- CEO chỉ được approve/reject request `SUBMITTED`.
-- CEO reject bắt buộc có `rejection_reason`.
-- CEO approval không reserve inventory.
+- Quản lý kho nguồn chỉ được approve/reject request `SUBMITTED` trong phạm vi kho nguồn được phân công; Admin được hỗ trợ vận hành khi cần.
+- Quản lý kho nguồn reject bắt buộc có `rejection_reason`.
+- Source approval giữ hàng nguồn ngay bằng reservation FIFO hợp lệ trên `TRF` kỹ thuật đã liên kết với `TRQ`.
 - Chỉ request `APPROVED` mới được convert thành `TRF`.
 - Một request chỉ được convert tối đa thành một transfer đang hoạt động.
 - Cập nhật đồng thời và duplicate conversion race phải fail bằng version/unique-constraint conflict.
@@ -148,7 +148,7 @@ Validation:
 - `receive_checker_note` là optional khi số thủ kho kiểm bằng số công nhân nhập, và bắt buộc khi khác nhau.
 - `qc_failed_qty` có mặt vật lý sẽ tạo hoặc cập nhật quarantine source record với `origin_type = INTERNAL_TRANSFER` và `origin_id = transfer_item.id`.
 - `variance_qty` âm thể hiện thiếu hàng và không được tạo quarantine source record.
-- Wrong-SKU nguyên vẹn vẫn gắn với flow return-to-source của transfer và không bị đánh dấu disposal trừ khi có damage/QC failure riêng.
+- Sai SKU không còn tự tạo flow return-to-source; nếu có damage/QC failure riêng thì xử lý theo quarantine/disposal tương ứng.
 - Vị trí kho đích cho số lượng QC pass phải còn đủ sức chứa bin.
 
 ## WrongSkuReport
@@ -179,15 +179,13 @@ Validation:
 
 Các trường trên `transfers`:
 - `is_returned`
-- `return_reason_code`: `TRIP_OVERDUE`, `WRONG_SKU`, hoặc `OTHER_APPROVED_REASON`
+- `return_reason_code`: `TRIP_OVERDUE`
 - `return_reason`
-- `return_requested_by`, `return_requested_at`
-- `return_approved_by`, `return_approved_at`
 
 Rules:
-- Thủ kho kho đích tạo report `WRONG_SKU` trong khi transfer vẫn `IN_TRANSIT`.
-- Quản lý kho đích approve hoặc reject wrong-SKU return trong phạm vi kho đích.
-- Approval set `is_returned = true`; cùng trip, vehicle, driver và inventory `IN_TRANSIT` vẫn active cho chặng quay đầu.
+- Khi transfer quá deadline trong lúc `IN_TRANSIT`, hệ thống set `is_returned = true`.
+- Cùng trip, vehicle, driver và inventory `IN_TRANSIT` vẫn active cho chặng quay đầu.
+- Sau khi quay về kho nguồn, kho nguồn phải count/check/QC/final receive trước khi nhập lại tồn.
 - Tài xế được gán phải ghi return departure và source arrival/handover trước khi kho nguồn bắt đầu nhận.
 - Nhân viên kho nguồn ghi return count, thủ kho nguồn check/QC, quản lý kho nguồn final-confirm.
 - Xác nhận cuối tại nguồn hoàn tất transfer nhưng vẫn giữ `is_returned = true` để báo cáo.

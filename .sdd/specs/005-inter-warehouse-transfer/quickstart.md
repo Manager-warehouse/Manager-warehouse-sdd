@@ -4,7 +4,7 @@
 
 - Backend chạy với Java 21 và Spring Boot 3.4.5.
 - Frontend chạy với React 18.
-- Có user test cho từng vai trò: Planner, quản lý kho yêu cầu, CEO, quản lý kho nguồn, Dispatcher, công nhân nguồn, thủ kho nguồn, tài xế được gán, công nhân kho đích, thủ kho kho đích, quản lý kho đích.
+- Có user test cho từng vai trò: Planner, quản lý kho yêu cầu, quản lý kho nguồn, Dispatcher, công nhân nguồn, thủ kho nguồn, tài xế được gán, công nhân kho đích, thủ kho kho đích, quản lý kho đích. CEO chỉ cần cho màn xem/giám sát, không duyệt `TRQ`.
 - Có kho Hải Phòng, Hà Nội, Hồ Chí Minh, một kho `IN_TRANSIT`, và ít nhất một vị trí quarantine đang hoạt động cho mỗi kho đích.
 - Phiếu nhập nhà cung cấp `RN-*` nằm ở `/inbound/receipts`.
 - Phiếu điều chuyển nội bộ `TRF-*` nằm ở `/inter-warehouse-transfers` và toàn bộ luồng nhận hàng phải ở trong module này.
@@ -24,9 +24,9 @@
    - `POST /api/v1/transfer-requests/{id}/submit`
    - Kỳ vọng mã request dạng `TRQ-YYYYMMDD-####` và status `SUBMITTED`.
 
-3. CEO duyệt và Planner convert:
+3. Trưởng kho nguồn duyệt, giữ hàng và Planner convert:
    - `POST /api/v1/transfer-requests/{id}/approve`
-   - Kỳ vọng status `APPROVED` và có template/thông báo cho Planner nguồn.
+   - Kỳ vọng status `APPROVED`, `reserved_qty` nguồn tăng theo FIFO hợp lệ, không reserve một phần nếu thiếu hàng, và có template/thông báo cho Planner nguồn.
    - `POST /api/v1/transfer-requests/{id}/convert`
    - Kỳ vọng sinh đúng một `TRF-*` liên kết và request status `CONVERTED`.
 
@@ -41,9 +41,10 @@
    - Bỏ một item cũ khỏi payload để xóa item đó.
    - Kỳ vọng danh sách item cập nhật và có audit log.
 
-6. Quản lý kho nguồn duyệt:
+6. Quản lý kho nguồn duyệt `TRF` thủ công nếu còn nhánh tạo phiếu trực tiếp:
    - `POST /api/v1/inter-warehouse-transfers/{id}/approve`
-   - Kỳ vọng `reserved_qty` nguồn tăng và status thành `APPROVED`.
+   - Kỳ vọng `reserved_qty` nguồn tăng và status thành `APPROVED` chỉ với phiếu chưa có reservation từ `TRQ`.
+   - Với `TRF` sinh từ `TRQ`, không reserve lần hai; phiếu phải đủ điều kiện lập chuyến theo trạng thái sau convert.
 
 7. Dispatcher gán chuyến:
    - `POST /api/v1/inter-warehouse-transfers/{id}/trip`
@@ -76,7 +77,7 @@
 11. Tài xế đến và kho nhận bàn giao:
    - `POST /api/v1/inter-warehouse-transfers/{id}/arrive`
    - `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover`
-   - UI bàn giao phải disabled cho đến khi chọn/chụp ảnh.
+   - Thủ kho kho đích bấm xác nhận nhận bàn giao, không cần chọn/chụp ảnh.
    - Receive-count phải tiếp tục bị chặn trước khi cả hai mốc này được ghi nhận.
 
 12. Công nhân kho đích đếm hàng:
@@ -94,7 +95,7 @@
     - Thiếu hàng bắt buộc có `discrepancyReason` và tạo `TRANSFER_DISCREPANCY`.
     - Số lượng vật lý QC fail chuyển vào quarantine với origin `INTERNAL_TRANSFER` và bàn giao cho Spec 009 xử lý disposal.
     - Số lượng thiếu không tạo quarantine stock.
-    - Wrong SKU nguyên vẹn dùng Return to Source thay vì disposal.
+    - Sai SKU không còn dùng Return to Source; kho nhận xử lý qua count/QC/chênh lệch hoặc quarantine theo trạng thái vật lý.
     - Quarantine stock có origin điều chuyển không được dùng supplier RTV.
 
 15. Kiểm định giá trị shortage với 30 gửi và 28 nhận:
@@ -102,10 +103,9 @@
     - `TRANSFER_DISCREPANCY` ghi 2 đơn vị thiếu chỉ theo số lượng; 2 đơn vị đó không có giá trị nhập kho đích.
     - Không tạo invoice, revenue, receivable, payable, supplier Debit Note hoặc tự động charge tài xế.
 
-16. Báo cáo và duyệt return do wrong-SKU nguyên vẹn:
-    - Thủ kho kho đích gửi `POST /api/v1/inter-warehouse-transfers/{id}/request-return` với transfer item, expected SKU, actual SKU, số lượng ảnh hưởng, reason và photo refs nếu có.
-    - Quản lý kho đích duyệt qua `POST /api/v1/inter-warehouse-transfers/{id}/approve-return`.
-    - Kỳ vọng `isReturned = true`; cùng transfer/trip/vehicle/driver và stock `IN_TRANSIT` vẫn active.
+16. Quay đầu do quá hạn khi hàng đang vận chuyển:
+    - Khi transfer quá deadline trong lúc `IN_TRANSIT`, hệ thống đánh dấu `isReturned = true` với lý do `TRANSFER_REQUIRED_DATE_EXPIRED`.
+    - Kỳ vọng cùng transfer/trip/vehicle/driver và stock `IN_TRANSIT` vẫn active.
     - Tài xế được gán xác nhận `POST /api/v1/inter-warehouse-transfers/{id}/return-depart` và `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive`.
     - Nhân viên kho nguồn receive-count, thủ kho nguồn receive-check/QC, quản lý kho nguồn final-receive.
     - Kỳ vọng terminal `COMPLETED` với nhãn UI “Đã hoàn về kho nguồn”.
@@ -113,9 +113,9 @@
 ## Luồng kiểm tra frontend
 
 1. Quản lý kho yêu cầu tra cứu tồn khả dụng ở kho khác và bắt đầu transfer request từ bối cảnh thiếu hàng.
-2. Khi request là `DRAFT`, kiểm card/detail hiển thị `Sua`, `Xoa`, `Gui CEO duyet`; `Sua` nạp request hiện tại vào form và `Xoa` soft-cancel sang `CANCELLED`.
-3. CEO mở request đã submit và approve hoặc reject với reason.
-4. Planner nguồn thấy template request đã duyệt và convert thành `TRF`.
+2. Khi request là `DRAFT`, kiểm card/detail hiển thị `Sua`, `Xoa`, `Gui truong kho nguon duyet`; `Sua` nạp request hiện tại vào form và `Xoa` soft-cancel sang `CANCELLED`.
+3. Trưởng kho nguồn mở request đã submit và approve hoặc reject với reason; approve phải giữ hàng nguồn ngay.
+4. Planner nguồn thấy template request đã duyệt/đã giữ hàng và convert thành `TRF`.
 5. Planner mở workspace chung tại `/inter-warehouse-transfers` và tạo hoặc xem phiếu `TRF` thủ công.
 6. Planner sửa transfer `NEW` và thấy item cũ được load sẵn, không phải form trắng.
 7. Quản lý kho nguồn chỉ thấy action duyệt/từ chối cho transfer thuộc scope nguồn.
@@ -129,8 +129,8 @@
     - Chọn `Noi bo` hiển thị trip `TTR-*` và ẩn trip giao đại lý.
     - Card transfer hiển thị `Dieu chuyen noi bo` và tuyến kho nguồn -> kho đích thay vì `Diem giao`.
     - Detail transfer không expose POD, dealer OTP, dealer refusal, invoice hoặc confirm-delivery actions.
-14. Nút xác nhận destination handover và return handover disabled cho đến khi chọn/chụp ảnh.
-15. Công nhân kho đích ghi initial count trong module transfer, không vào danh sách phiếu nhập nhà cung cấp.
+14. Nút xác nhận destination handover không yêu cầu ảnh; sau khi thủ kho kho đích xác nhận bàn giao, công nhân kho đích thấy ngay phần initial count trong module transfer, không vào danh sách phiếu nhập nhà cung cấp.
+15. Return handover vẫn disabled cho đến khi chọn/chụp ảnh nếu hàng quay đầu về kho nguồn.
 16. Thủ kho kho đích kiểm count/QC và chọn vị trí kho đích cho hàng pass.
 17. Quản lý kho đích final-confirm completion/discrepancy trong cùng module transfer.
 18. Quarantine Workspace hiển thị origin điều chuyển và chỉ cho disposal với hàng điều chuyển nội bộ bị hỏng.
@@ -143,15 +143,15 @@ Chạy các case sau trước khi chấp nhận thay đổi transfer-flow:
 
 1. Tạo/sửa `TRQ` với `neededByDate` quá khứ, dòng SKU trùng, số lượng lẻ, thiếu business reason, và số lượng yêu cầu vượt tồn nguồn. Kỳ vọng lỗi inline hoặc toast backend đã dịch; trạng thái `DRAFT` hiện có vẫn sửa được.
 2. Tạo/sửa `TRF` thiếu external instruction, source/destination trùng, `documentDate` quá khứ, `plannedDate` quá khứ, `plannedDate < documentDate`, dòng SKU trùng, số lượng lẻ, product/warehouse inactive, và external instruction đang active bị trùng. Kỳ vọng mã lỗi backend ổn định kèm message tiếng Việt.
-3. Duyệt `TRF` khi tồn khả dụng nguồn thấp hơn planned quantity. Kỳ vọng lỗi `INSUFFICIENT_AVAILABLE_STOCK` hoặc tương đương; status vẫn `NEW`; không tạo partial reservation/allocation hoặc audit approval.
+3. Duyệt `TRQ` khi tồn khả dụng nguồn thấp hơn requested quantity. Kỳ vọng lỗi `INSUFFICIENT_AVAILABLE_STOCK` hoặc tương đương; status vẫn `SUBMITTED`; không tạo partial reservation/allocation hoặc audit approval.
 4. Gán trip với scope Dispatcher sai, tài xế không hợp lệ với kho nguồn, xe/tài xế unavailable, trùng lịch, time window sai, planned time quá khứ, deadline transfer hết hạn, và vượt capacity. Kỳ vọng reject trip mutation và không lock resource.
 5. Submit source load thiếu item, trùng item, loaded quantity âm/lẻ hoặc quantity mismatch thiếu rework reason. Kỳ vọng lỗi source-load và chưa bật outbound QC.
 6. Submit outbound QC hoặc handover khi chưa chọn/chụp ảnh bằng chứng. Kỳ vọng client disabled action và backend trả `TRANSFER_PHOTO_REQUIRED` nếu bypass.
 7. Thử ship/depart trước load report, trước outbound QC pass, trước load handover, bằng sai tài xế hoặc sau khi trip assignment bị lock. Kỳ vọng validation đúng thứ tự và inventory không đổi.
-8. Submit receive-count trước arrival/handover, có dòng item trùng, thiếu dòng item, số âm/lẻ, vượt sent quantity hoặc shortage thiếu reason. Kỳ vọng receive-count validation và chưa ghi tồn.
+8. Submit receive-count trước arrival/handover, có dòng item trùng, thiếu dòng item, số âm/lẻ, vượt sent quantity hoặc shortage thiếu reason. Kỳ vọng receive-count validation và chưa ghi tồn; handover kho đích không yêu cầu ảnh.
 9. Submit receive-check với item trùng, checker quantity khác mà thiếu note, tổng QC sai, QC failure thiếu reason, QC failure mà không có quarantine bin active, chọn quarantine bin cho QC-passed goods, bin inactive/sai kho hoặc vượt capacity. Kỳ vọng message validation trực tiếp.
 10. Submit final receive trước receive-check, thiếu cấu hình `IN_TRANSIT`, putaway item/location trùng, putaway quantity bằng 0/âm, putaway vượt QC-passed, hoặc putaway thiếu mà không có discrepancy reason. Kỳ vọng validation trước mọi mutation `IN_TRANSIT`/destination/quarantine inventory.
-11. Submit wrong-SKU return thiếu expected/actual SKU, actual SKU không tồn tại, actual SKU bằng expected SKU, affected quantity bằng 0/âm, affected quantity vượt sent quantity hoặc thiếu reason. Kỳ vọng validation trước khi đổi `returnRequested` hoặc trạng thái wrong-SKU report.
+11. Submit return leg khi phiếu chưa `isReturned = true` hoặc chưa có mốc return trước đó. Kỳ vọng validation đúng thứ tự và không đổi tồn kho.
 12. Kiểm frontend chỉ hiển thị tối đa một message rõ ràng cho mỗi action fail: inline field errors cho field biết trước, một toast đã dịch cho backend rejection, toast stack deduplicate và giới hạn để không chồng lấn, chỉ auto-refresh sau mutation thành công.
 
 ## Kiểm tra bắt buộc trước khi xem là xong code
@@ -162,17 +162,17 @@ Chạy các case sau trước khi chấp nhận thay đổi transfer-flow:
 - Frontend tests/build pass.
 - Test source load report chứng minh outbound QC bị chặn trước khi công nhân báo `loadedQty`, và QC fail trả về worker rework trước khi QC được pass lại.
 - Frontend tests cover mọi nút action chính trong transfer workspace: visible/enabled theo role-state, hidden/disabled theo role-state, click thành công, API fail response và refresh sau thành công.
-- Ít nhất một smoke path frontend-to-backend pass từ tạo `TRQ` đến final receive, gồm outbound QC photo refs, load handover photo refs, arrival/handover, receive-check, final receive, inventory movement và audit assertion.
+- Ít nhất một smoke path frontend-to-backend pass từ tạo `TRQ` đến final receive, gồm trưởng kho nguồn duyệt giữ hàng ở `TRQ`, Planner convert `TRF`, outbound QC photo refs, load handover photo refs, arrival/handover không ảnh, receive-check, final receive, inventory movement và audit assertion.
 - OpenAPI/Swagger expose mọi transfer endpoint.
 - OpenAPI/Swagger expose transfer-request endpoint và cross-warehouse stock lookup.
 - Audit log ghi mọi mutation transfer.
-- Audit log ghi transfer-request create/submit/CEO approval/rejection/conversion.
+- Audit log ghi transfer-request create/submit/source-manager approval-reservation/rejection/conversion.
 - Audit log ghi transfer-request update và soft-cancel `DRAFT`; delete action không được xóa vật lý lịch sử request.
-- Frontend action yêu cầu ảnh disabled cho đến khi có ảnh chọn/chụp: outbound QC, load handover, arrival handover, return handover và driver POD upload.
+- Frontend action yêu cầu ảnh disabled cho đến khi có ảnh chọn/chụp: outbound QC, load handover, return handover và driver POD upload. Destination arrival handover không yêu cầu ảnh.
 - Không invariant tồn kho nào có thể âm.
 - Shortage điều chuyển không bao giờ thành quantity quarantine/disposal.
 - Quarantine stock có origin điều chuyển giữ traceability đến transfer item và không tạo RTV hoặc supplier Debit Note.
 - Số lượng và giá trị tồn kho đích chỉ gồm hàng nhận vật lý và được chấp nhận.
-- Wrong-SKU return yêu cầu Storekeeper report, destination Manager approval, assigned-driver return và source receiving ba bước.
+- Quay đầu quá hạn yêu cầu assigned-driver return và source receiving ba bước.
 - Real PostgreSQL/Flyway migration tests pass cho migration cộng thêm mới nhất.
 - Có requirement-to-test mapping cho mọi P0 item và nhánh ngoại lệ trong `tasks.md`.

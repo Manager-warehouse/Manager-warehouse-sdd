@@ -23,6 +23,8 @@ const ERROR_MESSAGE_BY_CODE = {
   WAREHOUSE_SCOPE_FORBIDDEN: 'Bạn không được phân quyền thao tác trên kho đã chọn.',
   RESOURCE_NOT_FOUND: 'Không tìm thấy dữ liệu liên quan. Vui lòng tải lại trang và thử lại.',
   WAREHOUSE_INACTIVE: 'Kho đã chọn đang ngừng hoạt động.',
+  WAREHOUSE_HAS_STOCK: 'Không thể tắt kho vì kho vẫn đang còn hàng tồn kho.',
+  LOCATION_HAS_STOCK: 'Không thể tắt vị trí lưu trữ (bin) vì vẫn đang còn hàng tồn kho.',
   WAREHOUSE_TYPE_INVALID: 'Không thể tạo phiếu xuất từ kho trung chuyển.',
   DELIVERY_ORDER_TYPE_INVALID: 'Loại phiếu không hợp lệ. Màn này chỉ tạo phiếu xuất bán.',
   INVALID_DELIVERY_DATE: 'Ngày giao hàng dự kiến không hợp lệ.',
@@ -32,6 +34,7 @@ const ERROR_MESSAGE_BY_CODE = {
   PERIOD_CLOSED: 'Kỳ kế toán của ngày chứng từ đã đóng.',
   ACCOUNTING_PERIOD_CLOSED: 'Kỳ kế toán của ngày chứng từ đã đóng.',
   PERIOD_NOT_YET_ENDED: 'Kỳ kế toán chưa kết thúc, chỉ có thể khóa sau khi kỳ đã kết thúc.',
+  PERIOD_NOT_CLOSED: 'Kỳ kế toán này chưa bị khóa, không cần mở lại.',
   UNPROCESSABLE_ENTITY: 'Dữ liệu không đủ điều kiện để xử lý.',
   INSUFFICIENT_STOCK: 'Tồn kho khả dụng không đủ trong kho đã chọn.',
   DUPLICATE_PRODUCT_ITEM: 'Một sản phẩm không được xuất hiện nhiều dòng trong cùng phiếu.',
@@ -54,6 +57,23 @@ const ERROR_MESSAGE_BY_CODE = {
   DELIVERY_ORDER_CANCEL_FORBIDDEN: 'Không thể hủy đơn xuất ở trạng thái hiện tại.',
   PICKED_GOODS_RETURN_REQUIRED: 'Đơn xuất đã có hàng được lấy, cần hoàn hàng về bin trước khi hủy.',
   RESERVATION_NOT_FOUND: 'Không tìm thấy lượng tồn đã giữ chỗ cho đơn xuất này. Vui lòng tải lại và thử lại.',
+  RECEIPT_NOT_PUTAWAY_COMPLETED: 'Phiếu nhập kho chưa hoàn tất cất kho (Putaway), không thể lập hóa đơn mua hàng.',
+  RECEIPT_NO_SUPPLIER: 'Phiếu nhập kho này không có nhà cung cấp liên kết, không thể lập hóa đơn mua hàng.',
+  NO_OPEN_PERIOD: 'Không tìm thấy kỳ kế toán đang mở cho ngày hạch toán đã chọn.',
+  RECEIPT_NO_ITEMS: 'Phiếu nhập kho không có dòng hàng nào để lập hóa đơn.',
+  ITEM_UNIT_COST_MISSING: 'Thiếu đơn giá vốn trên dòng hàng của phiếu nhập, không thể lập hóa đơn.',
+  SUPPLIER_INVOICE_MISMATCH: 'Hóa đơn mua hàng này không thuộc về nhà cung cấp đã chọn.',
+  SUPPLIER_INVOICE_ALREADY_PAID: 'Hóa đơn mua hàng này đã được thanh toán đủ.',
+  EMPTY_FILE: 'File tải lên bị rỗng. Vui lòng chọn lại file.',
+  INVOICE_DEALER_MISMATCH: 'Hóa đơn này không thuộc về đại lý đã chọn.',
+  INVOICE_ALREADY_PAID: 'Hóa đơn này đã được thanh toán đủ.',
+  DELIVERY_ORDER_STATUS_INVALID: 'Đơn xuất phải đang giao hàng (IN_TRANSIT) trước khi có thể lập hóa đơn.',
+  DELIVERY_ORDER_NOT_DELIVERED: 'Đơn xuất chưa hoàn tất xác nhận giao hàng (OTP + POD), không thể lập hóa đơn.',
+  NO_FAILED_QTY: 'Không còn số lượng hàng lỗi trong khu cách ly để tiêu hủy.',
+  ALREADY_DISPOSED: 'Mặt hàng này đã có yêu cầu tiêu hủy hoặc đã được xử lý tiêu hủy.',
+  INVALID_TYPE: 'Phiếu điều chỉnh này không phải yêu cầu tiêu hủy.',
+  ALREADY_APPROVED: 'Yêu cầu tiêu hủy này đã được phê duyệt.',
+  MISSING_STOCK_KEYS: 'Thiếu thông tin lô hoặc vị trí cách ly để trừ tồn.',
 };
 
 const looksLikeErrorCode = (value = '') => /^[A-Z][A-Z0-9_:-]+$/.test(String(value).trim());
@@ -97,7 +117,60 @@ const validationDetailsMessage = (details) => {
   return lines.length ? lines.join('; ') : null;
 };
 
+// English doc-label fragments used by AccountingPeriodServiceImpl#checkNoPending, mapped
+// to Vietnamese - keep in sync with the docLabel arguments passed there.
+const PENDING_DOCUMENT_LABELS = {
+  'pending/unapproved inbound receipts': 'phiếu nhập kho chưa được duyệt',
+  'pending delivery orders': 'đơn xuất kho chưa hoàn tất',
+  'pending internal warehouse transfers': 'phiếu điều chuyển nội bộ chưa hoàn tất',
+  'pending stocktakes': 'phiếu kiểm kê chưa được duyệt',
+  'unapproved adjustments': 'phiếu điều chỉnh tồn kho chưa được duyệt',
+  'completed delivery orders have no invoice yet': 'đơn xuất kho đã hoàn tất nhưng chưa lập hóa đơn',
+};
+
+// "PENDING_DOCUMENTS_EXIST: 2 pending delivery orders exist in this period (e.g. DO-1, DO-2)."
+const PENDING_DOCUMENTS_PATTERN = /^\d+\s+(.+?)\s+exist in this period \(e\.g\.\s+(.+?)\)\.$/;
+
+const pendingDocumentsMessage = (message) => {
+  const match = PENDING_DOCUMENTS_PATTERN.exec(message.replace(/^PENDING_DOCUMENTS_EXIST:\s*/, ''));
+  if (!match) return null;
+  const [, englishLabel, samples] = match;
+  const countMatch = /^(\d+)/.exec(message.replace(/^PENDING_DOCUMENTS_EXIST:\s*/, ''));
+  const count = countMatch ? countMatch[1] : '';
+  const viLabel = PENDING_DOCUMENT_LABELS[englishLabel] || englishLabel;
+  return `Không thể khóa kỳ kế toán: còn ${count} ${viLabel} (VD: ${samples}).`;
+};
+
+// "PAYMENT_EXCEEDS_BALANCE: Payment amount exceeds remaining invoice balance of 0.00"
+const PAYMENT_EXCEEDS_BALANCE_PATTERN = /remaining invoice balance of\s+([\d.,]+)/;
+
+const paymentExceedsBalanceMessage = (message) => {
+  const match = PAYMENT_EXCEEDS_BALANCE_PATTERN.exec(message);
+  if (!match) return null;
+  const [, remaining] = match;
+  return `Số tiền thanh toán vượt quá dư nợ còn lại của hóa đơn (${remaining}đ).`;
+};
+
+// "OVERPAYMENT_EXCEEDS_INVOICE: Payment amount exceeds invoice remaining balance of 0.00"
+const OVERPAYMENT_EXCEEDS_INVOICE_PATTERN = /invoice remaining balance of\s+([\d.,]+)/;
+
+const overpaymentExceedsInvoiceMessage = (message) => {
+  const match = OVERPAYMENT_EXCEEDS_INVOICE_PATTERN.exec(message);
+  if (!match) return null;
+  const [, remaining] = match;
+  return `Số tiền thanh toán vượt quá dư nợ còn lại của hóa đơn (${remaining}đ).`;
+};
+
 const deliveryOrderMessageByBackendText = (code, message = '') => {
+  if (code === 'PENDING_DOCUMENTS_EXIST') {
+    return pendingDocumentsMessage(message);
+  }
+  if (code === 'PAYMENT_EXCEEDS_BALANCE') {
+    return paymentExceedsBalanceMessage(message);
+  }
+  if (code === 'OVERPAYMENT_EXCEEDS_INVOICE') {
+    return overpaymentExceedsInvoiceMessage(message);
+  }
   if (code === 'CREDIT_HOLD') {
     if (message.includes('credit limit exceeded')) {
       return 'Đại lý vượt hạn mức công nợ.';
@@ -109,7 +182,9 @@ const deliveryOrderMessageByBackendText = (code, message = '') => {
       return 'Đại lý đang bị chặn công nợ.';
     }
   }
-  if (code === 'UNPROCESSABLE_ENTITY' && message.includes('No accounting period configured')) {
+  if (code === 'UNPROCESSABLE_ENTITY' && (
+    message.includes('No accounting period configured') || message.includes('No open accounting period')
+  )) {
     return 'Chưa cấu hình kỳ kế toán cho ngày chứng từ.';
   }
   if (code === 'RESOURCE_NOT_FOUND') {
@@ -144,11 +219,11 @@ export const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   if (translatedByMessageCode) {
     return translatedByMessageCode;
   }
-  if (code && ERROR_MESSAGE_BY_CODE[code]) {
-    return ERROR_MESSAGE_BY_CODE[code];
-  }
   if (message && hasVietnameseText(message)) {
     return message;
+  }
+  if (code && ERROR_MESSAGE_BY_CODE[code]) {
+    return ERROR_MESSAGE_BY_CODE[code];
   }
   if (message && !looksLikeErrorCode(message) && !/^[\x00-\x7F]+$/.test(message)) {
     return message;

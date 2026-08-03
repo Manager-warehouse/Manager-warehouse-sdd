@@ -1,18 +1,16 @@
 package com.wms.service.stock_receiving;
 
-
-import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.access_control.User;
+import com.wms.entity.stock_receiving.Receipt;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ForbiddenReceiptWarehouseException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * Shared validation and authorization checks for inbound receipts.

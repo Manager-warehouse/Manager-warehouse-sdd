@@ -1,3 +1,9 @@
+/**
+ * Bảng danh sách user (Spec 001).
+ * Hiển thị: mã NV, tên, email/SĐT, vai trò, kho phụ trách, trạng thái.
+ * Hành động: nút sửa + nút bật/tắt trạng thái tài khoản.
+ * Hỗ trợ cả layout bảng (desktop) và card (mobile).
+ */
 import React, { useState, useEffect } from 'react';
 import Table from '../../components/common/Table';
 import Badge from '../../components/common/Badge';
@@ -18,6 +24,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
       .catch(() => {});
   }, []);
 
+  // Lấy danh sách mã kho được gán cho user (hiển thị dạng "HP-01, HN-02")
   const getAssignedWHNames = (user) => {
     return warehousesList
       .filter((w) => user.warehouses?.includes(w.id))

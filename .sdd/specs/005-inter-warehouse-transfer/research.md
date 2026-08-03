@@ -32,9 +32,9 @@
 
 ## Quyết định: Ánh xạ kết quả quarantine của điều chuyển sang Spec 009 theo tình trạng vật lý
 
-**Lý do**: Hàng hỏng trong điều chuyển nội bộ không có quan hệ trả nhà cung cấp. Hàng hỏng vật lý sẽ ở lại kho nơi bị quarantine và xử lý tiêu hủy theo Spec 009. Thiếu hàng không phải tồn vật lý nên chỉ tạo adjustment/discrepancy điều chuyển. Hàng sai SKU nhưng còn nguyên vẹn có thể dùng luồng Return to Source và không phải ứng viên tiêu hủy.
+**Lý do**: Hàng hỏng trong điều chuyển nội bộ không có quan hệ trả nhà cung cấp. Hàng hỏng vật lý sẽ ở lại kho nơi bị quarantine và xử lý tiêu hủy theo Spec 009. Thiếu hàng không phải tồn vật lý nên chỉ tạo adjustment/discrepancy điều chuyển. Sai SKU không còn kích hoạt Return to Source; kho nhận xử lý tiếp bằng count/QC/chênh lệch hoặc quarantine theo trạng thái vật lý.
 
-**Phương án đã cân nhắc**: Cho phép RTV với mọi hàng quarantine. Bị loại vì điều chuyển nội bộ không có claim nhà cung cấp. Trả toàn bộ hàng hỏng về kho nguồn cũng bị loại vì chỉ chuyển trách nhiệm nội bộ và tăng rủi ro vận hành. Tiêu hủy mọi ngoại lệ điều chuyển cũng bị loại vì thiếu hàng không phải hàng vật lý và wrong-SKU nguyên vẹn vẫn có thể thu hồi.
+**Phương án đã cân nhắc**: Cho phép RTV với mọi hàng quarantine. Bị loại vì điều chuyển nội bộ không có claim nhà cung cấp. Trả toàn bộ hàng hỏng về kho nguồn cũng bị loại vì chỉ chuyển trách nhiệm nội bộ và tăng rủi ro vận hành. Tiêu hủy mọi ngoại lệ điều chuyển cũng bị loại vì thiếu hàng không phải hàng vật lý.
 
 ## Quyết định: Tính số lượng và giá trị nhập kho đích theo thực nhận
 
@@ -42,11 +42,11 @@
 
 **Phương án đã cân nhắc**: Tính cả 30 đơn vị vào giá trị kho đích. Bị loại vì 2 đơn vị không được nhận vật lý. Tính tổn thất tiền ngay trong flow nhận điều chuyển bị loại vì nghiệp vụ quyết định giữ phần thiếu là discrepancy chỉ theo số lượng. Tự động phạt tài xế cho 2 đơn vị bị loại vì trách nhiệm cần điều tra và phê duyệt riêng.
 
-## Quyết định: Wrong-SKU return cần kho đích báo cáo và quản lý duyệt
+## Quyết định: Gỡ wrong-SKU return do kho đích báo cáo
 
-**Lý do**: Thủ kho kho đích là người kiểm vận hành và phát hiện sai SKU, còn quản lý kho đích chịu trách nhiệm cho phép xe quay đầu. Giữ nguyên cùng transfer, trip, driver và tồn `IN_TRANSIT` giúp tránh tạo nhận kho giả hoặc chứng từ xuất mới trùng. Khi về kho nguồn, nguồn phải lặp lại count, check/QC và final confirmation trước khi hàng nhập lại kho nguồn.
+**Lý do**: Luồng sai SKU quay đầu tạo thêm trạng thái chờ duyệt, endpoint riêng và hồ sơ wrong-SKU nhưng không còn phù hợp với vận hành hiện tại. Transfer đang quá hạn khi `IN_TRANSIT` vẫn được quay đầu về kho nguồn, còn sai SKU tại kho đích được xử lý trong flow nhận/chênh lệch/quarantine theo trạng thái vật lý.
 
-**Phương án đã cân nhắc**: Cho thủ kho tự cho xe quay đầu ngay. Bị loại vì bỏ qua kiểm soát quản lý và audit. Đưa wrong-SKU nguyên vẹn vào quarantine bị loại vì hàng không hỏng. Tạo transfer mới cho chặng quay đầu bị loại trong Sprint 1 vì nhân đôi chứng từ và mất traceability về chuyến gốc.
+**Phương án đã cân nhắc**: Giữ endpoint `request-return/approve-return/reject-return`. Bị loại vì làm UI/backend còn một nhánh quay đầu thủ công không cần thiết. Xóa toàn bộ bảng wrong-SKU bị hoãn để tránh migration/schema cleanup rộng trong thay đổi này.
 
 ## Quyết định: Bắt buộc có test cho tính năng này
 
@@ -56,6 +56,6 @@
 
 ## Quyết định: Mô hình hóa nhu cầu bổ sung hàng của quản lý kho bằng `TransferRequest` trước `TRF`
 
-**Lý do**: Quản lý kho có thể phát hiện thiếu hàng bằng cách xem tồn read-only ở kho khác, nhưng yêu cầu đó vẫn cần CEO duyệt trước khi vận hành kho thực thi. Giữ luồng này trong `transfer_requests` giúp không làm quá tải status của `transfers`, đồng thời giữ flow `TRF` hiện tại: tồn kho chỉ được reserve sau khi quản lý kho nguồn duyệt.
+**Lý do**: Quản lý kho có thể phát hiện thiếu hàng bằng cách xem tồn read-only ở kho khác, nhưng kho nguồn mới là bên chịu trách nhiệm xác nhận khả năng cấp hàng. Giữ luồng này trong `transfer_requests` giúp không làm quá tải status của `transfers`, đồng thời tồn kho được reserve ngay khi quản lý kho nguồn duyệt.
 
-**Phương án đã cân nhắc**: Cho quản lý kho tạo trực tiếp `TRF`. Bị loại vì bỏ qua CEO approval và trách nhiệm của Planner. Tự động tạo `TRF` ngay sau khi CEO duyệt cũng bị loại vì Planner nguồn vẫn cần nhận template đã duyệt và tạo chứng từ vận hành có traceability.
+**Phương án đã cân nhắc**: Cho quản lý kho tạo trực tiếp `TRF`. Bị loại vì bỏ qua trách nhiệm điều phối/chốt chứng từ của Planner. Để Planner mới reserve ở bước convert cũng bị loại vì có thể làm kho nguồn hứa cấp hàng nhưng tồn khả dụng đã bị nghiệp vụ khác giữ trước.

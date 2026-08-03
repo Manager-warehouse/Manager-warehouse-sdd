@@ -148,7 +148,6 @@ class InvoiceServiceTest {
         InvoiceCreateRequest request = new InvoiceCreateRequest();
         request.setDoId(20L);
         request.setDocumentDate(LocalDate.of(2026, 6, 15));
-        request.setNotes("Notes...");
 
         Invoice savedInvoice = Invoice.builder()
                 .id(50L)

@@ -111,8 +111,13 @@ const StocktakeList = () => {
 
   const handleApprove = async (id) => {
     try {
-      await stocktakeService.approveStockTake(id);
-      showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
+      const result = await stocktakeService.approveStockTake(id);
+      if (result?.approval_warnings?.length > 0) {
+        result.approval_warnings.forEach((w) => showToast?.('warning', w));
+        showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt (có cảnh báo)');
+      } else {
+        showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
+      }
       load();
     } catch (err) {
       showToast?.('error', err.message);

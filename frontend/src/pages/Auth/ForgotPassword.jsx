@@ -1,3 +1,8 @@
+/**
+ * Trang quên mật khẩu (Spec 001).
+ * Luồng 4 bước: nhập email → nhập OTP 6 số → đặt mật khẩu mới → thành công.
+ * Xử lý lỗi: OTP sai, OTP hết hạn, OTP bị khóa (quá 5 lần sai).
+ */
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
@@ -10,7 +15,7 @@ const ForgotPassword = () => {
   const navigate = useNavigate();
   const { addToast } = useUiStore();
 
-  // step 1: email, step 2: OTP, step 3: new password, step 4: success
+  // Bước 1: nhập email, Bước 2: nhập OTP, Bước 3: đặt mật khẩu mới, Bước 4: thành công
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -19,6 +24,7 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Bước 1: Gửi yêu cầu OTP qua email
   const handleRequestOtp = async (e) => {
     e.preventDefault();
     if (!email) {
@@ -38,6 +44,7 @@ const ForgotPassword = () => {
     }
   };
 
+  // Bước 2: Kiểm tra OTP hợp lệ — xử lý OTP sai/hết hạn/bị khóa
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!otp || otp.length < 6) {
@@ -63,6 +70,7 @@ const ForgotPassword = () => {
     }
   };
 
+  // Bước 3: Đặt mật khẩu mới — validate độ mạnh (8 ký tự, hoa/thường/số) + xác nhận khớp
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!newPassword) {

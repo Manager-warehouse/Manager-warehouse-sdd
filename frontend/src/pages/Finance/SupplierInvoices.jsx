@@ -4,7 +4,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
-import { formatDate } from '../../utils/format';
+import { formatDate, getLocalDateString } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -12,6 +12,15 @@ import CorrectionVoucherButton from '../../components/common/CorrectionVoucherBu
 import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, TrendingDown, Building2, UploadCloud, RefreshCw, AlertCircle } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
+
+// Fallback for the due-date field's min when documentDate hasn't been picked yet -
+// documentDate/paymentDate themselves are free-form (e.g. backdated to match a scanned
+// bank slip's real date), only the due date is constrained to not precede the invoice.
+const todayDateStr = () => new Date().toISOString().slice(0, 10);
+
+// AP has no credit-hold/blocking mechanism (unlike AR) - this is purely informational,
+// flagging invoices past their due date so staff can prioritize payment.
+const isOverdue = (inv) => inv.status !== 'PAID' && inv.due_date && inv.due_date < getLocalDateString();
 
 const SupplierInvoices = () => {
   const { addToast } = useUiStore();
@@ -37,7 +46,6 @@ const SupplierInvoices = () => {
     supplierInvoiceNumber: '',
     documentDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    notes: '',
     confirmedTotalAmount: ''
   });
 
@@ -50,7 +58,6 @@ const SupplierInvoices = () => {
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
     paymentMethod: 'BANK_TRANSFER',
-    documentDate: new Date().toISOString().slice(0, 10),
     notes: ''
   });
 
@@ -113,10 +120,12 @@ const SupplierInvoices = () => {
     setSelectedNotification(notif);
     setInvoiceFormData({
       receiptId: notif.receipt_id || notif.receiptId,
-      supplierInvoiceNumber: `VAT-${Math.floor(100000 + Math.random() * 900000)}`,
+      // Left blank rather than pre-filled with a fake-but-plausible value - the accountant
+      // must type the real number off the supplier's paper/PDF invoice (see placeholder hint
+      // on the input below), not accidentally submit a random VAT-XXXXXX string.
+      supplierInvoiceNumber: '',
       documentDate: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`,
       // Pre-fill with the system estimate; the Accountant edits this against the
       // supplier's real paper invoice before submitting - it is not auto-trusted.
       confirmedTotalAmount: String(notif.totalAmountEstimate || notif.total_amount_estimate || 0)
@@ -131,6 +140,10 @@ const SupplierInvoices = () => {
     const confirmedAmount = Number(invoiceFormData.confirmedTotalAmount);
     if (!invoiceFormData.confirmedTotalAmount || Number.isNaN(confirmedAmount) || confirmedAmount <= 0) {
       addToast('Số tiền hóa đơn phải lớn hơn 0', 'warning');
+      return;
+    }
+    if (invoiceFormData.dueDate < invoiceFormData.documentDate) {
+      addToast('Hạn thanh toán không được trước Ngày hạch toán', 'error');
       return;
     }
     setSubmittingInvoice(true);
@@ -156,7 +169,6 @@ const SupplierInvoices = () => {
       amount: String(remaining > 0 ? remaining : (inv.total_amount || inv.totalAmount || 0)),
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
-      documentDate: new Date().toISOString().slice(0, 10),
       notes: `Thanh toán cho hóa đơn ${inv.invoice_number || inv.invoiceNumber}`
     });
     setOcrFileName('');
@@ -189,7 +201,6 @@ const SupplierInvoices = () => {
       amount: initialAmount,
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
-      documentDate: new Date().toISOString().slice(0, 10),
       notes: ''
     });
     setOcrFileName('');
@@ -526,7 +537,18 @@ const SupplierInvoices = () => {
                           <td className="p-4 font-semibold text-shade-70">{inv.supplier_invoice_number}</td>
                           <td className="p-4 font-medium text-ink">{inv.supplier_name || 'NCC #' + inv.supplier_id}</td>
                           <td className="p-4 text-shade-60">{inv.document_date}</td>
-                          <td className="p-4 text-shade-60">{inv.due_date}</td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`whitespace-nowrap ${isOverdue(inv) ? 'text-red-600 font-semibold' : 'text-shade-60'}`}>
+                                {inv.due_date}
+                              </span>
+                              {isOverdue(inv) && (
+                                <span className="px-1.5 py-0.5 rounded-pill bg-red-100 text-red-700 border border-red-200 text-[9px] font-bold uppercase whitespace-nowrap">
+                                  Quá hạn
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(inv.total_amount || 0).toLocaleString()}đ
                             {inv.calculated_amount_estimate != null
@@ -670,6 +692,7 @@ const SupplierInvoices = () => {
                 value={invoiceFormData.supplierInvoiceNumber}
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, supplierInvoiceNumber: e.target.value }))}
                 required
+                maxLength={100}
                 placeholder="ví dụ: VAT-88392"
               />
 
@@ -703,18 +726,10 @@ const SupplierInvoices = () => {
                   id="dueDate"
                   label="Hạn thanh toán"
                   type="date"
+                  min={invoiceFormData.documentDate || todayDateStr()}
                   value={invoiceFormData.dueDate}
                   onChange={e => setInvoiceFormData(prev => ({ ...prev, dueDate: e.target.value }))}
                   required
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Ghi chú</label>
-                <textarea
-                  value={invoiceFormData.notes}
-                  onChange={e => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
                 />
               </div>
 

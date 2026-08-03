@@ -1,40 +1,6 @@
 package com.wms.controller.audit_trail;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.response.AuditLogDetailResponse;
 import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.access_control.User;
@@ -56,6 +22,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Controller nhật ký hoạt động hệ thống (Spec 001) — chỉ đọc, chỉ ADMIN.
+ * Hỗ trợ: phân trang, lọc theo thời gian và kho, xem chi tiết trước/sau thay đổi.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
 @Tag(name = "Audit Log", description = "Read-only system audit log endpoints")
@@ -104,6 +74,7 @@ public class AuditLogController {
         return auditLogService.getAuditLogById(id);
     }
 
+    /** Kiểm tra user hiện tại có role ADMIN — throw 401/403 nếu không. */
     private void ensureAdmin(Authentication authentication) {
         User currentUser = resolveCurrentUser(authentication);
         if (currentUser == null) {
@@ -116,6 +87,7 @@ public class AuditLogController {
         }
     }
 
+    /** Tìm User entity từ Authentication — tra theo email hoặc code. */
     private User resolveCurrentUser(Authentication authentication) {
         Authentication auth = authentication != null
                 ? authentication

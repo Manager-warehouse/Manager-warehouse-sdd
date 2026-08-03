@@ -1,40 +1,6 @@
 package com.wms.config;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -60,6 +26,15 @@ import java.util.List;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
+/**
+ * Cấu hình bảo mật Spring Security (Spec 001).
+ * - Stateless (không dùng session, chỉ JWT)
+ * - Mã hóa mật khẩu: BCrypt cost factor 12
+ * - CORS cho frontend dev/production
+ * - Public endpoints: login, refresh, forgot-password, OTP, Swagger
+ * - Phân cấp role: ADMIN > tất cả role khác
+ * - JwtAuthFilter chạy trước UsernamePasswordAuthenticationFilter
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -69,6 +44,7 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
 
+    /** Phân cấp role: ADMIN thừa hưởng quyền của tất cả role khác (CEO, Trưởng kho, Thủ kho, v.v.) */
     @Bean
     public RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.fromHierarchy(
@@ -83,6 +59,7 @@ public class SecurityConfig {
         );
     }
 
+    /** Chuỗi filter bảo mật: tắt CSRF/form login, stateless session, JWT filter, public endpoints. */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -116,6 +93,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Cấu hình CORS: cho phép frontend dev (localhost:3000-5174) và production domain. */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

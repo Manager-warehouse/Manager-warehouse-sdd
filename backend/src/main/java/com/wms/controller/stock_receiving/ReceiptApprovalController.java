@@ -5,8 +5,9 @@ import com.wms.dto.request.ReceiptPutawayRequest;
 import com.wms.dto.request.ReceiptReturnConfirmRequest;
 import com.wms.dto.response.ReceiptActionResponse;
 import com.wms.entity.access_control.User;
-import com.wms.service.user_context.CurrentUserService;
+import com.wms.entity.stock_receiving.Receipt;
 import com.wms.service.stock_receiving.ReceiptApprovalService;
+import com.wms.service.user_context.CurrentUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,7 +16,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST controller for inbound receipt approval and putaway operations (US-WMS-05).

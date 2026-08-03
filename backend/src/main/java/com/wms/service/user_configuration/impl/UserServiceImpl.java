@@ -1,48 +1,14 @@
 package com.wms.service.user_configuration.impl;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.UserRequest;
 import com.wms.dto.response.UserResponse;
-import com.wms.entity.audit_trail.AuditLog;
 import com.wms.entity.access_control.User;
 import com.wms.entity.access_control.UserWarehouseAssignment;
+import com.wms.entity.audit_trail.AuditLog;
 import com.wms.entity.warehouse_location.Warehouse;
-import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.AuditLogRepository;
 import com.wms.repository.UserRepository;
@@ -50,16 +16,20 @@ import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.user_configuration.UserService;
 import com.wms.util.AuditLogUtil;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
+/**
+ * Triển khai quản lý tài khoản người dùng (Spec 001).
+ * Xử lý: CRUD user, gán kho, bật/tắt trạng thái, xóa mềm, kiểm tra độ mạnh mật khẩu.
+ * Mỗi thao tác mutation đều ghi audit log.
+ */
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -72,6 +42,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Lấy danh sách tất cả user (trừ ADMIN). Kèm danh sách kho được gán. */
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .filter(user -> user.getRole() != UserRole.ADMIN)
@@ -84,6 +55,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Lấy thông tin chi tiết 1 user theo ID. */
     public UserResponse getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -93,6 +65,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * Tạo user mới: kiểm tra trùng email/code, validate mật khẩu, gán kho, ghi audit log.
+     * Role ADMIN/CEO không cần gán kho. Các role khác bắt buộc gán đúng 1 kho.
+     */
     public UserResponse createUser(UserRequest request, Long adminUserId) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new IllegalArgumentException("EMAIL_TAKEN");
@@ -149,6 +125,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * Cập nhật user: kiểm tra trùng email/code, xóa gán kho cũ và gán lại, ghi audit log.
+     * Nếu truyền password mới → validate và mã hóa lại.
+     */
     public UserResponse updateUser(Long id, UserRequest request, Long adminUserId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -213,6 +193,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /** Bật/tắt trạng thái hoạt động của user (isActive). Ghi audit log STATUS_CHANGE. */
     public UserResponse toggleUserStatus(Long id, Boolean isActive, Long adminUserId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -250,6 +231,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /** Xóa mềm user (đặt isActive = false). Ghi audit log SOFT_DELETE. */
     public UserResponse softDeleteUser(Long id, Long adminUserId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -284,6 +266,7 @@ public class UserServiceImpl implements UserService {
         return mapToResponse(savedUser, assignedWarehouseIds);
     }
 
+    /** Kiểm tra gán kho: ADMIN/CEO không cần, các role khác bắt buộc đúng 1 kho. */
     private void validateWarehouseAssignments(UserRole role, List<Long> warehouses) {
         if (role != UserRole.ADMIN && role != UserRole.CEO) {
             if (warehouses == null || warehouses.isEmpty()) {
@@ -295,6 +278,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /** Kiểm tra độ mạnh mật khẩu: tối thiểu 8 ký tự, phải có cả chữ và số. */
     private void validatePasswordStrength(String password) {
         if (password == null || password.length() < 8) {
             throw new IllegalArgumentException("WEAK_PASSWORD");
@@ -313,6 +297,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /** Lưu bản ghi gán kho cho user — mỗi kho tạo 1 record UserWarehouseAssignment. */
     private void saveWarehouseAssignments(User user, List<Long> warehouseIds, User adminUser) {
         for (Long warehouseId : warehouseIds) {
             Warehouse warehouse = warehouseRepository.findById(warehouseId)
@@ -326,6 +311,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /** Chuyển đổi User entity → UserResponse DTO. */
     private UserResponse mapToResponse(User user, List<Long> warehouseIds) {
         return UserResponse.builder()
                 .id(user.getId())

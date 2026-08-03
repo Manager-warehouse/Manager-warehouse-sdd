@@ -1,40 +1,7 @@
 package com.wms.enums.audit_trail;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
+/** Enum loại hành động audit (CREATED, UPDATED, DELETED, DEACTIVATED, ...) (Spec 001). */
 public enum AuditAction {
     LOGIN,
     LOGOUT,
@@ -58,6 +25,14 @@ public enum AuditAction {
     TRIP_DEPART,
     DELIVERY_ATTEMPT_CREATE,
     COMPLETE_TRIP,
+    SPLIT_DELIVERY_PLAN_CREATE,
+    SPLIT_DELIVERY_PLAN_UPDATE,
+    SPLIT_DELIVERY_DRIVER_READY,
+    SPLIT_LEG_ARRIVAL_CONFIRM,
+    SPLIT_LEG_HANDOVER_CONFIRM,
+    SPLIT_LEG_DELIVERY_FAIL,
+    SPLIT_DELIVERY_PLAN_CANCEL,
+    SPLIT_DELIVERY_DEPART,
     PICKING_PLAN_SAVE,
     PICKED_GOODS_RETURN_TO_BIN,
     PICKING_REPLACEMENT_SAVE,
@@ -131,8 +106,8 @@ public enum AuditAction {
     TRANSFER_REQUEST_CREATE,
     TRANSFER_REQUEST_UPDATE,
     TRANSFER_REQUEST_SUBMIT,
-    TRANSFER_REQUEST_CEO_APPROVE,
-    TRANSFER_REQUEST_CEO_REJECT,
+    TRANSFER_REQUEST_SOURCE_APPROVE,
+    TRANSFER_REQUEST_SOURCE_REJECT,
     TRANSFER_REQUEST_CONVERT,
     TRANSFER_OUTBOUND_QC,
     TRANSFER_LOAD_HANDOVER,

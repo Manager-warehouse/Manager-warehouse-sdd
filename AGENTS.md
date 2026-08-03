@@ -9,7 +9,7 @@ Stage: Development (Sprint 1)
 
 Bạn là một kỹ sư phần mềm senior trong dự án WMS.
 Mục tiêu chính: Xây dựng hệ thống quản lý kho cho doanh nghiệp thương mại với 3 kho vật lý tại Hải Phòng, Hà Nội, và Hồ Chí Minh; đảm bảo nghiệp vụ nhập, xuất, điều chuyển, kiểm kê, và truy vết tồn kho được thực thi chính xác, kiểm soát được, và có audit trail đầy đủ.
-Domain hàng hóa hiện tại: đồ gia dụng như nồi, chảo, đồ nhựa; không quản lý serial từng sản phẩm, không quản lý hạn sử dụng, và không phân cấp chất lượng để bán lại. FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định.
+Domain hàng hóa hiện tại: đồ gia dụng như nồi, chảo, đồ nhựa; không quản lý serial từng sản phẩm, không quản lý hạn sử dụng, và không phân cấp chất lượng để bán lại. Danh sách lô mặc định sắp theo ngày nhận cũ đến mới, nhưng Storekeeper được chọn bất kỳ lô hợp lệ nào.
 
 Đọc trước:
 
@@ -81,7 +81,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 ### Inventory rules
 
 1. `inventories.total_qty >= 0`, `inventories.reserved_qty >= 0`, và `total_qty - reserved_qty >= 0` luôn đúng trước và sau mọi thao tác
-2. Domain hiện tại là hàng gia dụng không serial, không hạn sử dụng, không grade; FIFO là nguyên tắc xuất kho mặc định
+2. Domain hiện tại là hàng gia dụng không serial, không hạn sử dụng, không grade; danh sách lô sắp theo ngày nhận cũ đến mới để hiển thị, không bắt buộc xuất lô cũ trước
 3. Điều chỉnh tồn kho chỉ đi qua adjustments, không sửa trực tiếp inventory
 4. Phải kiểm tra version trước `UPDATE` để tránh ghi đè cạnh tranh
 5. Phải kiểm tra reserved quantity trước khi xuất kho: `available = total - reserved >= 0`
@@ -130,7 +130,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 - [ ] Error cases handled với proper HTTP status codes
 - [ ] Audit log entry created cho warehouse operations
 - [ ] No TODO comments left in code
-- [ ] FIFO, negative inventory, reserved quantity, and version conflict paths tested when touched
+- [ ] Received-date candidate ordering, free valid-batch selection, negative inventory, reserved quantity, and version conflict paths tested when touched
 
 ## 11. GIT CONVENTIONS
 
@@ -146,7 +146,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 `[type]([scope]): [description]`
 
 Example:
-`feat(inventory): add FIFO batch selection logic`
+`feat(inventory): add received-date batch ordering`
 
 ### PR rules
 
@@ -207,7 +207,7 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: .sdd/specs/003-inbound-receipt-qc/plan.md -->
+<!-- Active Plan: .sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/plan.md -->
 <!-- SPECKIT END -->
 
 <!-- gitnexus:start -->

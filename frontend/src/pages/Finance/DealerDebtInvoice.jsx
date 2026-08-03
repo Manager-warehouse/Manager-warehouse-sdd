@@ -36,8 +36,7 @@ const DealerDebtInvoice = () => {
   const [selectedNotif, setSelectedNotif] = useState(null);
   const [invoiceFormData, setInvoiceFormData] = useState({
     doId: '',
-    documentDate: new Date().toISOString().slice(0, 10),
-    notes: ''
+    documentDate: new Date().toISOString().slice(0, 10)
   });
 
   // Modal States - POD View
@@ -111,8 +110,7 @@ const DealerDebtInvoice = () => {
     setSelectedNotif(notif);
     setInvoiceFormData({
       doId: notif.do_id || notif.doId,
-      documentDate: new Date().toISOString().slice(0, 10),
-      notes: `Lập hóa đơn bán hàng cho đơn xuất ${notif.do_number || notif.doNumber}`
+      documentDate: new Date().toISOString().slice(0, 10)
     });
     setShowCreateInvoiceModal(true);
   };
@@ -122,7 +120,7 @@ const DealerDebtInvoice = () => {
     if (submittingInvoice) return;
     setSubmittingInvoice(true);
     try {
-      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
+      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate);
       addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
       setShowCreateInvoiceModal(false);
       loadData();
@@ -633,6 +631,47 @@ const DealerDebtInvoice = () => {
                 />
               </div>
 
+              {/* Bằng chứng POD phải được kiểm tra TRƯỚC khi lập hóa đơn, không phải sau */}
+              <div className="flex flex-col gap-2 border border-hairline-light rounded p-3 bg-canvas-cream/40">
+                <span className="font-semibold text-shade-60 uppercase tracking-wider text-[10px]">
+                  Bằng chứng Bàn giao (POD) — kiểm tra trước khi lập hóa đơn
+                </span>
+                {(selectedNotif?.otp_verified_at || selectedNotif?.otpVerifiedAt) && (
+                  <div className="flex items-center gap-2 p-2 bg-aloe-10/20 border border-aloe-10 rounded">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-ink shrink-0" />
+                    <span className="text-[11px]">Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {(selectedNotif?.pod_image_url || selectedNotif?.podImageUrl) ? (
+                    <div className="flex flex-col gap-1">
+                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
+                        <ImageIcon className="w-3 h-3" /> Ảnh giao nhận thực tế
+                      </label>
+                      <img
+                        src={selectedNotif.pod_image_url || selectedNotif.podImageUrl}
+                        alt="POD"
+                        className="rounded border border-hairline-light max-h-32 object-cover w-full"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-shade-40 italic text-[11px]">Không có ảnh chụp POD.</span>
+                  )}
+                  {(selectedNotif?.pod_signature_url || selectedNotif?.podSignatureUrl) && (
+                    <div className="flex flex-col gap-1">
+                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
+                        <PenTool className="w-3 h-3" /> Chữ ký đại lý
+                      </label>
+                      <img
+                        src={selectedNotif.pod_signature_url || selectedNotif.podSignatureUrl}
+                        alt="Signature"
+                        className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-1 w-full"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <Input
                 id="documentDate"
                 label="Ngày hạch toán"
@@ -641,15 +680,6 @@ const DealerDebtInvoice = () => {
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
                 required
               />
-
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Ghi chú</label>
-                <textarea
-                  value={invoiceFormData.notes}
-                  onChange={e => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
-                />
-              </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
                 <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)} disabled={submittingInvoice}>
