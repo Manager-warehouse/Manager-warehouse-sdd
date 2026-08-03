@@ -27,7 +27,7 @@ public class QuarantineItemResponse {
     private String productName;
 
     @JsonProperty("qc_failed_qty")
-    private Integer qcFailedQty;
+    private BigDecimal qcFailedQty;
 
     @JsonProperty("qc_failure_reason")
     private String qcFailureReason;

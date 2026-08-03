@@ -6,6 +6,7 @@ import com.wms.dto.response.QuarantineItemResponse;
 import com.wms.dto.response.RtvActionResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.DebitNote;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_control.Inventory;
@@ -400,7 +401,7 @@ public class QuarantineRtvService {
                     .id(item.getId())
                     .productSku(item.getProduct().getSku())
                     .productName(item.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
+                    .qcFailedQty(failedQty)
                     .qcFailureReason(item.getQcFailureReason())
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
@@ -420,15 +421,22 @@ public class QuarantineRtvService {
 
             BigDecimal failedQty = qr.getRemainingQuantity();
             BigDecimal totalValue = failedQty.multiply(unitCost);
+            DeliveryOrder deliveryOrder = qr.getDeliveryOrder();
 
             responses.add(QuarantineItemResponse.builder()
                     .id(qr.getId())
                     .productSku(qr.getProduct().getSku())
                     .productName(qr.getProduct().getName())
-                    .qcFailedQty(failedQty.intValue())
+                    .qcFailedQty(failedQty)
                     .qcFailureReason(qr.getReason())
-                    .receiptNumber(qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
+                    .receiptNumber(deliveryOrder != null
+                            ? deliveryOrder.getDoNumber()
+                            : qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
                     .supplierId(null)
+                    .dealerId(deliveryOrder != null && deliveryOrder.getDealer() != null
+                            ? deliveryOrder.getDealer().getId() : null)
+                    .dealerName(deliveryOrder != null && deliveryOrder.getDealer() != null
+                            ? deliveryOrder.getDealer().getName() : null)
                     .totalValue(totalValue)
                     .unit(qr.getProduct().getUnit() != null ? qr.getProduct().getUnit() : "cái")
                     .receiptId(null)
