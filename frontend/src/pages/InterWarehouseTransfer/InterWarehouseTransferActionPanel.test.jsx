@@ -104,7 +104,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     expect(screen.getByText('Chờ công nhân xếp/báo số lượng')).toBeInTheDocument();
     expect(screen.queryByText('QC Đạt')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('WH-HN-B01')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('option', { name: /WH-HN-B01/ })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Báo cáo số lượng đã xếp' }));
 
@@ -168,7 +168,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xác nhận bàn giao lên xe' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('WH-HN-B01')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('option', { name: /WH-HN-B01/ })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' }));
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
