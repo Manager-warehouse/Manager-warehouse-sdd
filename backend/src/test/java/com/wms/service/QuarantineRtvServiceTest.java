@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.wms.dto.response.QuarantineItemResponse;
+import com.wms.dto.response.stock_receiving.QuarantineItemResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.dealer_management.Dealer;
 import com.wms.entity.order_fulfillment.DeliveryOrder;
