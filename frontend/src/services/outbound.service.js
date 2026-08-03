@@ -352,6 +352,7 @@ const normalizeDeliveryStatus = (status, attempt) => {
 const normalizeAllocation = (allocation = {}) => {
   const qcPassQty = Number(value(allocation, 'qcPassQty', 'qc_pass_qty', 0));
   const qcFailQty = Number(value(allocation, 'qcFailQty', 'qc_fail_qty', 0));
+  const explicitQcCompleted = allocation.qcCompleted ?? allocation.qc_completed;
 
   return {
     allocation_id: value(allocation, 'allocationId', 'allocation_id'),
@@ -366,8 +367,12 @@ const normalizeAllocation = (allocation = {}) => {
     picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
     qc_pass_qty: qcPassQty,
     qc_fail_qty: qcFailQty,
+    qc_fail_reason: value(allocation, 'qcFailReason', 'qc_fail_reason', ''),
     staging_location_id: value(allocation, 'stagingLocationId', 'staging_location_id'),
-    qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)) || qcPassQty + qcFailQty > 0,
+    quarantine_location_id: value(allocation, 'quarantineLocationId', 'quarantine_location_id'),
+    qc_completed: explicitQcCompleted === undefined
+      ? qcPassQty + qcFailQty > 0
+      : Boolean(explicitQcCompleted),
     replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
   };
 };
@@ -1229,6 +1234,15 @@ export const outboundService = {
       rejectionReason,
       notes,
     });
+    return normalizeDeliveryOrder(response.data);
+  },
+
+  requestPickingPlanAdjustment: async (id, reason) => {
+    if (useMock) {
+      await mockDelay();
+      return { id: Number(id), status: 'WAITING_PICKING', rejection_reason: reason };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/picking-plan-adjustment-request`, { reason });
     return normalizeDeliveryOrder(response.data);
   },
 

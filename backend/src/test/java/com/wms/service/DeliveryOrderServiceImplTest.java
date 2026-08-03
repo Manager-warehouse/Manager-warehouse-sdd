@@ -1938,6 +1938,7 @@ class DeliveryOrderServiceImplTest {
         qcRecord.setPickedQty(new BigDecimal("10.00"));
         qcRecord.setQcPassQty(new BigDecimal("8.00"));
         qcRecord.setQcFailQty(new BigDecimal("2.00"));
+        qcRecord.setQcFailReason("Mop meo");
         qcRecord.setStagingLocation(stagingBin);
         qcRecord.setQuarantineLocation(quarantineBin);
         qcRecord.setIsActive(true);
@@ -1949,6 +1950,7 @@ class DeliveryOrderServiceImplTest {
         when(outboundQcRecordRepository.findByDeliveryOrderIdAndIsActiveTrue(100L))
                 .thenReturn(List.of(qcRecord));
         when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L))).thenReturn(List.of());
+        when(outboundQcRecordRepository.findHistoryByAllocationIdIn(List.of(900L))).thenReturn(List.of(qcRecord));
         when(allocationRepository.save(any(DeliveryOrderItemAllocation.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(outboundQcRecordRepository.save(any(OutboundQcRecord.class)))
@@ -1981,6 +1983,10 @@ class DeliveryOrderServiceImplTest {
         assertThat(qcRecord.getIsActive()).isFalse();
         assertThat(qcRecord.getRejectedBy()).isEqualTo(storekeeper);
         assertThat(qcRecord.getRejectionReason()).isEqualTo("So luong thuc te khong khop");
+        assertThat(response.getItems().get(0).getAllocations().get(0).isQcCompleted()).isFalse();
+        assertThat(response.getItems().get(0).getAllocations().get(0).getQcPassQty()).isEqualByComparingTo("8.00");
+        assertThat(response.getItems().get(0).getAllocations().get(0).getQcFailQty()).isEqualByComparingTo("2.00");
+        assertThat(response.getItems().get(0).getAllocations().get(0).getQcFailReason()).isEqualTo("Mop meo");
     }
 
     @Test
@@ -1996,6 +2002,34 @@ class DeliveryOrderServiceImplTest {
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("OUTBOUND_QC_REJECTION_REASON_REQUIRED");
+    }
+
+    @Test
+    void requestPickingPlanAdjustment_recordsStaffRequestForImbalancedPlan() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation original = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+        DeliveryOrderItemAllocation replacement = allocation(901L, item, inventory, zone,
+                new BigDecimal("2.00"), ZERO, true);
+        com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest request =
+                new com.wms.dto.request.DeliveryOrderPickingPlanAdjustmentRequest();
+        request.setReason("Yeu cau 10, dang phan bo 12");
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L))
+                .thenReturn(List.of(original, replacement));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderResponse response = service.requestPickingPlanAdjustment(100L, request, warehouseStaff);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(order.getRejectionReason()).isEqualTo("Yeu cau 10, dang phan bo 12");
+        verify(auditUtil).logChange(eq(warehouseStaff),
+                eq(AuditAction.PICKING_PLAN_ADJUSTMENT_REQUEST), eq("DELIVERY_ORDER"),
+                eq(100L), any(), any(), any());
     }
 
     @Test

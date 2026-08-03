@@ -138,10 +138,18 @@ public class DeliveryOrderMapper {
                                                                                 .getOrDefault(allocation.getId(),
                                                                                                 AllocationQcSummary.EMPTY)
                                                                                 .qcFailQty())
+                                                                .qcFailReason(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .qcFailReason())
                                                                 .stagingLocationId(qcSummaryByAllocationId
                                                                                 .getOrDefault(allocation.getId(),
                                                                                                 AllocationQcSummary.EMPTY)
                                                                                 .stagingLocationId())
+                                                                .quarantineLocationId(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .quarantineLocationId())
                                                                 .qcCompleted(qcSummaryByAllocationId
                                                                                 .getOrDefault(allocation.getId(),
                                                                                                 AllocationQcSummary.EMPTY)
@@ -153,9 +161,9 @@ public class DeliveryOrderMapper {
                                 .build();
         }
 
-        public record AllocationQcSummary(BigDecimal qcPassQty, BigDecimal qcFailQty, Long stagingLocationId,
-                        boolean completed) {
+        public record AllocationQcSummary(BigDecimal qcPassQty, BigDecimal qcFailQty, String qcFailReason,
+                        Long stagingLocationId, Long quarantineLocationId, boolean completed) {
                 public static final AllocationQcSummary EMPTY = new AllocationQcSummary(BigDecimal.ZERO, BigDecimal.ZERO,
-                                null, false);
+                                null, null, null, false);
         }
 }
