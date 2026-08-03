@@ -274,6 +274,21 @@ paths:
           description: Đã ghi QC xuất
         '409':
           description: Không được QC xuất hoặc QC thất bại
+  /inter-warehouse-transfers/{id}/source-load-pick-candidates:
+    get:
+      summary: Công nhân nguồn xem kệ/bin đã giữ hàng để bốc đúng số lượng
+      tags: [Điều chuyển nội bộ]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      responses:
+        '200':
+          description: Danh sách kệ/bin nguồn đã được giữ hàng theo từng dòng transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceLoadPickCandidatesResponse'
+        '409':
+          description: Phiếu chưa APPROVED hoặc chưa có trip điều chuyển
   /inter-warehouse-transfers/{id}/source-load-report:
     post:
       summary: Công nhân nguồn báo số lượng xếp trước QC xuất
@@ -646,10 +661,51 @@ components:
           minItems: 1
           items:
             type: object
-            required: [transferItemId, loadedQty]
+            required: [transferItemId, loadedQty, picks]
             properties:
               transferItemId: { type: integer, format: int64 }
               loadedQty: { type: number, minimum: 0 }
+              picks:
+                type: array
+                minItems: 1
+                items:
+                  $ref: '#/components/schemas/SourceLoadPickRequest'
+    SourceLoadPickRequest:
+      type: object
+      required: [inventoryId, locationId, quantity]
+      properties:
+        inventoryId: { type: integer, format: int64 }
+        locationId: { type: integer, format: int64 }
+        quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+    SourceLoadPickCandidatesResponse:
+      type: object
+      properties:
+        transferId: { type: integer, format: int64 }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceLoadPickItemResponse'
+    SourceLoadPickItemResponse:
+      type: object
+      properties:
+        transferItemId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        productSku: { type: string }
+        productName: { type: string }
+        plannedQty: { type: number }
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceLoadPickCandidateResponse'
+    SourceLoadPickCandidateResponse:
+      type: object
+      properties:
+        inventoryId: { type: integer, format: int64 }
+        locationId: { type: integer, format: int64 }
+        locationCode: { type: string }
+        batchId: { type: integer, format: int64 }
+        batchCode: { type: string }
+        availableQty: { type: number }
     HandoverRequest:
       type: object
       required: [photoRef]

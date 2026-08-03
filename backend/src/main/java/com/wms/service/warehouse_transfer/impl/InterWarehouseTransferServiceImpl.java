@@ -15,6 +15,7 @@ import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
@@ -128,6 +129,12 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
             User actor) {
         // Điều phối viên gán chuyến xe điều chuyển riêng; service vận chuyển kiểm lịch, tải trọng, xe và tài xế.
         return shippingService.assignTrip(id, request, actor);
+    }
+
+    @Override
+    public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
+        // Công nhân xem các kệ/bin đã giữ hàng để chọn đúng vị trí khi bốc hàng.
+        return shippingService.getSourceLoadPickCandidates(id, actor);
     }
 
     @Override

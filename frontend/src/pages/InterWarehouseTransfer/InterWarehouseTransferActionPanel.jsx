@@ -5,6 +5,7 @@ import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 import { ROLES } from '../../utils/constants';
 import { useUiStore } from '../../stores/ui.store';
+import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
 
 // Helper role gate cho các nút thao tác trong từng bước TRF.
 const hasAny = (hasRole, roles) => roles.some((role) => hasRole(role));
@@ -71,6 +72,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   });
   // loadRows là số lượng công nhân kho nguồn thực xếp lên xe trước khi thủ kho QC.
   const [loadRows, setLoadRows] = useState([]);
+  const [sourcePickCandidates, setSourcePickCandidates] = useState([]);
   // countRows là số lượng công nhân kho nhận đếm khi hàng xuống xe.
   const [countRows, setCountRows] = useState([]);
   // checkRows là số lượng thủ kho xác nhận sau QC nhận hàng.
@@ -93,6 +95,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       plannedEndAt: toDateTimeInputValue(transfer?.tripPlannedEndAt),
     });
     setLoadRows([]);
+    setSourcePickCandidates([]);
     setCountRows([]);
     setCheckRows([]);
     setPutawayRows([]);
@@ -102,6 +105,36 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setReceiveQcPhotoFile(null);
     setReturnPhotoFile(null);
   }, [transfer?.id, transfer?.tripPlannedStartAt, transfer?.tripPlannedEndAt]);
+
+  useEffect(() => {
+    const shouldLoadCandidates = transfer?.id
+      && transfer?.status === 'APPROVED'
+      && Boolean(transfer?.tripId || transfer?.vehicleId)
+      && (transfer.items || []).some((item) => item.loadedQty === null || item.loadedQty === undefined || transfer.sourceLoadReworkRequired || transfer.source_load_rework_required);
+    if (!shouldLoadCandidates) return;
+    let cancelled = false;
+    interWarehouseTransferService.getSourceLoadPickCandidates(transfer.id)
+      .then((response) => {
+        if (cancelled) return;
+        const items = response?.items || [];
+        setSourcePickCandidates(items);
+        setLoadRows(items.map((item) => ({
+          transferItemId: item.transferItemId,
+          loadedQty: item.plannedQty,
+          picks: (item.candidates || []).map((candidate) => ({
+            inventoryId: candidate.inventoryId,
+            locationId: candidate.locationId,
+            quantity: candidate.availableQty,
+          })),
+        })));
+      })
+      .catch(() => {
+        if (!cancelled) setSourcePickCandidates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [transfer?.id, transfer?.status, transfer?.tripId, transfer?.vehicleId, transfer?.sourceLoadReworkRequired, transfer?.source_load_rework_required]);
 
   const destinationBins = useMemo(() => locations.filter((loc) => {
     // Nếu phiếu quay đầu, nơi nhận thực tế là kho nguồn; nếu đi bình thường, nơi nhận là kho đích.
@@ -198,14 +231,21 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   // Nút lập chuyến chỉ bật khi đã đủ xe, tài xế, thời gian và có nguồn lực khả dụng.
   const canAssignTrip = Boolean(trip.vehicleId) && Boolean(trip.driverId) && Boolean(trip.plannedStartAt) && Boolean(trip.plannedEndAt)
     && schedulableSourceDrivers.length > 0 && schedulableSourceVehicles.length > 0;
+  const sourcePickByItemId = new Map(sourcePickCandidates.map((item) => [Number(item.transferItemId), item]));
   // Nếu người dùng chưa nhập gì, UI mặc định thực xếp bằng plannedQty để thao tác nhanh khi hàng khớp.
   const displayedLoadRows = loadRows.length ? loadRows : transfer.items.map((item) => ({
     transferItemId: item.id,
     loadedQty: item.loadedQty ?? item.plannedQty,
+    picks: [],
   }));
   const hasDisplayedLoadMismatch = displayedLoadRows.some((row) => {
     const item = transfer.items.find((line) => line.id === row.transferItemId);
     return Number(row.loadedQty) !== Number(item?.plannedQty);
+  });
+  const hasDisplayedPickMismatch = displayedLoadRows.some((row) => {
+    const item = transfer.items.find((line) => line.id === row.transferItemId);
+    const totalPicked = (row.picks || []).reduce((total, pick) => total + Number(pick.quantity || 0), 0);
+    return totalPicked !== Number(item?.plannedQty);
   });
   const normalReceivingHandoverDone = Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
   const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && returnHandoverDone);
@@ -429,6 +469,17 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setRows(rows.map((row) => (row.transferItemId === id ? { ...row, ...patch } : row)));
   };
 
+  const setLoadPickQty = (transferItemId, inventoryId, value) => {
+    setLoadRows(displayedLoadRows.map((row) => {
+      if (row.transferItemId !== transferItemId) return row;
+      const picks = (row.picks || []).map((pick) => (
+        Number(pick.inventoryId) === Number(inventoryId) ? { ...pick, quantity: value } : pick
+      ));
+      const loadedQty = picks.reduce((total, pick) => total + Number(pick.quantity || 0), 0);
+      return { ...row, picks, loadedQty };
+    }));
+  };
+
   // Mặc định cất toàn bộ số QC đạt vào bin đầu tiên; người dùng có thể chia nhiều bin.
   const displayedPutawayRows = putawayRows.length ? putawayRows : (transfer.items || [])
     .filter((item) => Number(item.qcPassedQty || 0) > 0)
@@ -647,43 +698,68 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-3">
           <div>
             <div className="text-xs font-semibold text-ink">
-              {sourceLoadReworkRequired || outboundQcFailed ? 'BƯỚC 1: XỬ LÝ LẠI HÀNG XẾP' : 'BƯỚC 1: CÔNG NHÂN XẾP HÀNG/BÁO SỐ LƯỢNG'}
+              {sourceLoadReworkRequired || outboundQcFailed ? 'BƯỚC 1: XỬ LÝ LẠI HÀNG XẾP' : 'BƯỚC 1: CÔNG NHÂN CHỌN KỆ VÀ BỐC HÀNG'}
             </div>
             <div className="text-xs text-shade-60 mt-1">
-              Nhập đúng số lượng được giao theo kế hoạch. Nếu lệch, hệ thống sẽ báo nhập sai để công nhân kiểm tra lại trước QC xuất.
+              Chọn đúng kệ/bin đã giữ hàng và nhập số lượng lấy ở từng kệ. Tổng lấy phải khớp kế hoạch trước khi gửi thủ kho QC xuất.
             </div>
           </div>
           <div className="grid grid-cols-1 gap-2">
             {displayedLoadRows.map((row) => {
               const item = transfer.items.find((line) => line.id === row.transferItemId);
+              const candidateItem = sourcePickByItemId.get(Number(row.transferItemId));
+              const candidates = candidateItem?.candidates || [];
+              const totalPicked = (row.picks || []).reduce((total, pick) => total + Number(pick.quantity || 0), 0);
               return (
-                <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-[1fr_140px_140px] gap-2 items-end">
+                <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_140px] gap-2 items-start">
                   <div className="rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-xs">
                     <div className="font-semibold text-ink">{item?.productSku} {item?.productName}</div>
                     <div className="text-shade-60">Kế hoạch: {item?.plannedQty}</div>
+                    <div className="text-shade-60">Đã lấy: {totalPicked} / {item?.plannedQty}</div>
                   </div>
-                  <Input
-                    label="Thực xếp"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={row.loadedQty}
-                    onChange={(e) => setRow(displayedLoadRows, setLoadRows, row.transferItemId, { loadedQty: e.target.value })}
-                  />
+                  <div className="rounded-md border border-hairline-light bg-canvas-light px-3 py-2">
+                    <div className="text-[11px] font-semibold text-shade-60 mb-2">Kệ khả dụng</div>
+                    {candidates.length === 0 ? (
+                      <div className="text-xs text-danger-700">Chưa có kệ đã giữ hàng cho dòng này.</div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2">
+                        {candidates.map((candidate) => {
+                          const pick = (row.picks || []).find((line) => Number(line.inventoryId) === Number(candidate.inventoryId));
+                          return (
+                            <div key={candidate.inventoryId} className="grid grid-cols-[1fr_120px] gap-2 items-end">
+                              <div className="text-xs">
+                                <div className="font-mono font-semibold text-ink">{candidate.locationCode}</div>
+                                <div className="text-shade-60">Còn/đã giữ: {candidate.availableQty}</div>
+                                <div className="text-shade-50">Batch: {candidate.batchCode || candidate.batchId}</div>
+                              </div>
+                              <Input
+                                label="SL lấy"
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={pick?.quantity ?? ''}
+                                onChange={(e) => setLoadPickQty(row.transferItemId, candidate.inventoryId, e.target.value)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                   <div className={`rounded-md border px-3 py-2 text-xs ${
-                    Number(row.loadedQty) === Number(item?.plannedQty)
+                    totalPicked === Number(item?.plannedQty)
                       ? 'border-success-200 bg-success-50 text-success-700'
                       : 'border-danger-200 bg-danger-50 text-danger-700'
                   }`}>
-                    {Number(row.loadedQty) === Number(item?.plannedQty) ? 'Khớp kế hoạch' : 'Nhập sai số lượng kế hoạch'}
+                    {totalPicked === Number(item?.plannedQty) ? 'Khớp kế hoạch' : 'Chưa khớp kế hoạch'}
                   </div>
                 </div>
               );
             })}
           </div>
-          {hasDisplayedLoadMismatch && (
+          {(hasDisplayedLoadMismatch || hasDisplayedPickMismatch) && (
             <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
-              Số lượng thực xếp phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra lại trước khi báo cáo.
+              Tổng số lượng lấy theo từng kệ phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra lại trước khi báo cáo.
             </div>
           )}
           <Button
@@ -691,22 +767,33 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             icon={PackageCheck}
             onClick={() => {
               // Validate số thực xếp không âm vì đây là số hàng vật lý công nhân đưa lên xe.
-              if (displayedLoadRows.some((row) => !Number.isFinite(Number(row.loadedQty)) || Number(row.loadedQty) < 0)) {
-                addToast('Số lượng thực xếp phải lớn hơn hoặc bằng 0.', 'error');
+              if (displayedLoadRows.some((row) => (row.picks || []).length === 0)) {
+                addToast('Cần chọn kệ để lấy hàng cho mọi dòng.', 'error');
                 return;
               }
-              // Không cho số lẻ ở bước xếp hàng để khớp đơn vị tồn kho.
-              if (displayedLoadRows.some((row) => !isWholeNumber(row.loadedQty))) {
-                addToast('Số lượng thực xếp phải là số nguyên.', 'error');
+              if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !Number.isFinite(Number(pick.quantity)) || Number(pick.quantity) < 0))) {
+                addToast('Số lượng lấy ở từng kệ phải lớn hơn hoặc bằng 0.', 'error');
+                return;
+              }
+              if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !isWholeNumber(pick.quantity)))) {
+                addToast('Số lượng lấy ở từng kệ phải là số nguyên.', 'error');
                 return;
               }
               // Công nhân phải nhập đúng số được giao; thiếu/thừa ở bước này là nhập sai hoặc chưa xếp xong.
-              if (hasDisplayedLoadMismatch) {
-                addToast('Số lượng thực xếp đang lệch kế hoạch. Vui lòng kiểm tra và nhập lại đúng số lượng được giao.', 'error');
+              if (hasDisplayedLoadMismatch || hasDisplayedPickMismatch) {
+                addToast('Tổng số lượng lấy đang lệch kế hoạch. Vui lòng kiểm tra và nhập lại đúng số lượng được giao.', 'error');
                 return;
               }
               run('recordSourceLoadReport', {
-                items: displayedLoadRows.map((row) => ({ transferItemId: row.transferItemId, loadedQty: Number(row.loadedQty) })),
+                items: displayedLoadRows.map((row) => ({
+                  transferItemId: row.transferItemId,
+                  loadedQty: Number(row.loadedQty),
+                  picks: (row.picks || []).map((pick) => ({
+                    inventoryId: Number(pick.inventoryId),
+                    locationId: Number(pick.locationId),
+                    quantity: Number(pick.quantity),
+                  })),
+                })),
                 reworkReason: '',
               });
             }}

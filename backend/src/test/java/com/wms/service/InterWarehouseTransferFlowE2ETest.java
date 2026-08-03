@@ -104,6 +104,7 @@ class InterWarehouseTransferFlowE2ETest {
     @Mock private QuarantineRecordRepository quarantineRecordRepository;
     @Mock private DamageReportRepository damageReportRepository;
     @Mock private ProductRepository productRepository;
+    @Mock private VehicleRepository vehicleRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private DiscrepancyIncidentRepository discrepancyIncidentRepository;
     @Mock private DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
@@ -292,6 +293,7 @@ class InterWarehouseTransferFlowE2ETest {
                 inventoryRepository,
                 transferRepository,
                 assignmentRepository,
+                vehicleRepository,
                 mockTransferService,
                 auditUtil
         );

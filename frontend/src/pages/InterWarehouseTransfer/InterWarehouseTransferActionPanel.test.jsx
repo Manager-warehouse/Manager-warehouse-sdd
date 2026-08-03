@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import InterWarehouseTransferActionPanel from './InterWarehouseTransferActionPanel';
 import { ROLES } from '../../utils/constants';
+import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
 
 vi.mock('../../stores/ui.store', () => ({
   useUiStore: () => ({ addToast: vi.fn() }),
@@ -14,6 +15,12 @@ vi.mock('../../components/common/PhotoCaptureInput', () => ({
       {label}
     </button>
   ),
+}));
+
+vi.mock('../../services/inter-warehouse-transfer.service', () => ({
+  interWarehouseTransferService: {
+    getSourceLoadPickCandidates: vi.fn(),
+  },
 }));
 
 const baseTransfer = {
@@ -69,18 +76,44 @@ const renderPanel = ({
 };
 
 describe('InterWarehouseTransferActionPanel source load report workflow', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
 
   it('shows worker load report before source outbound QC', async () => {
+    interWarehouseTransferService.getSourceLoadPickCandidates.mockResolvedValue({
+      transferId: 1,
+      items: [{
+        transferItemId: 101,
+        productId: 201,
+        productSku: 'SKU-001',
+        productName: 'Noi lau dien',
+        plannedQty: 10,
+        candidates: [{
+          inventoryId: 301,
+          locationId: 401,
+          locationCode: 'WH-HN-B01',
+          batchId: 501,
+          batchCode: 'BATCH-001',
+          availableQty: 10,
+        }],
+      }],
+    });
     const onAction = renderPanel();
 
     expect(screen.getByText('Chờ công nhân xếp/báo số lượng')).toBeInTheDocument();
     expect(screen.queryByText('QC Đạt')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('WH-HN-B01')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Báo cáo số lượng đã xếp' }));
 
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
-      items: [{ transferItemId: 101, loadedQty: 10 }],
+      items: [{
+        transferItemId: 101,
+        loadedQty: 10,
+        picks: [{ inventoryId: 301, locationId: 401, quantity: 10 }],
+      }],
       reworkReason: '',
     }));
   });
@@ -102,6 +135,24 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
   });
 
   it('shows only worker rework report after QC failure', async () => {
+    interWarehouseTransferService.getSourceLoadPickCandidates.mockResolvedValue({
+      transferId: 1,
+      items: [{
+        transferItemId: 101,
+        productId: 201,
+        productSku: 'SKU-001',
+        productName: 'Noi lau dien',
+        plannedQty: 10,
+        candidates: [{
+          inventoryId: 301,
+          locationId: 401,
+          locationCode: 'WH-HN-B01',
+          batchId: 501,
+          batchCode: 'BATCH-001',
+          availableQty: 10,
+        }],
+      }],
+    });
     const onAction = renderPanel({
       transfer: {
         ...baseTransfer,
@@ -117,10 +168,15 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xác nhận bàn giao lên xe' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('WH-HN-B01')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' }));
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
-      items: [{ transferItemId: 101, loadedQty: 10 }],
+      items: [{
+        transferItemId: 101,
+        loadedQty: 10,
+        picks: [{ inventoryId: 301, locationId: 401, quantity: 10 }],
+      }],
       reworkReason: '',
     }));
   });

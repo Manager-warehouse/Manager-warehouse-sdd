@@ -3,8 +3,12 @@ import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.ReceivingHandoverRequest;
+import com.wms.dto.request.SourceLoadPickRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidateResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
+import com.wms.dto.response.SourceLoadPickItemResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.access_control.UserWarehouseAssignment;
 import com.wms.entity.driver_management.Driver;
@@ -40,6 +44,10 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -110,20 +118,18 @@ public class InterWarehouseTransferShippingService {
         ensureVehicleBelongsToSourceWarehouse(transfer, vehicle);
         ensureDriverBelongsToSourceWarehouse(transfer, driver);
 
-        // Bước 5: tính tổng cân nặng chuyến = số lượng dự kiến chuyển * cân nặng mỗi sản phẩm.
-        // Hệ thống hiện chỉ dùng cân nặng để kiểm xe có chở nổi hay không; thể tích để 0 theo model Trip hiện tại.
-        BigDecimal totalWeight = BigDecimal.ZERO;
-        BigDecimal totalVolume = BigDecimal.ZERO;
-        for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
-            BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-            totalWeight = totalWeight.add(qty.multiply(weight));
-        }
+        // Bước 5: tính tổng tải chuyến = số lượng dự kiến chuyển * cân nặng/thể tích mỗi sản phẩm.
+        TransferLoad load = calculateTransferLoad(transfer);
+        BigDecimal totalWeight = load.weightKg();
+        BigDecimal totalVolume = load.volumeM3();
 
         // T033: Reject TRIP_CAPACITY_EXCEEDED when weight exceeds capacity
         // Validate: tổng trọng lượng hàng điều chuyển không được vượt tải trọng tối đa của xe.
         if (vehicle.getMaxWeightKg() != null && totalWeight.compareTo(vehicle.getMaxWeightKg()) > 0) {
-            throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
+            throw new BusinessRuleViolationException("VEHICLE_CANNOT_CARRY_TRANSFER_LOAD");
+        }
+        if (vehicle.getMaxVolumeM3() != null && totalVolume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
+            throw new BusinessRuleViolationException("VEHICLE_CANNOT_CARRY_TRANSFER_LOAD");
         }
 
         Map<String, Object> before = helper.snapshot(transfer);
@@ -171,6 +177,42 @@ public class InterWarehouseTransferShippingService {
         return helper.toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
+    public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
+        // Công nhân xem các kệ/bin đã được giữ hàng để biết kệ nào còn bao nhiêu cần lấy.
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
+        helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+        ensureSingleTransferTrip(transfer);
+
+        List<SourceLoadPickItemResponse> items = helper.items(transfer).stream()
+                .map(item -> {
+                    List<SourceLoadPickCandidateResponse> candidates = allocationRepository.findByTransferItemId(item.getId())
+                            .stream()
+                            .map(allocation -> {
+                                Inventory inventory = allocation.getInventory();
+                                WarehouseLocation location = inventory.getLocation();
+                                return new SourceLoadPickCandidateResponse(
+                                        inventory.getId(),
+                                        location.getId(),
+                                        location.getCode(),
+                                        inventory.getBatch().getId(),
+                                        inventory.getBatch().getBatchCode(),
+                                        allocation.getAllocatedQty());
+                            })
+                            .toList();
+                    return new SourceLoadPickItemResponse(
+                            item.getId(),
+                            item.getProduct().getId(),
+                            item.getProduct().getSku(),
+                            item.getProduct().getName(),
+                            item.getPlannedQty(),
+                            candidates);
+                })
+                .toList();
+        return new SourceLoadPickCandidatesResponse(transfer.getId(), items);
+    }
+
     @Transactional
     public InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor) {
         // HÀM CHÍNH: công nhân kho nguồn báo số lượng thực tế đã xếp lên xe.
@@ -209,6 +251,7 @@ public class InterWarehouseTransferShippingService {
             if (row.loadedQty().compareTo(item.getPlannedQty()) != 0) {
                 throw new BusinessRuleViolationException("SOURCE_LOAD_QTY_MUST_MATCH_PLAN");
             }
+            validateSourcePickRows(item, row.picks());
             // Nếu báo cáo lại sau khi xếp lại, số lượng đã chốt gửi cũ bị xóa để thủ kho QC/chốt lại từ đầu.
             item.setLoadedQty(row.loadedQty());
             item.setLoadedReportedBy(actor);
@@ -543,6 +586,68 @@ public class InterWarehouseTransferShippingService {
             throw new BusinessRuleViolationException("SOURCE_LOAD_REWORK_REQUIRED");
         }
     }
+
+    private void validateSourcePickRows(InterWarehouseTransferItem item, List<SourceLoadPickRequest> picks) {
+        // Công nhân phải chọn đúng kệ/bin đã được giữ hàng và nhập đúng số lượng theo từng kệ.
+        if (picks == null || picks.isEmpty()) {
+            throw new BusinessRuleViolationException("SOURCE_PICK_ROWS_REQUIRED");
+        }
+        Map<Long, InterWarehouseTransferAllocation> allocationByInventoryId = allocationRepository.findByTransferItemId(item.getId())
+                .stream()
+                .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(), Function.identity()));
+        if (allocationByInventoryId.isEmpty()) {
+            throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+        }
+
+        Set<Long> seenInventoryIds = new HashSet<>();
+        BigDecimal totalPicked = BigDecimal.ZERO;
+        Map<Long, BigDecimal> pickedByInventory = new HashMap<>();
+        for (SourceLoadPickRequest pick : picks) {
+            if (!seenInventoryIds.add(pick.inventoryId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_SOURCE_PICK_LOCATION");
+            }
+            if (pick.quantity().stripTrailingZeros().scale() > 0) {
+                throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
+            }
+            InterWarehouseTransferAllocation allocation = allocationByInventoryId.get(pick.inventoryId());
+            if (allocation == null) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_LOCATION_NOT_RESERVED");
+            }
+            Inventory inventory = allocation.getInventory();
+            if (!Objects.equals(inventory.getLocation().getId(), pick.locationId())) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_LOCATION_NOT_RESERVED");
+            }
+            if (pick.quantity().compareTo(allocation.getAllocatedQty()) > 0) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_QTY_EXCEEDS_AVAILABLE");
+            }
+            pickedByInventory.put(pick.inventoryId(), pick.quantity());
+            totalPicked = totalPicked.add(pick.quantity());
+        }
+        if (totalPicked.compareTo(item.getPlannedQty()) != 0) {
+            throw new BusinessRuleViolationException("SOURCE_PICK_QTY_MUST_MATCH_PLAN");
+        }
+        for (InterWarehouseTransferAllocation allocation : allocationByInventoryId.values()) {
+            BigDecimal pickedQty = pickedByInventory.getOrDefault(allocation.getInventory().getId(), BigDecimal.ZERO);
+            if (pickedQty.compareTo(allocation.getAllocatedQty()) != 0) {
+                throw new BusinessRuleViolationException("SOURCE_PICK_QTY_MUST_MATCH_RESERVED_BIN");
+            }
+        }
+    }
+
+    private TransferLoad calculateTransferLoad(InterWarehouseTransfer transfer) {
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
+            BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
+            BigDecimal volume = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
+            totalWeight = totalWeight.add(qty.multiply(weight));
+            totalVolume = totalVolume.add(qty.multiply(volume));
+        }
+        return new TransferLoad(totalWeight, totalVolume);
+    }
+
+    private record TransferLoad(BigDecimal weightKg, BigDecimal volumeM3) {}
 
     private void moveSourceToTransit(InterWarehouseTransfer transfer) {
         // HÀM HỖ TRỢ: chuyển tồn thật từ kho nguồn sang kho ảo đang vận chuyển.
