@@ -148,7 +148,7 @@ export const financeService = {
     return response.data;
   },
 
-  createInvoice: async (doId, documentDate, notes) => {
+  createInvoice: async (doId, documentDate) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const notifications = getDb(KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
@@ -214,7 +214,7 @@ export const financeService = {
       addMockAuditLog('INVOICE_CREATED', 'Invoice', newInvoice.id, `Lập hóa đơn ${invoiceNumber} cho đơn hàng ${notification.do_number} - Số tiền: ${totalAmount.toLocaleString()} VND`);
       return newInvoice;
     }
-    const response = await apiClient.post('/invoices', { do_id: doId, document_date: documentDate, notes });
+    const response = await apiClient.post('/invoices', { do_id: doId, document_date: documentDate });
     return response.data;
   },
 
@@ -505,7 +505,6 @@ export const financeService = {
       supplierInvoiceNumber: data.supplierInvoiceNumber,
       documentDate: data.documentDate,
       dueDate: data.dueDate,
-      notes: data.notes,
       confirmedTotalAmount: data.confirmedTotalAmount !== '' && data.confirmedTotalAmount != null
         ? Number(data.confirmedTotalAmount)
         : null
