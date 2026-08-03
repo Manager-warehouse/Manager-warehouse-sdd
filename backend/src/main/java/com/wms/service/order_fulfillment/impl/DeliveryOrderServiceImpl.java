@@ -114,6 +114,7 @@ import com.wms.repository.ReturnedDeliveryFlowRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.entity.billing_payment.AccountingPeriod;
@@ -168,6 +169,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DealerRepository dealerRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductRepository productRepository;
+    private final VehicleRepository vehicleRepository;
     private final InventoryRepository inventoryRepository;
     private final InvoiceRepository invoiceRepository;
     private final OutboundQcRecordRepository outboundQcRecordRepository;
@@ -194,6 +196,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DealerRepository dealerRepository,
             WarehouseRepository warehouseRepository,
             ProductRepository productRepository,
+            VehicleRepository vehicleRepository,
             InventoryRepository inventoryRepository,
             InvoiceRepository invoiceRepository,
             OutboundQcRecordRepository outboundQcRecordRepository,
@@ -219,6 +222,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.dealerRepository = dealerRepository;
         this.warehouseRepository = warehouseRepository;
         this.productRepository = productRepository;
+        this.vehicleRepository = vehicleRepository;
         this.inventoryRepository = inventoryRepository;
         this.invoiceRepository = invoiceRepository;
         this.outboundQcRecordRepository = outboundQcRecordRepository;
@@ -387,6 +391,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         List<ItemPlan> itemPlans = buildItemPlans(request);
+        validateWarehouseFleetCapacity(warehouse.getId(), itemPlans);
         BigDecimal orderValue = itemPlans.stream()
                 .map(ItemPlan::lineAmount)
                 .reduce(ZERO, BigDecimal::add);
@@ -479,6 +484,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             List<DeliveryOrderItem> oldItems = items(order.getId());
             Map<String, Object> before = snapshot(order, null, List.of(), oldItems, List.of());
             List<ItemPlan> itemPlans = buildItemPlans(createLikeRequest);
+            validateWarehouseFleetCapacity(newWarehouse.getId(), itemPlans);
             BigDecimal orderValue = itemPlans.stream()
                     .map(ItemPlan::lineAmount)
                     .reduce(ZERO, BigDecimal::add);
@@ -1657,6 +1663,33 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     value(price.getCostPrice())));
         }
         return plans;
+    }
+
+    private void validateWarehouseFleetCapacity(Long warehouseId, List<ItemPlan> itemPlans) {
+        List<Long> productsWithoutWeight = itemPlans.stream()
+                .filter(plan -> plan.product().getWeightKg() == null
+                        || plan.product().getWeightKg().compareTo(BigDecimal.ZERO) <= 0)
+                .map(plan -> plan.product().getId())
+                .distinct()
+                .toList();
+        if (!productsWithoutWeight.isEmpty()) {
+            throw new OutboundDeliveryException("PRODUCT_WEIGHT_MISSING", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Sản phẩm chưa có trọng lượng hợp lệ, vui lòng cập nhật trọng lượng trước khi tạo phiếu xuất kho.",
+                    Map.of("productIds", productsWithoutWeight));
+        }
+
+        BigDecimal orderWeightKg = itemPlans.stream()
+                .map(plan -> plan.product().getWeightKg().multiply(plan.requestedQty()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal fleetCapacityKg = vehicleRepository.findByWarehouseIdAndIsActiveTrue(warehouseId).stream()
+                .map(vehicle -> value(vehicle.getMaxWeightKg()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (orderWeightKg.compareTo(fleetCapacityKg) > 0) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Tải trọng quá lớn để giao trong 1 lần, vui lòng chia nhỏ đơn thành nhiều phiếu xuất kho để có thể giao hàng.",
+                    Map.of("orderWeightKg", orderWeightKg, "fleetCapacityKg", fleetCapacityKg));
+        }
     }
 
     private void validateCredit(Dealer dealer, BigDecimal orderValue) {

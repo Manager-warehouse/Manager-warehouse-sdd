@@ -112,6 +112,15 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
             throw new UnprocessableEntityException("RECEIPT_NO_SUPPLIER: Receipt does not have an associated supplier");
         }
 
+        // Catches the realistic failure mode (double-submit, pasted the wrong invoice's
+        // number) before it becomes a permanent, uneditable duplicate record.
+        if (supplierInvoiceRepository.existsBySupplierIdAndSupplierInvoiceNumber(
+                supplier.getId(), request.getSupplierInvoiceNumber())) {
+            throw new BusinessRuleViolationException(
+                    "SUPPLIER_INVOICE_NUMBER_ALREADY_USED: Supplier invoice number "
+                            + request.getSupplierInvoiceNumber() + " already recorded for this supplier");
+        }
+
         // 3. Find Open Accounting Period
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)

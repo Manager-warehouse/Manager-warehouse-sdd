@@ -141,6 +141,7 @@ import com.wms.repository.ReturnedDeliveryFlowRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.price_management.PriceHistoryService;
@@ -178,6 +179,7 @@ class DeliveryOrderServiceImplTest {
     @Mock private DealerRepository dealerRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductRepository productRepository;
+    @Mock private VehicleRepository vehicleRepository;
     @Mock private InventoryRepository inventoryRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private OutboundQcRecordRepository outboundQcRecordRepository;
@@ -214,7 +216,7 @@ class DeliveryOrderServiceImplTest {
         service = new DeliveryOrderServiceImpl(deliveryOrderRepository, deliveryOrderItemRepository,
                 allocationRepository, returnToBinRecordRepository, replacementRepository,
                 deliveryOrderWarehouseApprovalRepository,
-                dealerRepository, warehouseRepository, productRepository, inventoryRepository,
+                dealerRepository, warehouseRepository, productRepository, vehicleRepository, inventoryRepository,
                 invoiceRepository, outboundQcRecordRepository, returnedDeliveryFlowRepository,
                 quarantineRecordRepository, adjustmentRepository,
                 priceHistoryRepository, reservationRepository, assignmentRepository,
@@ -235,6 +237,89 @@ class DeliveryOrderServiceImplTest {
         bin = bin(801L, warehouse, zone);
         batch = batch(71L, product, warehouse);
         inventory = inventory(501L, warehouse, product, batch, bin, new BigDecimal("15.00"), ZERO);
+        lenient().when(vehicleRepository.findByWarehouseIdAndIsActiveTrue(20L))
+                .thenReturn(List.of(vehicle(91L, warehouse, VehicleStatus.AVAILABLE, new BigDecimal("100000.00"))));
+    }
+
+    @Test
+    void createDeliveryOrder_rejectsWeightAboveCombinedActiveFleetCapacityWithoutMutation() {
+        stubCreateUntilCredit();
+        product.setWeightKg(new BigDecimal("10.000"));
+        when(vehicleRepository.findByWarehouseIdAndIsActiveTrue(20L)).thenReturn(List.of(
+                vehicle(91L, warehouse, VehicleStatus.AVAILABLE, new BigDecimal("40.00")),
+                vehicle(92L, warehouse, VehicleStatus.ON_TRIP, new BigDecimal("30.00")),
+                vehicle(93L, warehouse, VehicleStatus.MAINTENANCE, new BigDecimal("29.99"))));
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(outbound.getMessage()).isEqualTo(
+                            "Tải trọng quá lớn để giao trong 1 lần, vui lòng chia nhỏ đơn thành nhiều phiếu xuất kho để có thể giao hàng.");
+                });
+        verify(deliveryOrderRepository, never()).saveAndFlush(any());
+        verify(reservationRepository, never()).save(any());
+        verify(auditUtil, never()).logChange(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createDeliveryOrder_allowsWeightEqualToCombinedFleetCapacityAcrossAllStatuses() {
+        stubSuccessfulCreate(new BigDecimal("100.00"));
+        product.setWeightKg(new BigDecimal("10.000"));
+        when(vehicleRepository.findByWarehouseIdAndIsActiveTrue(20L)).thenReturn(List.of(
+                vehicle(91L, warehouse, VehicleStatus.AVAILABLE, new BigDecimal("40.00")),
+                vehicle(92L, warehouse, VehicleStatus.ON_TRIP, new BigDecimal("30.00")),
+                vehicle(93L, warehouse, VehicleStatus.MAINTENANCE, new BigDecimal("30.00"))));
+
+        DeliveryOrderResponse response = service.createDeliveryOrder(
+                validRequest(new BigDecimal("10.00")), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
+        verify(vehicleRepository).findByWarehouseIdAndIsActiveTrue(20L);
+    }
+
+    @Test
+    void createDeliveryOrder_rejectsProductWithoutPositiveWeight() {
+        stubCreateUntilCredit();
+        product.setWeightKg(null);
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("PRODUCT_WEIGHT_MISSING");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                });
+        verify(deliveryOrderRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void plannerUpdateDeliveryOrder_rejectsWeightAboveFleetCapacityWithoutChangingReservations() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem oldItem = item(order, product, new BigDecimal("5.00"));
+        product.setWeightKg(new BigDecimal("10.000"));
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(warehouseRepository.findById(20L)).thenReturn(Optional.of(warehouse));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(oldItem));
+        when(productRepository.findByIdAndIsActiveTrue(30L)).thenReturn(Optional.of(product));
+        when(priceHistoryService.lookupApproved(eq(30L), eq(20L), any(LocalDate.class)))
+                .thenReturn(Optional.of(price));
+        when(vehicleRepository.findByWarehouseIdAndIsActiveTrue(20L)).thenReturn(List.of(
+                vehicle(91L, warehouse, VehicleStatus.ON_TRIP, new BigDecimal("79.99"))));
+
+        assertThatThrownBy(() -> service.updateDeliveryOrder(100L, updateRequest(), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY");
+        verify(deliveryOrderItemRepository, never()).deleteAll(any());
+        verify(reservationRepository, never()).save(any());
+        verify(deliveryOrderRepository, never()).save(any());
+        verify(auditUtil, never()).logChange(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -2207,8 +2292,19 @@ class DeliveryOrderServiceImplTest {
     private Product product(Long id) {
         Product product = new Product();
         product.setId(id);
+        product.setWeightKg(BigDecimal.ONE);
         product.setIsActive(true);
         return product;
+    }
+
+    private Vehicle vehicle(Long id, Warehouse warehouse, VehicleStatus status, BigDecimal maxWeightKg) {
+        Vehicle vehicle = new Vehicle();
+        vehicle.setId(id);
+        vehicle.setWarehouse(warehouse);
+        vehicle.setStatus(status);
+        vehicle.setMaxWeightKg(maxWeightKg);
+        vehicle.setIsActive(true);
+        return vehicle;
     }
 
     private PriceHistory price(Product product, BigDecimal sellingPrice) {

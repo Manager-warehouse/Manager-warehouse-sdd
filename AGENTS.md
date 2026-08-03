@@ -207,7 +207,7 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: .sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/plan.md -->
+<!-- Active Plan: .sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/plan.md -->
 <!-- SPECKIT END -->
 
 <!-- gitnexus:start -->
