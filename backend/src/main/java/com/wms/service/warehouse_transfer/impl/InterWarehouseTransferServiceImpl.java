@@ -133,7 +133,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
 
     @Override
     public SourceLoadPickCandidatesResponse getSourceLoadPickCandidates(Long id, User actor) {
-        // Công nhân xem các kệ/bin đã giữ hàng để chọn đúng vị trí khi bốc hàng.
+        // Công nhân xem các kệ/bin còn tồn của SKU để chọn đúng vị trí khi bốc hàng.
         return shippingService.getSourceLoadPickCandidates(id, actor);
     }
 

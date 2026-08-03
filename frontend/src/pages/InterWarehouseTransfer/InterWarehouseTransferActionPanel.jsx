@@ -738,7 +738,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               {sourceLoadReworkRequired || outboundQcFailed ? 'BƯỚC 1: XỬ LÝ LẠI HÀNG XẾP' : 'BƯỚC 1: CÔNG NHÂN CHỌN KỆ VÀ BỐC HÀNG'}
             </div>
             <div className="text-xs text-shade-60 mt-1">
-              Chọn đúng kệ/bin đã giữ hàng và nhập số lượng lấy ở từng kệ. Tổng lấy phải khớp kế hoạch trước khi gửi thủ kho QC xuất.
+              Chọn kệ đang có tồn của đúng SKU và nhập số lượng lấy ở từng kệ. Tổng lấy phải khớp kế hoạch trước khi gửi thủ kho QC xuất.
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3">
@@ -766,22 +766,22 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   </div>
                   <div className="px-3 py-3">
                     {candidates.length === 0 ? (
-                      <div className="text-xs text-danger-700">Chưa có kệ đã giữ hàng cho dòng này.</div>
+                      <div className="text-xs text-danger-700">Chưa có kệ còn tồn để lấy cho dòng này.</div>
                     ) : (
                       <div className="flex flex-col gap-2">
                         {(row.picks || []).map((pick, pickIndex) => {
                           const candidate = candidates.find((line) => Number(line.inventoryId) === Number(pick.inventoryId));
                           const options = [
-                            { value: '', label: 'Chọn kệ đã giữ' },
+                            { value: '', label: 'Chọn kệ lấy hàng' },
                             ...candidates.map((line) => ({
                               value: line.inventoryId,
-                              label: `${line.locationCode} - đã giữ ${line.availableQty}`,
+                              label: `${line.locationCode} - tồn: ${line.availableQty}`,
                               disabled: usedInventoryIds.has(Number(line.inventoryId)) && Number(line.inventoryId) !== Number(pick.inventoryId),
                             })),
                           ];
                           return (
-                            <div key={`${row.transferItemId}-${pickIndex}`} className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_120px_40px] gap-2 items-end rounded-md border border-hairline-light bg-canvas-cream/40 px-2.5 py-2">
-                              <div className="grid grid-cols-1 sm:grid-cols-[minmax(180px,1fr)_auto] gap-2 items-end">
+                            <div key={`${row.transferItemId}-${pickIndex}`} className="rounded-md border border-hairline-light bg-canvas-cream/40 p-3">
+                              <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2 items-end">
                                 <Input
                                   label="Kệ lấy hàng"
                                   type="select"
@@ -789,28 +789,36 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                                   options={options}
                                   onChange={(e) => setLoadPickLocation(row.transferItemId, pickIndex, e.target.value)}
                                 />
-                                <div className="rounded-md border border-hairline-light bg-canvas-light px-3 py-2 min-h-[44px] text-xs">
-                                  <div className="font-semibold text-ink">Đã giữ: {candidate?.availableQty ?? 0}</div>
-                                  <div className="text-shade-50 truncate">Batch: {candidate?.batchCode || candidate?.batchId || '-'}</div>
-                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline-light"
+                                  icon={Trash2}
+                                  disabled={(row.picks || []).length <= 1}
+                                  className="h-[44px] w-10 p-0"
+                                  onClick={() => removeLoadPick(row.transferItemId, pickIndex)}
+                                />
                               </div>
-                              <Input
-                                label="SL lấy"
-                                type="number"
-                                min="0"
-                                step="1"
-                                max={candidate?.availableQty ?? undefined}
-                                value={pick.quantity ?? ''}
-                                onChange={(e) => setLoadPickQty(row.transferItemId, pickIndex, e.target.value)}
-                              />
-                              <Button
-                                type="button"
-                                variant="outline-light"
-                                icon={Trash2}
-                                disabled={(row.picks || []).length <= 1}
-                                className="h-[44px] w-10 p-0"
-                                onClick={() => removeLoadPick(row.transferItemId, pickIndex)}
-                              />
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px] gap-2 items-end">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                  <div className="rounded-md border border-hairline-light bg-canvas-light px-3 py-2">
+                                    <div className="text-shade-50">Tồn kệ có thể lấy</div>
+                                    <div className="font-semibold text-ink">{candidate?.availableQty ?? '-'}</div>
+                                  </div>
+                                  <div className="rounded-md border border-hairline-light bg-canvas-light px-3 py-2 min-w-0">
+                                    <div className="text-shade-50">Batch</div>
+                                    <div className="font-semibold text-ink truncate">{candidate?.batchCode || candidate?.batchId || '-'}</div>
+                                  </div>
+                                </div>
+                                <Input
+                                  label="SL lấy"
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  max={candidate?.availableQty ?? undefined}
+                                  value={pick.quantity ?? ''}
+                                  onChange={(e) => setLoadPickQty(row.transferItemId, pickIndex, e.target.value)}
+                                />
+                              </div>
                             </div>
                           );
                         })}
@@ -847,8 +855,12 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 addToast('Cần chọn kệ để lấy hàng cho mọi dòng.', 'error');
                 return;
               }
-              if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !Number.isFinite(Number(pick.quantity)) || Number(pick.quantity) < 0))) {
-                addToast('Số lượng lấy ở từng kệ phải lớn hơn hoặc bằng 0.', 'error');
+              if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !pick.inventoryId || !pick.locationId))) {
+                addToast('Cần chọn kệ lấy hàng cho mọi dòng.', 'error');
+                return;
+              }
+              if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !Number.isFinite(Number(pick.quantity)) || Number(pick.quantity) <= 0))) {
+                addToast('Số lượng lấy ở từng kệ phải lớn hơn 0.', 'error');
                 return;
               }
               if (displayedLoadRows.some((row) => (row.picks || []).some((pick) => !isWholeNumber(pick.quantity)))) {

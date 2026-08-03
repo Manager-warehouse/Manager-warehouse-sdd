@@ -86,6 +86,7 @@ import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.SourceLoadPickCandidatesResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.driver_management.Driver;
@@ -592,6 +593,20 @@ class InterWarehouseTransferServiceImplTest {
                 new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), ""), sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("SOURCE_PICK_ROWS_REQUIRED");
+    }
+
+    @Test
+    void sourceFlow_pickCandidatesShowBinStockAvailableForTransferNotReservedSplit() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        SourceLoadPickCandidatesResponse candidates = service.getSourceLoadPickCandidates(1L, sourceManager);
+
+        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
+        assertThat(candidates.items()).hasSize(1);
+        assertThat(candidates.items().get(0).candidates()).hasSize(1);
+        assertThat(candidates.items().get(0).candidates().get(0).availableQty()).isEqualByComparingTo("20.00");
     }
 
     @Test
@@ -1561,7 +1576,7 @@ class InterWarehouseTransferServiceImplTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
-                case "findReservableForUpdate" -> List.of(sourceInventory);
+                case "findReservableForUpdate", "findPickCandidates" -> List.of(sourceInventory);
                 case "findByIdForUpdate" -> Optional.of(findInventoryById((Long) args[0]));
                 case "findByStockKeyForUpdate" -> Optional
                         .ofNullable(findInventoryByKey((Long) args[0], (Long) args[1], (Long) args[2], (Long) args[3]));
@@ -1767,7 +1782,14 @@ class InterWarehouseTransferServiceImplTest {
                     saved.add((InterWarehouseTransferAllocation) args[0]);
                     yield args[0];
                 }
-                case "findByTransferItemTransferId", "findByTransferItemId" -> saved;
+                case "findByTransferItemTransferId" -> saved;
+                case "findByTransferItemId" -> saved.stream()
+                        .filter(allocation -> allocation.getTransferItem().getId().equals((Long) args[0]))
+                        .toList();
+                case "deleteByTransferItemId" -> {
+                    saved.removeIf(allocation -> allocation.getTransferItem().getId().equals((Long) args[0]));
+                    yield null;
+                }
                 case "deleteByTransferItemTransferId" -> {
                     saved.clear();
                     yield null;
