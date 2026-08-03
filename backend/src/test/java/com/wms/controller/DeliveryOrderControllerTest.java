@@ -175,6 +175,24 @@ class DeliveryOrderControllerTest {
 
     @Test
     @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void createDeliveryOrder_returnsFleetCapacityErrorMessage() throws Exception {
+        String message = "Tải trọng quá lớn để giao trong 1 lần, vui lòng chia nhỏ đơn thành nhiều phiếu xuất kho để có thể giao hàng.";
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.createDeliveryOrder(any(), eq(planner)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY",
+                        HttpStatus.UNPROCESSABLE_ENTITY, message));
+
+        mockMvc.perform(post("/api/v1/delivery-orders")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY"))
+                .andExpect(jsonPath("$.message").value(message));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
     void createDeliveryOrder_translatesDataIntegrityError() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
         when(deliveryOrderService.createDeliveryOrder(any(), eq(planner)))
@@ -218,6 +236,23 @@ class DeliveryOrderControllerTest {
                         .content(updateJson()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_UPDATE_FORBIDDEN"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void updateDeliveryOrder_returnsMissingProductWeightError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.updateDeliveryOrder(eq(100L), any(), eq(planner)))
+                .thenThrow(new OutboundDeliveryException("PRODUCT_WEIGHT_MISSING",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Sản phẩm chưa có trọng lượng hợp lệ, vui lòng cập nhật trọng lượng trước khi tạo phiếu xuất kho."));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PRODUCT_WEIGHT_MISSING"));
     }
 
     @Test

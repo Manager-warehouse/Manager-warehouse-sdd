@@ -192,6 +192,61 @@ Rationale:
 * Driver mobile screens can query the current `IN_TRANSIT` attempt after departure.
 * Cancellation or update of a `PLANNED` trip does not need to clean up unused delivery attempts.
 
+## 5A. Split Delivery Plan for One Overloaded Delivery Order
+
+This restored scope covers the Dispatcher workflow for one Delivery Order that cannot fit into one vehicle. The Dispatcher must allocate the whole Delivery Order across multiple vehicles in one planning action, and those vehicles must depart together.
+
+### Functional requirements
+
+* The system SHALL allow Dispatcher users to create one split delivery plan for a single Delivery Order when the full shipment exceeds the capacity of one available vehicle.
+* The system SHALL allocate all requested Delivery Order item quantities across two or more vehicle legs in one create/update request; partial split plans are invalid.
+* All split delivery legs for the same Delivery Order SHALL share the same source warehouse and planned departure time.
+* Every vehicle and driver assigned to a split delivery leg SHALL be active, in the same warehouse, `AVAILABLE`, and not assigned to another active regular trip or split delivery plan.
+* Vehicle IDs, driver IDs, and leg `stopOrder` values SHALL be unique inside one split delivery plan.
+* Each leg SHALL pass the same capacity validation as a normal trip: weight is mandatory, volume is validated only when `vehicle.maxVolumeM3` is configured.
+* The selected `leadDriverId` SHALL be one of the assigned split-leg drivers.
+* A Delivery Order assigned to an active split delivery plan SHALL NOT be assigned to a regular active trip or another active split delivery plan.
+* All split drivers SHALL confirm readiness before coordinated departure.
+* The lead driver SHALL be the only driver allowed to trigger coordinated departure for the split plan.
+* At coordinated departure, the backend SHALL revalidate all vehicles and drivers are still ready. If a vehicle becomes unavailable before departure, Dispatcher MAY update the plan to use another eligible vehicle.
+* When no eligible replacement vehicle exists, the system SHALL reject creation/departure with a clear wait-for-ready-vehicle business message such as `SPLIT_NO_READY_VEHICLE`.
+* Coordinated departure SHALL move the Delivery Order's staged quantity to virtual `IN_TRANSIT` once and create exactly one current Delivery attempt for the Delivery Order.
+* The system SHALL create `SPLIT_DELIVERY_PLAN_CREATE`, `SPLIT_DELIVERY_PLAN_UPDATE`, `SPLIT_DELIVERY_PLAN_CANCEL`, `SPLIT_DELIVERY_DRIVER_READY`, and `SPLIT_DELIVERY_DEPART` audit logs.
+
+### Split API endpoints
+
+* `POST /api/v1/split-delivery-plans` - Dispatcher creates a coordinated multi-vehicle plan for one overloaded Delivery Order.
+* `PUT /api/v1/split-delivery-plans/{id}` - Dispatcher revises a planned split delivery plan before departure.
+* `PUT /api/v1/split-delivery-plans/{id}/cancel` - Dispatcher cancels a planned split delivery plan.
+* `PUT /api/v1/split-delivery-plans/{id}/driver-readiness` - Assigned split driver confirms that their vehicle/leg is ready.
+* `PUT /api/v1/split-delivery-plans/{id}/depart` - Lead driver confirms all vehicles depart together after every split leg is ready.
+
+### Split create/update payload
+
+`POST /api/v1/split-delivery-plans` and `PUT /api/v1/split-delivery-plans/{id}` SHALL accept:
+
+* `deliveryOrderId` - Single Delivery Order that cannot fit in one vehicle.
+* `plannedDepartureAt` - Shared planned departure timestamp for every leg.
+* `leadDriverId` - Driver responsible for coordinated departure and later POD/OTP flow.
+* `notes` - Optional dispatch notes.
+* `legs[]` - Two or more vehicle allocations:
+  * `vehicleId`
+  * `driverId`
+  * `stopOrder`
+  * `items[]`
+    * `deliveryOrderItemId`
+    * `productId`
+    * `batchId`
+    * `quantity`
+
+Validation rules:
+
+* Sum of every `items[].quantity` by Delivery Order item SHALL equal the item requested quantity.
+* Each leg SHALL contain at least one item quantity.
+* The Delivery Order SHALL be `WAREHOUSE_APPROVED`, fully QC-passed, and assigned to the Dispatcher's warehouse.
+* A planned split update SHALL replace the full leg list and re-run all allocation, warehouse, readiness, active-assignment, capacity, and lead-driver validations.
+* Cancelling a planned split plan SHALL cancel linked planned leg trips and keep the Delivery Order in `WAREHOUSE_APPROVED`.
+
 ## 6. Acceptance Criteria
 
 * **Scenario: Create trip from approved orders**
@@ -246,3 +301,27 @@ Rationale:
   * When the assigned driver confirms the vehicle has returned to the source warehouse
   * Then the system SHALL mark the trip as `COMPLETED`, mark vehicle/driver as `AVAILABLE`, and keep any returned goods in virtual In-Transit for the separate return flow.
   * And the returned Delivery Order SHALL remain `RETURNED` until warehouse staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway confirmation are complete.
+
+* **Scenario: Split one overloaded Delivery Order across multiple vehicles**
+  * Given one Delivery Order is `WAREHOUSE_APPROVED` and its full weight exceeds one selected vehicle capacity
+  * And multiple ready vehicles and drivers in the same warehouse can cover the full quantity together
+  * When Dispatcher submits a split delivery plan with full item allocation across all legs
+  * Then the system SHALL create one split plan in `PLANNED`, create one planned leg trip per vehicle, keep the Delivery Order in `WAREHOUSE_APPROVED`, and audit `SPLIT_DELIVERY_PLAN_CREATE`.
+
+* **Scenario: Require full allocation in one split plan**
+  * Given Dispatcher allocates only part of the Delivery Order quantity across split legs
+  * When the split plan is submitted
+  * Then the system SHALL reject the plan with `SPLIT_ALLOCATION_INCOMPLETE`.
+
+* **Scenario: Coordinated split departure**
+  * Given every split driver has confirmed readiness
+  * When the lead driver confirms departure
+  * Then all leg trips SHALL depart together, all vehicles/drivers SHALL become `ON_TRIP`, the Delivery Order SHALL move to `IN_TRANSIT`, and exactly one current Delivery attempt SHALL be created for the Delivery Order.
+
+* **Scenario: Vehicle unavailable before split departure**
+  * Given a split plan is still `PLANNED`
+  * And one assigned vehicle becomes unavailable before departure
+  * When Dispatcher edits the plan with another eligible vehicle
+  * Then the system SHALL revalidate and save the revised planned split plan.
+  * When no eligible replacement vehicle exists
+  * Then the system SHALL reject departure or creation with a clear wait-for-ready-vehicle message.

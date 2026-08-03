@@ -51,7 +51,7 @@ const TransferRequestWorkspace = () => {
   const minNeededByDate = todayInputValue();
 
   // Detail & Approval State
-  // State modal chi tiết/phê duyệt/từ chối của CEO/Planner.
+  // State modal chi tiết/phê duyệt/từ chối của Quản lý kho nguồn/Planner.
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -238,7 +238,7 @@ const TransferRequestWorkspace = () => {
       addToast('Vui lòng chọn kho nguồn điều chuyển', 'warning');
       return;
     }
-    // Lý do nghiệp vụ là căn cứ để CEO duyệt/từ chối yêu cầu.
+    // Lý do nghiệp vụ là căn cứ để kho nguồn duyệt/từ chối yêu cầu.
     if (!businessReason.trim()) {
       addToast('Vui lòng nhập lý do nghiệp vụ cho yêu cầu', 'warning');
       return;
@@ -274,7 +274,7 @@ const TransferRequestWorkspace = () => {
       return;
     }
     const uniqueProductIds = new Set(filteredItems.map((item) => String(item.productId)));
-    // Không trùng SKU để CEO/Planner đọc một dòng là một nhu cầu rõ ràng.
+    // Không trùng SKU để kho nguồn/Planner đọc một dòng là một nhu cầu rõ ràng.
     if (uniqueProductIds.size !== filteredItems.length) {
       addToast('Không được chọn trùng SKU trong cùng yêu cầu', 'warning');
       return;
@@ -332,9 +332,9 @@ const TransferRequestWorkspace = () => {
   const handleSubmitRequest = async (id) => {
     setLoading(true);
     try {
-      // Submit chỉ đẩy TRQ lên CEO duyệt; backend sẽ kiểm lại trạng thái, ngày cần hàng và tồn nguồn.
+      // Submit chỉ đẩy TRQ lên Quản lý kho nguồn duyệt; backend kiểm lại trạng thái, ngày cần hàng và tồn nguồn.
       await interWarehouseTransferService.submitTransferRequest(id);
-      addToast('Đã gửi yêu cầu điều chuyển lên CEO phê duyệt', 'success');
+      addToast('Đã gửi yêu cầu điều chuyển lên Quản lý kho nguồn phê duyệt', 'success');
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
@@ -364,9 +364,9 @@ const TransferRequestWorkspace = () => {
   const handleApproveRequest = async (id) => {
     setSubmitting(true);
     try {
-      // CEO approve trên UI không tự tạo TRF; backend có thể auto-cancel nếu TRQ đã quá neededByDate.
+      // Quản lý kho nguồn duyệt sẽ giữ hàng ngay; backend có thể auto-cancel nếu TRQ đã quá neededByDate.
       await interWarehouseTransferService.approveTransferRequest(id);
-      addToast('CEO đã duyệt yêu cầu điều chuyển', 'success');
+      addToast('Quản lý kho nguồn đã duyệt và giữ hàng cho yêu cầu điều chuyển', 'success');
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
@@ -398,7 +398,7 @@ const TransferRequestWorkspace = () => {
   const handleConvertRequest = async (id) => {
     setLoading(true);
     try {
-      // Convert là cầu nối TRQ -> TRF; backend chặn convert lặp và chỉ cho TRQ APPROVED đi tiếp.
+      // Convert là cầu nối TRQ -> TRF; với TRQ đã duyệt, backend dùng lại TRF đã giữ hàng.
       await interWarehouseTransferService.convertTransferRequest(id);
       addToast('Planner đã chuyển đổi yêu cầu thành phiếu điều chuyển TRF thành công', 'success');
       fetchData();
@@ -589,7 +589,7 @@ const TransferRequestWorkspace = () => {
                       onClick={() => handleSubmitRequest(req.id)}
                       icon={Send}
                     >
-                      Gửi CEO duyệt
+                      Gửi kho nguồn duyệt
                     </Button>
                   </>
                 )}
@@ -839,8 +839,9 @@ const TransferRequestWorkspace = () => {
                 </div>
               </div>
 
-              {/* CEO Reject Input panel */}
-              {selectedRequest.status === 'SUBMITTED' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (
+              {/* Source manager Reject Input panel */}
+              {selectedRequest.status === 'SUBMITTED'
+                && (hasRole(ROLES.ADMIN) || (hasRole(ROLES.WAREHOUSE_MANAGER) && Number(activeWarehouse?.id) === Number(selectedRequest.sourceWarehouseId))) && (
                 <div className="bg-danger-50/50 p-4 border border-danger-200 rounded flex flex-col gap-2">
                   <label className="font-bold text-danger-800 flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" />
@@ -872,13 +873,14 @@ const TransferRequestWorkspace = () => {
                     icon={Send}
                     onClick={() => handleSubmitRequest(selectedRequest.id)}
                   >
-                    Gửi CEO duyệt
+                    Gửi kho nguồn duyệt
                   </Button>
                 </>
               )}
 
-              {/* CEO Actions */}
-              {selectedRequest.status === 'SUBMITTED' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (
+              {/* Source Manager Actions */}
+              {selectedRequest.status === 'SUBMITTED'
+                && (hasRole(ROLES.ADMIN) || (hasRole(ROLES.WAREHOUSE_MANAGER) && Number(activeWarehouse?.id) === Number(selectedRequest.sourceWarehouseId))) && (
                 <>
                   <Button
                     variant="outline-light"

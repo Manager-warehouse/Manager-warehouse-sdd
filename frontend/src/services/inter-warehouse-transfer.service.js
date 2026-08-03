@@ -582,12 +582,9 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
-  receivingHandover: async (id, payload) => {
-    const uploaded = payload.photoFile
-      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
-      : null;
+  receivingHandover: async (id, payload = {}) => {
     const request = {
-      photoRef: uploaded?.photoRef || payload.photoRef || payload.arrivalHandoverPhotoRef,
+      photoRef: payload.photoRef || payload.arrivalHandoverPhotoRef || null,
     };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
@@ -637,7 +634,7 @@ export const interWarehouseTransferService = {
   },
 
   // --- TRANSFER REQUESTS (US4) ---
-  // TRQ là bước đề xuất của trưởng kho: không reserve tồn cho đến khi đã convert thành TRF và kho nguồn duyệt.
+  // TRQ là bước đề xuất của trưởng kho đích; kho nguồn duyệt thì backend giữ hàng ngay, Planner chỉ chốt sang TRF.
   getTransferRequests: async () => {
     if (useMock) {
       const raw = localStorage.getItem('wms_db_transfer_requests');

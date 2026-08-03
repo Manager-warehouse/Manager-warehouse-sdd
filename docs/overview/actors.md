@@ -48,7 +48,7 @@
   - _"Tỷ lệ hàng lỗi QC tháng này có tăng không?"_
   - _"Hiệu suất giao hàng đúng hạn (On-Time Delivery) có đảm bảo SLA không?"_
 - Phê duyệt các thay đổi cấu hình hệ thống quan trọng (thêm kho mới, thay đổi hạn mức công nợ Đại lý VIP).
-- Phê duyệt hoặc từ chối yêu cầu điều chuyển liên kho do Trưởng kho đề xuất; CEO approval chỉ tạo cơ sở cho Planner lập `TRF-*`, không giữ chỗ hoặc dịch chuyển inventory.
+- Xem/giám sát yêu cầu điều chuyển liên kho do Trưởng kho đề xuất; CEO không approve/reject `TRQ` trong luồng điều chuyển nội bộ hiện tại.
 - Xem và chốt hồ sơ chênh lệch điều chuyển tại `/transfers/discrepancies`; quyết định này ghi trách nhiệm/giải trình và audit, không tự sửa tồn kho.
 
 **User Stories liên quan:** US-WMS-01, US-WMS-11A, US-WMS-18
@@ -76,7 +76,7 @@
 **Nghiệp vụ:**
 
 - Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → mở khóa putaway; hệ thống chỉ cộng tồn kho sau khi Thủ kho cất hàng vào Bin.
-- Khi kho mình thiếu hàng, xem tồn khả dụng liên kho ở chế độ read-only và tạo yêu cầu điều chuyển gửi CEO duyệt.
+- Khi kho mình thiếu hàng, xem tồn khả dụng liên kho ở chế độ read-only và tạo yêu cầu điều chuyển gửi Trưởng kho nguồn duyệt.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
 - Xem/chốt hồ sơ thiếu/thừa điều chuyển liên quan tới kho mình phụ trách; hàng thiếu chỉ là discrepancy/adjustment, không vào Quarantine và không bị kẹt trong kho.
@@ -126,7 +126,7 @@
 
 **Điều chuyển:**
 
-- Nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm hoặc yêu cầu điều chuyển đã được CEO duyệt → Tạo Phiếu điều chuyển kho nội bộ thủ công (`TRF-*`) trên màn Điều chuyển nội bộ.
+- Nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm hoặc yêu cầu điều chuyển đã được Trưởng kho nguồn duyệt/giữ hàng → Chốt hoặc tạo Phiếu điều chuyển kho nội bộ (`TRF-*`) trên màn Điều chuyển nội bộ.
 
 **User Stories liên quan:** US-WMS-02, US-WMS-06, US-WMS-11, US-WMS-12, US-WMS-26
 
@@ -298,9 +298,9 @@ Công ty mẹ gửi yêu cầu xuất hàng
 
 ```
 Trưởng kho kho thiếu hàng có thể xem tồn liên kho read-only
-    → Tạo yêu cầu điều chuyển gửi CEO nếu cần
-    → CEO duyệt/từ chối; nếu duyệt, Planner kho nguồn/trung tâm nhận mẫu đã duyệt
-Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được CEO duyệt
+    → Tạo yêu cầu điều chuyển gửi Trưởng kho nguồn nếu cần
+    → Trưởng kho nguồn duyệt/từ chối; nếu duyệt, hệ thống giữ hàng ngay và Planner nhận mẫu đã duyệt
+Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được Trưởng kho nguồn duyệt
     → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
     → Trưởng kho nguồn kiểm tra tồn khả dụng FIFO eligible → Duyệt và khóa hàng [Đã duyệt]
     → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/trùng lịch

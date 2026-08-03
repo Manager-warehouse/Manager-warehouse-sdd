@@ -56,8 +56,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -218,10 +216,17 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
             audit(actor, AuditAction.SPLIT_DELIVERY_DRIVER_READY, plan, null,
                     Map.of("splitPlanId", plan.getId(), "driverId", leg.getDriver().getId()));
         }
+        return toResponse(plan);
+    }
+
+    @Override
+    @Transactional
+    public SplitDeliveryPlanResponse departPlan(Long id, User actor) {
+        SplitDeliveryPlan plan = loadPlan(id);
+        requireLeadDriver(actor, plan);
+        requirePlanned(plan);
         List<SplitDeliveryLeg> legs = splitLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId());
-        if (legs.stream().allMatch(item -> item.getReadinessConfirmedAt() != null)) {
-            departAllLegs(plan, legs, actor);
-        }
+        departAllLegs(plan, legs, actor);
         return toResponse(plan);
     }
 
@@ -613,8 +618,23 @@ public class SplitDeliveryPlanServiceImpl implements SplitDeliveryPlanService {
         if (legs.stream().anyMatch(leg -> leg.getReadinessConfirmedAt() == null)) {
             throw rule("SPLIT_DELIVERY_INCOMPLETE", "All split drivers must confirm readiness");
         }
+        if (legs.stream().anyMatch(leg -> leg.getVehicle().getStatus() != VehicleStatus.AVAILABLE)) {
+            throw rule("SPLIT_VEHICLE_NOT_AVAILABLE", "Cho co xe san sang de tao ke hoach giao hang");
+        }
+        if (legs.stream().anyMatch(leg -> leg.getDriver().getStatus() != DriverStatus.AVAILABLE)) {
+            throw rule("DRIVER_NOT_AVAILABLE", "Driver is not available in the selected warehouse");
+        }
         if (plan.getDeliveryOrder().getStatus() != DeliveryOrderStatus.WAREHOUSE_APPROVED) {
             throw rule("TRIP_NOT_READY_TO_DEPART", "Delivery Order must still be WAREHOUSE_APPROVED");
+        }
+    }
+
+    private void requireLeadDriver(User actor, SplitDeliveryPlan plan) {
+        if (plan.getLeadDriver() == null
+                || plan.getLeadDriver().getUser() == null
+                || !Objects.equals(plan.getLeadDriver().getUser().getId(), actor.getId())) {
+            throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN,
+                    "Only the lead driver can depart a split delivery plan");
         }
     }
 

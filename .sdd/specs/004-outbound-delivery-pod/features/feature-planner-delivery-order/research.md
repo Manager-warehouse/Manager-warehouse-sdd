@@ -41,3 +41,21 @@
 **Rationale**: When selected warehouse stock is insufficient, the API rejects creation with a clear insufficient-stock reason only. It does not return candidate warehouses with enough availability because Planner warehouse scope and business intent are explicit, and this feature must not redirect planning decisions to another warehouse.
 
 **Alternatives considered**: Returning read-only cross-warehouse hints was rejected because it can encourage creating the order against a different warehouse outside this feature's selected-warehouse flow.
+
+## Decision: Fleet ceiling counts every active vehicle assigned to the selected warehouse
+
+**Rationale**: This validation answers whether one Delivery Order can ever be fulfilled in one coordinated delivery wave with the warehouse's current fleet. Therefore it sums `vehicles.max_weight_kg` for all active vehicles assigned to that warehouse, including vehicles currently ready, busy, on trip, or under maintenance. Operational status affects when Dispatcher can plan the delivery, not the warehouse's maximum fleet ceiling.
+
+**Alternatives considered**: Counting only currently ready vehicles was rejected because temporary unavailability should produce a wait/replan outcome in Dispatcher flow, not force Planner to split a Delivery Order. Counting inactive or another warehouse's vehicles was rejected because those vehicles are not part of the selected warehouse fleet.
+
+## Decision: Product weight is mandatory for fleet-capacity validation
+
+**Rationale**: Delivery Order total weight is calculated as `sum(requested_qty * products.weight_kg)`. Treating a missing or non-positive product weight as zero could allow an unsafe oversized order, so create/update is rejected with `PRODUCT_WEIGHT_MISSING` before persistence or reservation mutation.
+
+**Alternatives considered**: Defaulting missing weight to zero or estimating from product category was rejected because both understate payload and are not auditable master-data values.
+
+## Decision: Capacity guard runs before persistence and reservation mutation
+
+**Rationale**: A rejected create/update must leave Delivery Order data, planner-level reservations, concrete inventory, and success audit history unchanged. The service performs role/scope and request/master-data validation, calculates order and fleet weight, and rejects before applying reservation deltas or saving the order.
+
+**Alternatives considered**: Creating then cancelling the order was rejected because it creates unnecessary transaction history and reservation churn for a request that was never valid.

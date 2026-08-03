@@ -36,7 +36,7 @@ Successful Driver Mobile POD confirmation must automatically create exactly one 
 |-----------|--------|-------|
 | Layered Architecture | PASS | Internal service owns invoice/receivable logic, repositories remain persistence-only, driver controller only triggers through confirm-delivery. |
 | Inventory Integrity | PASS | This feature participates in the same confirm-delivery transaction and does not bypass inventory updates. |
-| FIFO Batch Selection | PASS | Invoice uses Delivery Order item snapshots and does not alter batch allocation rules. |
+| Batch Candidate Ordering | PASS | Invoice uses Delivery Order item snapshots and does not alter Storekeeper batch selection. |
 | QC Gate & Quarantine | PASS | Invoice is created only after successful full POD + OTP confirmation for goods already QC-passed and dispatched. |
 | In-Transit Tracking | PASS | Invoice creation is tied to successful confirmation that removes the specific Delivery Order from virtual `IN_TRANSIT`. |
 | Auth & RBAC | PASS | No standalone endpoint; access is inherited from the driver confirm-delivery flow. |
@@ -97,7 +97,7 @@ See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contrac
 |-----------|--------|-------|
 | Layered Architecture | PASS | Auto-invoice logic is isolated in service methods invoked by driver delivery confirmation. |
 | Inventory Integrity | PASS | Financial effects share the same transaction as Delivery Order confirmation and inventory decrement. |
-| FIFO Batch Selection | PASS | Invoice uses stored item price/quantity snapshots and does not re-plan stock. |
+| Batch Candidate Ordering | PASS | Invoice uses stored item price/quantity snapshots and does not re-plan stock. |
 | QC Gate & Quarantine | PASS | Invoice cannot be created before successful full POD + OTP confirmation. |
 | In-Transit Tracking | PASS | Creation aligns with the exact Delivery Order removed from virtual `IN_TRANSIT`. |
 | Auth & RBAC | PASS | No public mutation endpoint is introduced for this feature. |

@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin/zone hợp lệ trong kho, sắp theo FIFO cho domain đồ gia dụng không quản lý hạn sử dụng; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt theo item/allocation/batch/location/zone. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và cộng công nợ cho Đại lý; thông báo kế toán và xử lý thanh toán/cấn trừ công nợ thuộc các luồng riêng.
+Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin/zone hợp lệ trong kho, được sắp theo ngày nhận lô từ cũ đến mới để dễ tra cứu nhưng không bắt buộc xuất lô cũ trước; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt theo item/allocation/batch/location/zone. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và cộng công nợ cho Đại lý; thông báo kế toán và xử lý thanh toán/cấn trừ công nợ thuộc các luồng riêng.
 
 ## Clarifications
 
@@ -35,7 +35,7 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | Actor          | Vai trò | Nghiệp vụ liên quan                                                                                                                                                              |
 | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Planner        | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                                                                                       |
-| Thủ kho        | Maker/Checker | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound, chọn hàng thay thế khi QC fail, duyệt số lượng/chất lượng hàng hoàn và lập kế hoạch cất hàng hoàn |
+| Thủ kho        | Maker/Checker | Lập kế hoạch lấy hàng, chọn tự do một hoặc nhiều batch/bin/zone hợp lệ từ danh sách sắp theo ngày nhận cũ đến mới trong kho được gán, phê duyệt chất lượng outbound, chọn hàng thay thế khi QC fail, duyệt số lượng/chất lượng hàng hoàn và lập kế hoạch cất hàng hoàn |
 | Nhân viên kho  | Maker   | Lấy hàng thực tế theo kế hoạch trong kho được gán, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC/không đạt QC theo từng item/allocation/batch/location/zone, đếm/QC hàng hoàn và xác nhận cất hàng hoàn |
 | Dispatcher     | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                                                                                            |
 | Tài xế         | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại                                                               |
@@ -262,8 +262,18 @@ _Out of scope for this feature group implementation: payment receipt, payment ap
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
 - `attempt_number` (INTEGER, NOT NULL)
 - `status` (VARCHAR(30), DEFAULT 'PENDING', CHECK IN ('PENDING','IN_TRANSIT','DELIVERED','FAILED','RETURNED'))
-- `pod_image_url` (VARCHAR(500))
-- `pod_signature_url` (VARCHAR(500))
+- `goods_image_object_key` (VARCHAR(500)) -- backend-generated relative path under the configured persistent VPS POD root
+- `goods_image_original_filename` (VARCHAR(255))
+- `goods_image_content_type` (VARCHAR(100))
+- `goods_image_size_bytes` (BIGINT)
+- `goods_image_uploaded_at` (TIMESTAMPTZ)
+- `signed_document_object_key` (VARCHAR(500)) -- backend-generated relative path under the configured persistent VPS POD root
+- `signed_document_original_filename` (VARCHAR(255))
+- `signed_document_content_type` (VARCHAR(100))
+- `signed_document_size_bytes` (BIGINT)
+- `signed_document_uploaded_at` (TIMESTAMPTZ)
+- `pod_image_url` (VARCHAR(500), legacy; SHALL remain unused for new POD uploads)
+- `pod_signature_url` (VARCHAR(500), legacy; SHALL remain unused for new POD uploads)
 - `pod_timestamp` (TIMESTAMPTZ)
 - `otp_verified_at` (TIMESTAMPTZ) -- chỉ lưu thời điểm xác thực thành công; không lưu raw OTP trong bản ghi POD
 - `failure_reason` (TEXT)
@@ -307,7 +317,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Delivery order creation SHALL calculate warehouse-level availability from valid regular quality-passed inventory as `sum(inventories.total_qty - inventories.reserved_qty) - warehouse_product_reservations.reserved_qty` for each requested warehouse/product pair.
 - Delivery order creation SHALL reserve requested product quantity on `delivery_order_items.reserved_qty` and `warehouse_product_reservations.reserved_qty` at the selected warehouse and SHALL NOT update `inventories.reserved_qty`, `batch_id`, `location_id`, or `zone_id`.
 - Delivery order creation SHALL create or update its `warehouse_product_reservations` rows in the same transaction as the availability check to prevent oversell across concurrent Planner requests.
-- Storekeeper picking plan SHALL assign the Delivery Order item reserved quantities to one or more concrete batch/bin/zone rows from the FIFO-ranked valid regular inventory list, decrease the matching `warehouse_product_reservations.reserved_qty`, and increase affected `inventories.reserved_qty` with version checks before moving the Delivery Order from `NEW` to `WAITING_PICKING`.
+- Storekeeper picking plan SHALL assign the Delivery Order item reserved quantities to one or more concrete batch/bin/zone rows from the valid regular inventory list, which is displayed by received date ascending. The Storekeeper MAY select any valid rows regardless of their display position; the system SHALL NOT reject a plan merely because older stock was skipped. Saving SHALL decrease the matching `warehouse_product_reservations.reserved_qty` and increase affected `inventories.reserved_qty` with version checks before moving the Delivery Order from `NEW` to `WAITING_PICKING`.
 - Storekeeper picking plan SHALL validate that total allocation quantity for each Delivery Order item equals the requested quantity before saving.
 - Storekeeper picking plan changes while the Delivery Order is `WAITING_PICKING` SHALL release removed concrete reservations, reserve newly selected concrete inventory, and keep every item fully allocated to its requested quantity.
 - Picking plan changes after warehouse staff has recorded picked/QC results SHALL use the same picking-plan update request with `returnToBinRecords` payload, return picked goods from changed picked allocations to their original batch/bin/location/zone, and create `PICKED_GOODS_RETURN_TO_BIN` audit entries before the revised plan is saved.
@@ -324,6 +334,14 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Outbound trip creation SHALL set `trip_type = 'DELIVERY'` and require at least one selected Delivery Order.
 - Trip creation SHALL require all selected Delivery Orders to be `WAREHOUSE_APPROVED`, belong to the same warehouse, not be assigned to another active trip, and fit within the selected vehicle weight capacity.
 - Trip creation/update SHALL validate volume only when the selected vehicle has `max_volume_m3` configured; if `max_volume_m3` is null, backend SHALL skip volume validation and validate weight only.
+- When one `WAREHOUSE_APPROVED` Delivery Order exceeds one vehicle capacity, Dispatcher MAY create one active split delivery plan that assigns the whole Delivery Order quantity across two or more ready vehicles/drivers in one request.
+- Split delivery planning SHALL require full item allocation, unique vehicle/driver/stop order per leg, same warehouse scope, per-leg capacity validation, and a lead driver that belongs to one of the split legs.
+- Split delivery departure SHALL require every assigned split driver to confirm readiness first; only the lead driver may confirm coordinated departure, and all split leg trips SHALL move to `IN_TRANSIT` together in one transaction.
+- If any split vehicle or driver becomes unavailable before departure, Dispatcher MAY update the planned split delivery plan with a ready replacement. If no valid replacement is available, the system SHALL return a wait-for-ready-resource business error and SHALL NOT depart a partial split plan.
+- Every active split leg driver SHALL confirm arrival at the dealer before handover can begin. Every active split leg SHALL then confirm handover before the lead driver can upload the shared POD evidence or request the Delivery Order OTP.
+- A split Delivery Order SHALL use one complete POD evidence pair and one OTP owned by its lead driver. Replacing POD evidence SHALL replace the complete pair and expire any unverified `PENDING`, `ACTIVE`, or `SEND_FAILED` OTP for that delivery attempt; a `LOCKED` OTP SHALL remain locked.
+- If any split leg reports delivery failure, the whole split Delivery Order SHALL fail and enter the returned-goods flow; partial successful delivery of the same Delivery Order is not supported.
+- OTP verification SHALL confirm the Delivery Order once and SHALL NOT automatically release all split vehicles or drivers. Each assigned driver SHALL complete their own split-leg trip through the existing trip completion flow after returning.
 - Dispatcher trip creation/update SHALL require Dispatcher, vehicle, and driver to belong to the trip warehouse; vehicle and driver SHALL be `AVAILABLE` and not assigned to another active trip.
 - Planned trips MAY be updated for vehicle, driver, planned date, notes, Delivery Order list, and stop order; when `deliveryOrders[]` is provided, it SHALL be treated as the final revised Delivery Order list and SHALL replace the existing list. Adding/removing Delivery Orders SHALL re-run same-warehouse, active-trip, status, vehicle/driver availability, and capacity validations against the final revised list. Active-trip validation SHALL ignore the current trip being updated and reject only assignments belonging to another active trip. The final revised list SHALL contain at least one Delivery Order; to remove every Delivery Order, Dispatcher SHALL cancel the trip instead.
 - Planned trips MAY be cancelled with a reason. Updates and cancellation SHALL be rejected after departure. Cancellation SHALL keep historical `vehicle_id` and `driver_id` on the trip record, but vehicle/driver SHALL no longer be treated as actively assigned to that cancelled trip.
@@ -349,7 +367,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 
 - Happy path SHALL be: `NEW` → `WAITING_PICKING` → `QC_PENDING_APPROVAL` → `QC_COMPLETED` → `WAREHOUSE_APPROVED` → `IN_TRANSIT` → `COMPLETED` → `CLOSED`.
 - A newly created Delivery Order SHALL start in `NEW`.
-- Storekeeper planning SHALL choose one or more batch/bin/zone allocations from valid regular quality-passed stock in the assigned warehouse, ranked by oldest received date first using FIFO.
+- Storekeeper planning SHALL show valid regular quality-passed batch/bin/zone allocations in the assigned warehouse ordered by oldest received date first. This ordering is for display and default suggestion only; Storekeeper MAY choose any valid batch/bin/zone and backend SHALL NOT enforce FIFO consumption.
 - Storekeeper planning SHALL NOT require expiry date or FEFO selection because the current household-goods domain does not track expiry.
 - After storekeeper saves a complete picking plan from `NEW`, the Delivery Order SHALL move directly to `WAITING_PICKING`.
 - While a Delivery Order is `WAITING_PICKING`, the storekeeper MAY change the picking plan if each item remains fully allocated and no picked/QC result has been recorded for the changed allocations.
@@ -363,6 +381,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Warehouse manager approval SHALL accept optional `notes`, create `DELIVERY_ORDER_WAREHOUSE_APPROVE` audit with before/after state, and move the Delivery Order to `WAREHOUSE_APPROVED`, making it eligible for dispatcher trip planning.
 - Dispatcher trip planning SHALL only group Delivery Orders from the same warehouse, SHALL require the Dispatcher, vehicle, and driver to belong to that warehouse, SHALL prevent assigning a Delivery Order to more than one active trip, and SHALL validate vehicle capacity before creating or updating a trip.
 - Dispatcher MAY update or cancel a trip only while the trip is `PLANNED`; updates MAY add/remove Delivery Orders by submitting the final revised Delivery Order list and SHALL re-run all trip validations while ignoring the current trip for active-trip checks. Cancellation keeps Delivery Orders in `WAREHOUSE_APPROVED`, keeps historical vehicle/driver references, and releases vehicle/driver from active assignment.
+- Dispatcher split delivery planning SHALL keep the Delivery Order in `WAREHOUSE_APPROVED` until coordinated departure and SHALL create one planned leg trip per vehicle for the same Delivery Order.
 - Assigned driver departure SHALL move the trip and Delivery Orders to `IN_TRANSIT`, move staged goods to virtual In-Transit inventory, create delivery attempts in `IN_TRANSIT`, and mark vehicle/driver `ON_TRIP`.
 - Warehouse manager rejection SHALL move the Delivery Order to `REJECTED`; the flow ends and any later outbound attempt for the same business request must use a new Delivery Order.
 - Dealer refusal at delivery SHALL move the Delivery Order to `RETURNED`; the goods remain in virtual In-Transit inventory until the separate return flow receives, counts, quality-checks, approves, plans putaway, and completes putaway for them.
@@ -370,6 +389,11 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - When Storekeeper approves returned quantity/quality and creates a returned-goods putaway plan, the Delivery Order SHALL remain `RETURNED`; the plan SHALL define the destination warehouse location where returned goods must be stored.
 - When warehouse staff confirms the returned goods were put away successfully according to the Storekeeper plan, the separate return flow SHALL move the Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
 - After successful POD + OTP confirmation, the system SHALL auto-create invoice/receivable and move the Delivery Order directly to `COMPLETED`.
+- POD image binaries SHALL be stored in a configurable persistent local-storage root on the VPS, outside the application release directory; the database SHALL retain only backend-generated relative storage paths and image metadata.
+- The POD storage root SHALL persist across restart and redeployment, SHALL be covered by VPS backup/restore procedures, and SHALL NOT be exposed through an unauthenticated static-resource route.
+- Authorized POD viewing SHALL stream image bytes through the backend after applying the same role and warehouse-scope checks as Delivery Order detail; absolute VPS filesystem paths SHALL never be returned.
+- When an authorized user opens a `COMPLETED` or `CLOSED` Delivery Order detail, the system SHALL show a read-only `Bằng chứng giao hàng` section containing exactly the `goodsImage` and `signDocumentImage` accepted on the successful `DELIVERED` attempt, labelled `Ảnh hàng đã giao` and `Ảnh phiếu giao hàng có chữ ký`.
+- The Delivery Order detail SHALL load both POD images through authenticated backend image endpoints, allow each preview to open in a larger viewer, retry failed image requests, and keep the remaining order detail usable when evidence loading fails.
 - The Delivery Order SHALL move to `CLOSED` only when a separate finance/payment flow confirms the invoice receivable has been fully paid and approved.
 
 ### Delivery Lifecycle Rules
@@ -450,6 +474,8 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | DELIVERY_ATTEMPT_NOT_CURRENT | 409  | Request targets an old or terminal delivery attempt                                                                                         |
 | DELIVERY_ALREADY_FINALIZED   | 409  | Delivery attempt is already DELIVERED, FAILED, or RETURNED                                                                                  |
 | POD_FILE_INVALID             | 400  | POD file is missing, not an image, or larger than 5MB                                                                                       |
+| POD_EVIDENCE_NOT_FOUND       | 404  | The completed Delivery Order has no complete POD pair on its successful delivered attempt                                                   |
+| POD_STORAGE_UNAVAILABLE      | 503  | The configured persistent POD storage root is unavailable or not writable                                                                  |
 | DEALER_EMAIL_MISSING         | 422  | Dealer profile has no email for delivery OTP                                                                                                |
 | OTP_NOT_REQUESTED            | 400  | Delivery confirmation is attempted before OTP is requested                                                                                  |
 | OTP_STILL_ACTIVE             | 409  | Driver requested resend while the current OTP is still valid                                                                                |
@@ -471,7 +497,7 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 - Every outbound mutation SHALL create an audit log with `actor`, `role`, `warehouse_id`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `DELIVERY_ORDER_CREATE`: create DO and reserve requested product quantity on Delivery Order items plus `warehouse_product_reservations` at warehouse level; final batch/bin/location/zone is selected by Storekeeper during picking planning.
 - `DELIVERY_ORDER_CANCEL`: cancel DO before warehouse approval and release aggregate and/or concrete inventory reservation according to current lifecycle status.
-- `PICKING_PLAN_SAVE`: storekeeper selects one or more batch/bin/zone allocations from FIFO-ranked valid regular inventory and moves DO from `NEW` to `WAITING_PICKING`, or changes the plan while DO remains `WAITING_PICKING`.
+- `PICKING_PLAN_SAVE`: storekeeper selects one or more valid batch/bin/zone allocations from a list displayed by received date ascending, without mandatory FIFO consumption, and moves DO from `NEW` to `WAITING_PICKING`, or changes the plan while DO remains `WAITING_PICKING`.
 - `PICKED_GOODS_RETURN_TO_BIN`: storekeeper changes a picking plan after picked/QC results have been recorded, or warehouse manager rejects outbound after QC; the system records picked goods returned to their original batch/bin/location/zone before applying the revised plan or closing the rejection.
 - `DELIVERY_ORDER_PICK_COMPLETE`: warehouse staff records picked, QC pass, and QC fail quantities.
 - `OUTBOUND_QC_FAIL_QUARANTINE`: move failed quantity to quarantine, create quarantine record, create `QC_FAIL_OUTBOUND` inventory adjustment with negative quantity against regular source inventory, and decrease valid regular inventory.

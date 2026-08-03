@@ -1,40 +1,6 @@
 package com.wms.controller.order_fulfillment;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
@@ -53,10 +19,13 @@ import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.access_control.User;
-import com.wms.service.user_context.CurrentUserService;
+import com.wms.entity.order_fulfillment.Delivery;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.service.order_fulfillment.DeliveryOrderService;
-import io.swagger.v3.oas.annotations.media.Content;
+import com.wms.service.user_context.CurrentUserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -105,9 +74,10 @@ public class DeliveryOrderController {
     @GetMapping("/{id}/picking-candidates")
     @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(
-            summary = "Get FIFO picking candidates for each item in the delivery order",
-            description = "Returns available inventory rows ordered by FIFO (receivedDate ASC) "
-                    + "for each DO item, grouped by DO item ID. "
+            summary = "Get date-ranked picking candidates for each delivery order item",
+            description = "Returns available inventory rows ordered by receivedDate ASC for display only; "
+                    + "Storekeeper may select any valid row regardless of its position in the list. "
+                    + "Candidates are grouped by DO item ID. "
                     + "Only available when the delivery order status is NEW, WAITING_PICKING, or QC_PENDING_APPROVAL."
     )
     @ApiResponses({
@@ -127,7 +97,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "201", description = "Delivery order created"),
             @ApiResponse(responseCode = "400", description = "Invalid request payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Planner is not assigned to the selected warehouse", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Credit hold or insufficient stock", content = @Content)
+            @ApiResponse(responseCode = "422", description = "Credit hold, insufficient stock, PRODUCT_WEIGHT_MISSING, or DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY", content = @Content)
     })
     public DeliveryOrderResponse createDeliveryOrder(@Valid @RequestBody DeliveryOrderCreateRequest request) {
         return deliveryOrderService.createDeliveryOrder(request, currentUser());
@@ -141,7 +111,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid update payload or delivery date", content = @Content),
             @ApiResponse(responseCode = "403", description = "Planner is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Delivery order cannot be updated after picking planning starts", content = @Content)
+            @ApiResponse(responseCode = "422", description = "Update forbidden, PRODUCT_WEIGHT_MISSING, or DELIVERY_ORDER_EXCEEDS_WAREHOUSE_FLEET_CAPACITY", content = @Content)
     })
     public DeliveryOrderResponse updateDeliveryOrder(@PathVariable Long id,
                                                      @Valid @RequestBody DeliveryOrderUpdateRequest request) {
@@ -179,7 +149,7 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "409", description = "Inventory, reservation, allocation, or Delivery Order concurrent modification conflict", content = @Content),
             @ApiResponse(responseCode = "422",
                     description = "Picking-plan business rule violation such as PICKING_PLAN_QTY_MISMATCH, "
-                            + "FIFO_VIOLATION, PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
+                            + "PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
                     content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickingPlan(@PathVariable Long id,

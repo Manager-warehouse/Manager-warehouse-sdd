@@ -2,7 +2,7 @@
 
 ## 1. Bối cảnh và mục tiêu
 
-Planner nhận lệnh điều chuyển từ Công ty mẹ, bộ phận điều phối trung tâm hoặc từ một `TRQ` đã được CEO duyệt. Planner nhập phiếu `TRF-*` trong màn **Điều chuyển nội bộ** tại `/inter-warehouse-transfers` để kho nguồn kiểm tra tồn, phê duyệt và thực thi.
+Planner nhận lệnh điều chuyển từ Công ty mẹ, bộ phận điều phối trung tâm hoặc từ một `TRQ` đã được Quản lý kho nguồn duyệt và giữ hàng. Planner nhập hoặc chốt phiếu `TRF-*` trong màn **Điều chuyển nội bộ** tại `/inter-warehouse-transfers` để dispatcher lập chuyến và kho nguồn thực thi.
 
 Công ty mẹ không phải user trong hệ thống ở Sprint 1. Hệ thống không tự gợi ý điều chuyển theo tồn kho và không cho kho tự ý xuất hàng nếu chưa có lệnh điều phối hợp lệ hoặc `TRQ` đã duyệt.
 

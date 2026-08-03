@@ -19,6 +19,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import PickingListTable from '../../components/warehouse/PickingListTable';
 import DeliveryOrderPickingPlanEditor from '../../components/warehouse/DeliveryOrderPickingPlanEditor';
+import PodEvidenceSection from '../../components/outbound/PodEvidenceSection';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
@@ -1137,6 +1138,8 @@ export default function DeliveryOrderDetail() {
           </p>
         </div>
       )}
+
+      <PodEvidenceSection deliveryOrderId={id} status={currentStatus} />
 
       <div>
         <div className="flex items-center justify-between mb-4">

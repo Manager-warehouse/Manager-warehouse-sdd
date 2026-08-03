@@ -6,7 +6,7 @@
 
 ## Summary
 
-Driver users work from a mobile-focused trip view to upload POD evidence, request and confirm a dealer OTP, record dealer refusal, and complete the trip after vehicle return. Successful OTP confirmation must update the current delivery attempt, consume the OTP, decrease virtual `IN_TRANSIT` inventory only for the confirmed Delivery Order, auto-create invoice and receivable records, and move that Delivery Order to `COMPLETED` in one transaction. Failed delivery keeps goods in virtual `IN_TRANSIT`, while trip completion only releases the operational trip after every assigned Delivery Order is `COMPLETED` or `RETURNED`. A returned Delivery Order moves to `DELIVERY_FAILED` only after the separate warehouse return flow completes Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation. Storekeeper QC rejection sends the flow back to staff rework with a rejection reason.
+Driver users work from a mobile-focused trip view to upload POD evidence, request and confirm a dealer OTP, record dealer refusal, and complete the trip after vehicle return. For one Delivery Order split across multiple vehicles, all leg drivers confirm dealer arrival before any handover, all legs confirm handover before the lead driver can use the one shared POD/OTP flow, and failure of any leg returns the whole Delivery Order. Replacing the complete POD pair invalidates the current usable OTP; email failure persists `SEND_FAILED` for immediate retry. Successful OTP confirmation updates the one current delivery attempt, consumes the OTP, decreases virtual `IN_TRANSIT` inventory only once, auto-creates invoice and receivable records, and moves the Delivery Order to `COMPLETED` without releasing vehicles. Each split-leg driver later completes their own trip to release only their vehicle and driver.
 
 The driver mobile entry list must now use neutral transport wording rather than delivery-only wording. It must show both assigned `DELIVERY` and `TRANSFER` trips, label each card as `Giao dai ly` or `Dieu chuyen noi bo`, and provide three filters: `Tat ca`, `Noi bo`, and `Dai ly`. Delivery cards continue into the POD/OTP flow in this feature; transfer cards continue into the Spec 005 transfer departure/arrival/handover flow.
 
@@ -16,7 +16,7 @@ The driver mobile entry list must now use neutral transport wording rather than 
 
 **Primary Dependencies**: Spring Boot 3.4.5, Spring Data JPA/Hibernate, Jakarta Validation, Spring Security JWT/RBAC, multipart upload support, mail delivery support, OpenAPI/Swagger.
 
-**Storage**: PostgreSQL 18 with existing `deliveries`, `delivery_otp_attempts`, `trips`, and outbound inventory tables plus Flyway migration for any missing attempt, OTP-lock, POD-note, or invoice-link support fields.
+**Storage**: PostgreSQL 18 stores Delivery/OTP records plus relative POD paths and metadata. POD image binaries are stored under a configurable persistent local-storage root on the VPS, outside the application release directory and covered by backup/restore procedures.
 
 **Testing**: JUnit 5 + Mockito for driver assignment, OTP lifecycle, POD validation, delivery confirmation, failure, and trip completion rules; Spring controller integration tests for driver/mobile and admin reset endpoints; frontend/mobile tests only if a dedicated driver UI is implemented in scope.
 
@@ -26,7 +26,7 @@ The driver mobile entry list must now use neutral transport wording rather than 
 
 **Performance Goals**: POD upload validation should reject invalid files before storage, OTP request/confirm should run without extra attempt lookups, and delivery confirmation should commit inventory, OTP, invoice, receivable, and status updates in one transaction.
 
-**Constraints**: Driver may only act on trips assigned to their own driver profile. Sprint 1 uses full Delivery Order delivery only and never uses `OUT_FOR_DELIVERY`. OTP is always backend-generated, exactly 6 digits, valid for 5 minutes, and stored only as a hash/verifier. Only one active OTP row exists per current delivery attempt. Returned goods remain in virtual `IN_TRANSIT` until a separate return flow handles Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation. Every mutation requires audit logs and optimistic locking on inventory updates.
+**Constraints**: Driver may only act on trips or split legs assigned to their own driver profile. Sprint 1 uses full Delivery Order delivery only and never uses `OUT_FOR_DELIVERY`. A split Delivery Order has one current attempt, one shared POD pair, and one OTP row; only the lead driver can mutate POD/OTP after all legs hand over. POD paths must remain under the configured persistent VPS storage root, and image reads must pass Delivery Order authorization instead of using public static URLs. OTP is backend-generated, exactly 6 digits, valid for 5 minutes, stored only as a hash/verifier, and `SEND_FAILED` is immediately retryable on the same row. Returned goods remain in virtual `IN_TRANSIT` until the separate return flow completes. Every mutation requires audit logs and optimistic locking on inventory updates.
 
 **Driver Trip List UX Constraint**: `GET /api/v1/trips/driver` remains a read-only list endpoint. It must expose or normalize `tripType`, `tripTypeLabel`, and type-specific summary fields so the frontend can filter locally without causing audit or state changes. If server-side filtering by trip type is later added, it must remain semantically equivalent to the same client-side filters.
 
@@ -40,7 +40,7 @@ The driver mobile entry list must now use neutral transport wording rather than 
 |-----------|--------|-------|
 | Layered Architecture | PASS | Driver/mobile controllers stay thin, service owns POD/OTP/delivery workflow, repositories remain persistence-only. |
 | Inventory Integrity | PASS | Successful delivery decreases virtual `IN_TRANSIT` rows in one transaction with optimistic locking and non-negative checks. |
-| FIFO Batch Selection | PASS | This feature consumes already dispatched `IN_TRANSIT` stock and does not alter FIFO planning policy. |
+| Batch Candidate Ordering | PASS | This feature consumes already dispatched `IN_TRANSIT` stock and does not alter Storekeeper batch choice. |
 | QC Gate & Quarantine | PASS | Only QC-passed dispatched goods are delivered; failed goods remain outside this flow in quarantine. |
 | In-Transit Tracking | PASS | Delivery success and failure operate strictly on current attempts and virtual `IN_TRANSIT` inventory. |
 | Auth & RBAC | PASS | Driver endpoints are trip-assignment scoped and admin reset stays role-gated. |
@@ -114,6 +114,8 @@ frontend/
 
 **Structure Decision**: Implement a dedicated driver-delivery service around the existing `Delivery`, `DeliveryOtpAttempt`, and trip aggregates. Driver/mobile endpoints should live alongside trip endpoints, while admin OTP reset uses a separate admin-facing controller to keep driver-assignment and admin-reset concerns distinct.
 
+Split delivery milestones remain owned by `SplitDeliveryPlanService`: each assigned leg driver confirms dealer arrival and handover for their own leg, while `DriverDeliveryService` enforces the all-handover gate and lead-driver rule before shared POD/OTP actions. Existing per-trip completion remains the vehicle-return command for each split leg, so no duplicate split-return endpoint is introduced.
+
 ## Phase 0: Research Summary
 
 See [research.md](research.md).
@@ -128,7 +130,7 @@ See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contrac
 |-----------|--------|-------|
 | Layered Architecture | PASS | Contracts and data model map cleanly to Controller -> Service -> Repository -> Entity. |
 | Inventory Integrity | PASS | Successful delivery only decrements virtual `IN_TRANSIT` rows for the confirmed Delivery Order and keeps all updates version-safe. |
-| FIFO Batch Selection | PASS | Design consumes dispatched stock only and does not weaken earlier FIFO allocation rules. |
+| Batch Candidate Ordering | PASS | Design consumes dispatched stock only and does not introduce received-date allocation enforcement. |
 | QC Gate & Quarantine | PASS | POD flow never bypasses outbound QC or quarantine semantics. |
 | In-Transit Tracking | PASS | Current delivery attempt, OTP lifecycle, and trip completion all remain anchored to `IN_TRANSIT` tracking. |
 | Auth & RBAC | PASS | Driver endpoints remain assignment-scoped and admin reset remains separately role-gated. |

@@ -4,7 +4,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
-import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X, RefreshCw, AlertCircle, Camera } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 
@@ -27,6 +27,7 @@ const QuarantineWorkspace = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [actionNotes, setActionNotes] = useState('');
   const [disposalImageUrl, setDisposalImageUrl] = useState('');
+  const [disposalImageFile, setDisposalImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -81,7 +82,14 @@ const QuarantineWorkspace = () => {
     setSelectedItem(item);
     setActionNotes('');
     setDisposalImageUrl('');
+    setDisposalImageFile(null);
     setShowDisposalModal(true);
+  };
+
+  const handleDisposalImageChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setDisposalImageFile(file);
+    setDisposalImageUrl(file ? `local-evidence://${Date.now()}-${file.name}` : '');
   };
 
   const submitRtv = async () => {
@@ -113,9 +121,9 @@ const QuarantineWorkspace = () => {
         ? await inboundService.handleDisposalFromQuarantine(quarantineRecordId, actionNotes, disposalImageUrl)
         : await inboundService.handleDisposal(receiptItemId, actionNotes, disposalImageUrl);
       if (res.autoApproved) {
-        addToast('Đã tiêu hủy sản phẩm thành công (Tự động duyệt do giá trị thấp < 5M)', 'success');
+        addToast('Đã tiêu hủy sản phẩm thành công', 'success');
       } else {
-        addToast('Đã gửi yêu cầu tiêu hủy hàng hỏng lên Trưởng kho/CEO chờ phê duyệt', 'info');
+        addToast('Đã gửi yêu cầu tiêu hủy hàng hỏng lên Warehouse Manager chờ phê duyệt', 'info');
       }
       setShowDisposalModal(false);
       fetchData();
@@ -126,13 +134,7 @@ const QuarantineWorkspace = () => {
     }
   };
 
-  const handleApproveDisposal = async (adjId, value) => {
-    // Check authority: Manager <= 100M, CEO any
-    if (value > 100000000 && !hasRole(ROLES.CEO) && !hasRole(ROLES.ADMIN)) {
-      addToast('Yêu cầu tiêu hủy này vượt quá hạn mức phê duyệt của bạn (>100M VND), phải do CEO duyệt', 'warning');
-      return;
-    }
-
+  const handleApproveDisposal = async (adjId) => {
     setLoading(true);
     try {
       await inboundService.approveDisposal(adjId);
@@ -145,21 +147,7 @@ const QuarantineWorkspace = () => {
     }
   };
 
-  // Finance Threshold Badge Renderer
-  const getDisposalThresholdBadge = (value) => {
-    if (value < 5000000) {
-      return <Badge size="sm" type="success">Tự động duyệt (&lt; 5M)</Badge>;
-    }
-    if (value <= 100000000) {
-      return <Badge size="sm" type="warning">Trưởng kho duyệt (5M - 100M)</Badge>;
-    }
-    return <Badge size="sm" type="danger">Bắt buộc CEO duyệt (&gt; 100M)</Badge>;
-  };
-
-  const getDisposalApprovalAuthority = (value) => {
-    if (value > 100000000) {
-      return hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
-    }
+  const getDisposalApprovalAuthority = () => {
     return hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
   };
 
@@ -340,7 +328,7 @@ const QuarantineWorkspace = () => {
                     const failedQty = adj.failed_qty ?? adj.failedQty ?? 0;
                     const sku = adj.product_sku || adj.productSku || 'N/A';
                     const name = adj.product_name || adj.productName || 'N/A';
-                    const isAuthorized = getDisposalApprovalAuthority(totalVal);
+                    const isAuthorized = getDisposalApprovalAuthority();
                     return (
                       <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
                         <td className="px-6 py-4 font-semibold text-ink">{adj.supplier_name ?? adj.supplierName ?? getSupplierName(adj.supplier_id ?? adj.supplierId)}</td>
@@ -354,13 +342,13 @@ const QuarantineWorkspace = () => {
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
                             <button
-                              onClick={() => handleApproveDisposal(adj.id, totalVal)}
+                              onClick={() => handleApproveDisposal(adj.id)}
                               className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                             >
                               Phê duyệt
                             </button>
                           ) : (
-                            <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
+                            <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                           )}
                         </td>
                       </tr>
@@ -377,7 +365,7 @@ const QuarantineWorkspace = () => {
                 const failedQty = adj.failed_qty ?? adj.failedQty ?? 0;
                 const sku = adj.product_sku || adj.productSku || 'N/A';
                 const name = adj.product_name || adj.productName || 'N/A';
-                const isAuthorized = getDisposalApprovalAuthority(totalVal);
+                const isAuthorized = getDisposalApprovalAuthority();
                 return (
                   <div key={adj.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
                     <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
@@ -395,13 +383,13 @@ const QuarantineWorkspace = () => {
                     <div className="p-4 border-t border-hairline-light flex justify-end">
                       {isAuthorized ? (
                         <button
-                          onClick={() => handleApproveDisposal(adj.id, totalVal)}
+                          onClick={() => handleApproveDisposal(adj.id)}
                           className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                         >
                           Phê duyệt
                         </button>
                       ) : (
-                        <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
+                        <Badge size="sm" type="danger">Chỉ Warehouse Manager duyệt</Badge>
                       )}
                     </div>
                   </div>
@@ -476,10 +464,7 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong>{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Số lượng hủy:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
                 <div><span className="text-shade-50">Tổng trị giá:</span> <strong>{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-shade-50">Thẩm quyền:</span>
-                  {getDisposalThresholdBadge(selectedItem.total_value)}
-                </div>
+                <div><span className="text-shade-50">Người duyệt:</span> <strong>Warehouse Manager</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold">Lý do tiêu hủy (Bắt buộc)</label>
@@ -492,14 +477,24 @@ const QuarantineWorkspace = () => {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="font-bold">Đường dẫn ảnh chụp minh chứng (Không bắt buộc)</label>
+                <label className="font-bold">Ảnh chụp minh chứng (Không bắt buộc)</label>
                 <input
-                  type="text"
-                  placeholder="https://imgur.com/link_anh.jpg"
-                  value={disposalImageUrl}
-                  onChange={(e) => setDisposalImageUrl(e.target.value)}
-                  className="text-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleDisposalImageChange}
+                  className="sr-only"
+                  id="disposal-evidence-image"
                 />
+                <label
+                  htmlFor="disposal-evidence-image"
+                  className="text-input flex cursor-pointer items-center gap-2 text-shade-60"
+                >
+                  <Camera className="h-4 w-4" />
+                  <span className="truncate">
+                    {disposalImageFile ? disposalImageFile.name : 'Chọn ảnh hoặc chụp ảnh'}
+                  </span>
+                </label>
               </div>
             </div>
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">

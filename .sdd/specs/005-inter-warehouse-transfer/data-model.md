@@ -79,9 +79,9 @@ Validation:
 - Bắt buộc có lý do nghiệp vụ trước khi submit.
 - Quản lý kho yêu cầu chỉ được sửa request `DRAFT` trong phạm vi kho đích được phân công.
 - Quản lý kho yêu cầu chỉ được soft-cancel request `DRAFT`; hủy đặt `status = CANCELLED` và không được xóa vật lý request hoặc items.
-- CEO chỉ được approve/reject request `SUBMITTED`.
-- CEO reject bắt buộc có `rejection_reason`.
-- CEO approval không reserve inventory.
+- Quản lý kho nguồn chỉ được approve/reject request `SUBMITTED` trong phạm vi kho nguồn được phân công; Admin được hỗ trợ vận hành khi cần.
+- Quản lý kho nguồn reject bắt buộc có `rejection_reason`.
+- Source approval giữ hàng nguồn ngay bằng reservation FIFO hợp lệ trên `TRF` kỹ thuật đã liên kết với `TRQ`.
 - Chỉ request `APPROVED` mới được convert thành `TRF`.
 - Một request chỉ được convert tối đa thành một transfer đang hoạt động.
 - Cập nhật đồng thời và duplicate conversion race phải fail bằng version/unique-constraint conflict.

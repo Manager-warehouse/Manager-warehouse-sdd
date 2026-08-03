@@ -2,12 +2,12 @@
 
 ## Goal
 
-Implement concrete picking-plan save, picking-plan revision with conditional return-to-bin, and replacement planning for outbound Delivery Orders while preserving FIFO, RBAC, optimistic locking, and audit requirements.
+Implement concrete picking-plan save, picking-plan revision with conditional return-to-bin, and replacement planning for outbound Delivery Orders while preserving received-date display ordering, free valid-batch selection, RBAC, optimistic locking, and audit requirements.
 
 ## Suggested implementation order
 
 1. Add Flyway migrations and JPA entities for `delivery_order_item_allocations`, `delivery_order_item_return_to_bin_records`, and `delivery_order_item_replacements`.
-2. Extend repositories and inventory query helpers to fetch FIFO-ranked valid stock, current allocations, QC records by allocation, and versioned reservation rows.
+2. Extend repositories and inventory query helpers to fetch valid stock ordered by received date ascending for display, current allocations, QC records by allocation, and versioned reservation rows.
 3. Add request DTOs and controller endpoints for:
    - `PUT /api/v1/delivery-orders/{id}/picking-plan`
    - `PUT /api/v1/delivery-orders/{id}/replacement-plan`
@@ -154,7 +154,7 @@ Expected result:
 
 ## Definition of done reminders
 
-- Keep FIFO selection logic explicit and tested.
+- Keep received-date candidate ordering explicit and test that Storekeeper may select a newer valid batch while older stock remains.
 - Document both endpoints in OpenAPI.
 - Ensure all warehouse mutations create audit logs with before/after context.
 - Do not bypass validation or update inventory directly outside the planned outbound mutation flow.

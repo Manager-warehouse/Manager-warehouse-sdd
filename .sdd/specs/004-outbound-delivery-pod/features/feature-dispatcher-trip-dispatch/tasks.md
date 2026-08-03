@@ -133,6 +133,38 @@
 
 ---
 
+## Phase 7: User Story 4 - Dispatcher splits one overloaded Delivery Order across multiple vehicles (Priority: P1)
+
+**Goal**: Dispatcher can allocate one `WAREHOUSE_APPROVED` Delivery Order across multiple ready vehicles/drivers in one coordinated split plan when the order exceeds a single vehicle capacity.
+
+**Independent Test**: Submit a valid `POST /api/v1/split-delivery-plans` request and verify one split plan plus one planned leg trip per vehicle are created, the full Delivery Order quantity is allocated exactly once, all resources are reserved from active assignment, and departure is blocked until every assigned split driver is ready.
+
+### Tests for User Story 4
+
+- [X] T053 [P] [US4] Add controller tests for split create/update/cancel endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
+- [X] T054 [P] [US4] Add controller tests for driver-readiness and split departure endpoints in `backend/src/test/java/com/wms/controller/SplitDeliveryPlanControllerTest.java`
+- [X] T055 [P] [US4] Add service tests for full-allocation, duplicate vehicle/driver, lead-driver, same-warehouse, and active-assignment validation in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T056 [P] [US4] Add service tests for per-leg capacity rejection and unavailable vehicle/driver replacement handling in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+- [X] T057 [P] [US4] Add service tests for all-driver readiness gate and coordinated departure in `backend/src/test/java/com/wms/service/SplitDeliveryPlanServiceImplTest.java`
+
+### Implementation for User Story 4
+
+- [X] T058 [US4] Add split delivery plan Flyway migration in `backend/src/main/resources/db/migration/V60__split_delivery_plans.sql`
+- [X] T059 [P] [US4] Add `SplitDeliveryPlanStatus` enum and split delivery entities in `backend/src/main/java/com/wms/entity/order_fulfillment`
+- [X] T060 [P] [US4] Add split delivery request/response DTOs in `backend/src/main/java/com/wms/dto/request` and `backend/src/main/java/com/wms/dto/response`
+- [X] T061 [P] [US4] Add split delivery repositories in `backend/src/main/java/com/wms/repository`
+- [X] T062 [US4] Add `SplitDeliveryPlanService` contract in `backend/src/main/java/com/wms/service/order_fulfillment/SplitDeliveryPlanService.java`
+- [X] T063 [US4] Implement split plan create/update/cancel validation and planned leg-trip persistence in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T064 [US4] Implement split driver readiness and coordinated lead-driver departure in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T065 [US4] Implement version-safe full Delivery Order staged-to-`IN_TRANSIT` movement and one lead Delivery attempt for split departure in `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T066 [US4] Add split delivery controller endpoints and Swagger metadata in `backend/src/main/java/com/wms/controller/order_fulfillment/SplitDeliveryPlanController.java`
+- [X] T067 [US4] Link regular trip active-assignment checks with active split plans in `backend/src/main/java/com/wms/repository/TripRepository.java` and split repositories
+- [X] T068 [US4] Add split plan audit actions and before/after snapshots in `backend/src/main/java/com/wms/enums/audit_trail/AuditAction.java` and `backend/src/main/java/com/wms/service/order_fulfillment/impl/SplitDeliveryPlanServiceImpl.java`
+- [X] T069 [US4] Update frontend dispatcher trip planning service/UI for overloaded Delivery Order split workflow in `frontend/src/pages/Outbound/TripPlanning.jsx` and `frontend/src/services/outbound.service.js`
+- [X] T070 [US4] Update OpenAPI, quickstart, and parent outbound spec with split delivery planning rules in `.sdd/specs/004-outbound-delivery-pod`
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -143,12 +175,14 @@
 - **Phase 4 US2**: Depends on US1 because planned-trip revision and cancellation build on persisted trip membership and shared active-trip validation.
 - **Phase 5 US3**: Depends on US1 trip creation and on outbound staged inventory from earlier outbound features; completion depends on departure support.
 - **Phase 6 Polish**: Depends on whichever user stories are included in the release scope.
+- **Phase 7 US4**: Depends on US1-US3 trip persistence, capacity validation, active assignment checks, staged inventory movement, and delivery-attempt initialization.
 
 ### User Story Dependencies
 
 - **US1**: First MVP story because it creates the core dispatcher trip-planning flow.
 - **US2**: Depends on US1 trip persistence and shared resource validation.
 - **US3**: Depends on US1 planned trip existence and on upstream warehouse-approved, QC-passed outbound readiness.
+- **US4**: Depends on US1-US3 and applies only when one Delivery Order must be split across multiple vehicles.
 
 ### Parallel Opportunities
 

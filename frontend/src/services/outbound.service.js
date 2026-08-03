@@ -467,6 +467,14 @@ const normalizeTripStop = (stop = {}) => {
       failure_reason: value(attempt, 'failureReason', 'failure_reason'),
       delivered_at: value(attempt, 'deliveredAt', 'delivered_at'),
     } : null,
+    split_plan_id: value(stop, 'splitPlanId', 'split_plan_id'),
+    split_leg_id: value(stop, 'splitLegId', 'split_leg_id'),
+    split_plan_status: value(stop, 'splitPlanStatus', 'split_plan_status'),
+    split_leg_status: value(stop, 'splitLegStatus', 'split_leg_status'),
+    is_split_lead: Boolean(value(stop, 'isSplitLead', 'is_split_lead', false)),
+    readiness_confirmed_at: value(stop, 'readinessConfirmedAt', 'readiness_confirmed_at'),
+    dealer_arrived_at: value(stop, 'dealerArrivedAt', 'dealer_arrived_at'),
+    handover_confirmed_at: value(stop, 'handoverConfirmedAt', 'handover_confirmed_at'),
     failure_reason: value(attempt, 'failureReason', 'failure_reason') || value(stop, 'failureReason', 'failure_reason'),
   };
 };
@@ -523,6 +531,24 @@ const toTripCreatePayload = (data) => ({
   deliveryOrders: data.delivery_orders.map((order, index) => ({
     doId: Number(order.id || order.do_id),
     stopOrder: index + 1,
+  })),
+});
+
+const toSplitDeliveryPlanPayload = (data) => ({
+  doId: Number(data.do_id),
+  leadDriverId: Number(data.lead_driver_id),
+  plannedStartAt: data.planned_start_at,
+  plannedEndAt: data.planned_end_at,
+  legs: data.legs.map((leg, index) => ({
+    vehicleId: Number(leg.vehicle_id),
+    driverId: Number(leg.driver_id),
+    stopOrder: index + 1,
+    items: leg.items.map((item) => ({
+      doItemId: Number(item.do_item_id),
+      productId: Number(item.product_id),
+      batchId: Number(item.batch_id),
+      quantity: Number(item.quantity),
+    })),
   })),
 });
 
@@ -906,7 +932,7 @@ export const outboundService = {
       const order = await outboundService.getDeliveryOrderById(id);
       return buildMockPickingCandidates(order);
     }
-    // Call backend FIFO picking-candidates endpoint — returns Map<doItemId, List<candidate>>
+    // Returns date-ranked candidates grouped by DO item; selection order remains unrestricted.
     const response = await apiClient.get(`/delivery-orders/${id}/picking-candidates`);
     const raw = response.data || {};
     // Normalize camelCase from backend to snake_case used by the editor component
@@ -1418,6 +1444,55 @@ export const outboundService = {
     return normalizeTrip(response.data);
   },
 
+  createSplitDeliveryPlan: async (data) => {
+    if (useMock) {
+      await mockDelay(350);
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      return {
+        id: Date.now(),
+        plan_number: `SDP-${today}-001`,
+        do_id: Number(data.do_id),
+        status: 'PLANNED',
+        ready_driver_count: 0,
+        total_driver_count: data.legs.length,
+      };
+    }
+    const response = await apiClient.post('/split-delivery-plans', toSplitDeliveryPlanPayload(data));
+    return response.data;
+  },
+
+  confirmSplitDriverReadiness: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/driver-readiness`);
+    return response.data;
+  },
+
+  departSplitDeliveryPlan: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/depart`);
+    return response.data;
+  },
+
+  confirmSplitDealerArrival: async (planId, legId) => {
+    const response = await apiClient.put(
+      `/split-delivery-plans/${planId}/legs/${legId}/dealer-arrival`,
+    );
+    return response.data;
+  },
+
+  confirmSplitHandover: async (planId, legId) => {
+    const response = await apiClient.put(
+      `/split-delivery-plans/${planId}/legs/${legId}/handover`,
+    );
+    return response.data;
+  },
+
+  failSplitDeliveryLeg: async (planId, legId, failureReason) => {
+    const response = await apiClient.put(
+      `/split-delivery-plans/${planId}/legs/${legId}/fail-delivery`,
+      { failureReason },
+    );
+    return response.data;
+  },
+
   departTrip: async (id) => {
     if (useMock) {
       await mockDelay();
@@ -1478,6 +1553,15 @@ export const outboundService = {
     const response = await apiClient.post(`/trips/${tripId}/delivery-orders/${doId}/pod-evidence`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return response.data;
+  },
+
+  getPodEvidenceImage: async (doId, evidenceType) => {
+    if (useMock) return new Blob([], { type: 'image/jpeg' });
+    const response = await apiClient.get(
+      `/delivery-orders/${doId}/pod-evidence/${evidenceType}`,
+      { responseType: 'blob' },
+    );
     return response.data;
   },
 
