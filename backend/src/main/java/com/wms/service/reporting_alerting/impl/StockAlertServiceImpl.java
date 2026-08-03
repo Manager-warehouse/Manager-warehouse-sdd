@@ -1,31 +1,30 @@
 package com.wms.service.reporting_alerting.impl;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-
 import com.wms.dto.response.StockAlertResponse;
-import com.wms.enums.notification_delivery.AlertType;
+import com.wms.entity.access_control.User;
+import com.wms.entity.notification_delivery.Notification;
+import com.wms.entity.notification_delivery.StockAlert;
+import com.wms.entity.product_catalog.Product;
+import com.wms.entity.stock_control.WarehouseProductReservation;
+import com.wms.entity.user_configuration.SystemConfig;
+import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.enums.access_control.UserRole;
+import com.wms.enums.notification_delivery.AlertType;
 import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.*;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.NotificationRepository;
+import com.wms.repository.StockAlertRepository;
+import com.wms.repository.SystemConfigRepository;
+import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.WarehouseProductReservationRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.reporting_alerting.StockAlertService;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,11 +33,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

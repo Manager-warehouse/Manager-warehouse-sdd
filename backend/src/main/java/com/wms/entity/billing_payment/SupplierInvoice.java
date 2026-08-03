@@ -1,15 +1,28 @@
 package com.wms.entity.billing_payment;
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
+import com.wms.entity.access_control.User;
+import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.supplier_management.Supplier;
 import com.wms.enums.billing_payment.InvoiceStatus;
-import lombok.*;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "supplier_invoices")
