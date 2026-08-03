@@ -6,7 +6,7 @@ import com.wms.dto.response.WarehouseStockOverviewResponse;
 import com.wms.entity.stock_control.WarehouseProductReservation;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.InventoryRepository;
-import com.wms.repository.ReceiptRepository;
+import com.wms.repository.stock_receiving.ReceiptRepository;
 import com.wms.repository.StockAlertRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;

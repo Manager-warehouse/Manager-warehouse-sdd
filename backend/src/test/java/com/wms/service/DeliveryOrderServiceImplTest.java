@@ -139,7 +139,7 @@ import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.ReturnedDeliveryFlowRepository;
 import com.wms.repository.product_catalog.ProductRepository;
-import com.wms.repository.QuarantineRecordRepository;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
