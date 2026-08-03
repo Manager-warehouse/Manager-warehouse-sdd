@@ -70,6 +70,7 @@ import com.wms.dto.request.*;
 import com.wms.dto.response.*;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.*;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.warehouse_transfer.impl.TransferRequestServiceImpl;
 import com.wms.service.warehouse_transfer.impl.InterWarehouseTransferReceivingService;

@@ -54,6 +54,7 @@ import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ForbiddenReceiptWarehouseException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

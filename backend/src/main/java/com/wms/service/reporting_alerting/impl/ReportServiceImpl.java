@@ -26,6 +26,7 @@ import com.wms.enums.order_fulfillment.TripStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.ReceiptItemRepository;
 import com.wms.service.reporting_alerting.ReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

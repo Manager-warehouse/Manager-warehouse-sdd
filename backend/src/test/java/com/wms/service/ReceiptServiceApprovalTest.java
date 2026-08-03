@@ -64,6 +64,7 @@ import com.wms.dto.request.ReceiptDecisionRequest;
 import com.wms.dto.response.ReceiptActionResponse;
 import com.wms.exception.*;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

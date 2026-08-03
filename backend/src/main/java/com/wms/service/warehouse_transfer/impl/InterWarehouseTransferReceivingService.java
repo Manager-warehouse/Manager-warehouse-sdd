@@ -39,6 +39,7 @@ import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.QuarantineRecordRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;

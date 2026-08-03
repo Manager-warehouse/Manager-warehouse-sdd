@@ -65,6 +65,7 @@ import com.wms.dto.response.CreditNoteResponse;
 import com.wms.dto.response.ReceiptActionResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.*;
+import com.wms.repository.stock_receiving.*;
 import com.wms.repository.dealer_management.DealerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
