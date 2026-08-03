@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle, RefreshCw, Warehouse, HelpCircle, ChevronLe
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import useAuthStore from '../../stores/auth.store';
+import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 
 const LowStockAlerts = () => {
