@@ -41,6 +41,8 @@ const ReceiptList = () => {
   const [recountReason, setRecountReason] = useState("");
   const [submittingApproval, setSubmittingApproval] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
 
   // Edit Count Modal State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -79,14 +81,23 @@ const ReceiptList = () => {
   };
 
   const getPartnerName = (receipt) => {
+    if (!receipt) return "";
     if (receipt.type === "PURCHASE") {
-      const supplier = suppliers.find((s) => s.id === receipt.supplier_id);
+      const supplierId = receipt.supplier_id || receipt.supplierId;
+      const supplier = suppliers.find(
+        (s) => Number(s.id) === Number(supplierId),
+      );
       return supplier
-        ? supplier.company_name
-        : `NCC ID: ${receipt.supplier_id}`;
+        ? supplier.company_name || supplier.companyName
+        : receipt.supplier_name || receipt.supplierName || `NCC ID: ${supplierId || ""}`;
     } else {
-      const dealer = dealers.find((d) => d.id === receipt.dealer_id);
-      return dealer ? dealer.name : `Đại lý ID: ${receipt.dealer_id}`;
+      const dealerId = receipt.dealer_id || receipt.dealerId;
+      const dealer = dealers.find(
+        (d) => Number(d.id) === Number(dealerId),
+      );
+      return dealer
+        ? dealer.name
+        : receipt.dealer_name || receipt.dealerName || `Đại lý ID: ${dealerId || ""}`;
     }
   };
 
@@ -168,17 +179,6 @@ const ReceiptList = () => {
         receipt.status === "PARTIALLY_APPROVED") &&
       !isPutawayCompleted(receipt) &&
       (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN))
-    ) {
-      return true;
-    }
-    if (
-      (receipt.status === "PENDING_MANAGER_APPROVAL" ||
-        receipt.status === "REVISION_REQUIRED" ||
-        receipt.status === "PENDING_RECEIPT" ||
-        receipt.status === "DRAFT") &&
-      (hasRole(ROLES.PLANNER) ||
-        hasRole(ROLES.WAREHOUSE_MANAGER) ||
-        hasRole(ROLES.ADMIN))
     ) {
       return true;
     }
@@ -331,7 +331,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-danger-100 text-danger-800 border-danger-300"
           >
-            Chờ trả NCC (Đơn bị từ chối)
+            Chờ trả NCC
           </Badge>
         );
       case "RETURNED_TO_SUPPLIER":
@@ -391,6 +391,40 @@ const ReceiptList = () => {
     }
   };
 
+  const getReceiptReasonComment = (receipt) => {
+    if (!receipt) return null;
+    let comment = "";
+    if (receipt.status === "CANCELLED") {
+      comment =
+        receipt.cancellation_reason ||
+        receipt.cancellationReason ||
+        receipt.rejection_reason ||
+        receipt.rejectionReason;
+    } else if (receipt.status === "REVISION_REQUIRED") {
+      comment =
+        receipt.pre_receive_rejection_reason ||
+        receipt.preReceiveRejectionReason ||
+        receipt.rejection_reason ||
+        receipt.rejectionReason ||
+        receipt.notes;
+    } else if (receipt.status === "RECOUNT_REQUIRED") {
+      comment =
+        receipt.recount_reason || receipt.recountReason || receipt.notes;
+    } else if (receipt.status === "REJECTED") {
+      comment =
+        receipt.rejection_reason || receipt.rejectionReason || receipt.notes;
+    }
+    if (!comment || !comment.trim()) return null;
+    return (
+      <span
+        className="block text-[11px] text-danger-700 italic max-w-[220px] truncate mx-auto mt-1"
+        title={comment}
+      >
+        Lý do: {comment}
+      </span>
+    );
+  };
+
   // Approval Handlers
   const handleOpenApproval = async (receiptId) => {
     try {
@@ -398,26 +432,32 @@ const ReceiptList = () => {
       setSelectedReceipt(detail);
       setApprovalNotes("");
       setRejectionReason("");
+      setCancellationReason("");
       setIsRejecting(false);
+      setIsCancelling(false);
       setShowApprovalModal(true);
     } catch (error) {
       addToast("Không thể lấy chi tiết phiếu nhập", "error");
     }
   };
 
-  const handleCancelReceipt = async (receipt) => {
-    const reason = window.prompt(
-      `Nhập lý do hủy phiếu ${receipt.receipt_number}:`,
-    );
-    if (reason === null) return;
+  const handleCancelReceipt = async (receipt, customReason) => {
+    const reason = customReason !== undefined ? customReason : cancellationReason;
+    if (!reason || !reason.trim()) {
+      addToast("Vui lòng nhập lý do hủy phiếu vào ô ghi chú", "warning");
+      return;
+    }
+    setSubmittingApproval(true);
     try {
       await inboundService.cancelReceipt(
         receipt.id,
-        reason,
+        reason.trim(),
         receipt.version || 0,
       );
       addToast(`Đã hủy phiếu nhập kho ${receipt.receipt_number}`, "success");
       setShowApprovalModal(false);
+      setIsCancelling(false);
+      setCancellationReason("");
       fetchData();
     } catch (error) {
       const msg =
@@ -425,6 +465,8 @@ const ReceiptList = () => {
         error.message ||
         "Lỗi khi hủy phiếu nhập kho";
       addToast(msg, "error");
+    } finally {
+      setSubmittingApproval(false);
     }
   };
 
@@ -547,26 +589,35 @@ const ReceiptList = () => {
   };
 
   const getProductName = (item) => {
-    if (item && (item.product_name || item.productName)) {
+    if (!item) return "Sản phẩm";
+    if (item.product_name || item.productName) {
       return item.product_name || item.productName;
     }
-    const productId = typeof item === "object" ? item.product_id : item;
-    return productId === 1
+    const productId = typeof item === "object" && item !== null
+      ? (item.product_id ?? item.productId)
+      : item;
+    return Number(productId) === 1
       ? "Màn hình ASUS ProArt 27K"
       : "Chuột Logitech MX Master 3S";
   };
 
   const getProductSku = (item) => {
-    if (item && item.product_sku) return item.product_sku;
-    const productId = typeof item === "object" ? item.product_id : item;
-    return productId === 1 ? "SKU-PA-001" : "SKU-LOGI-MX3";
+    if (!item) return "";
+    if (item.product_sku || item.productSku) return item.product_sku || item.productSku;
+    const productId = typeof item === "object" && item !== null
+      ? (item.product_id ?? item.productId)
+      : item;
+    return Number(productId) === 1 ? "SKU-PA-001" : "SKU-LOGI-MX3";
   };
 
   const getExpectedQty = (item) =>
     Number(item?.expected_qty ?? item?.expectedQty ?? 0);
 
-  const formatQty = (qty) =>
-    Number(qty || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  const formatQty = (qty) => {
+    const val = Number(qty);
+    if (isNaN(val)) return "0";
+    return val.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  };
 
   const getReceiptItems = (receipt) => receipt?.items || [];
 
@@ -611,7 +662,10 @@ const ReceiptList = () => {
       const detail = await inboundService.getReceiptById(receipt.id);
       setSelectedReceipt(detail);
       setIsRejecting(false);
+      setIsCancelling(false);
       setApprovalNotes("");
+      setCancellationReason("");
+      setRejectionReason("");
       setShowApprovalModal(true);
     } catch (e) {
       addToast("Lỗi xem chi tiết", "error");
@@ -890,21 +944,7 @@ const ReceiptList = () => {
           </button>
         )}
 
-      {(receipt.status === "PENDING_MANAGER_APPROVAL" ||
-        receipt.status === "REVISION_REQUIRED" ||
-        receipt.status === "PENDING_RECEIPT" ||
-        receipt.status === "DRAFT") &&
-        (hasRole(ROLES.PLANNER) ||
-          hasRole(ROLES.WAREHOUSE_MANAGER) ||
-          hasRole(ROLES.ADMIN)) && (
-          <button
-            aria-label="cancel-receipt"
-            onClick={() => handleCancelReceipt(receipt)}
-            className="inline-flex items-center justify-center rounded-full border border-danger-300 bg-danger-50 text-danger-700 hover:bg-danger-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-          >
-            Hủy phiếu
-          </button>
-        )}
+
 
       {(((receipt.status === "APPROVED" ||
         receipt.status === "PARTIALLY_APPROVED") &&
@@ -978,7 +1018,7 @@ const ReceiptList = () => {
         </div>
 
         <div className="mobile-filter-bar md:flex md:flex-wrap md:gap-3 md:w-auto md:justify-end">
-          <div className="w-full sm:w-48">
+          <div className="w-full sm:w-60">
             <Input
               type="select"
               value={statusFilter}
@@ -987,30 +1027,31 @@ const ReceiptList = () => {
                 { value: "ALL", label: "Tất cả trạng thái" },
                 {
                   value: "PENDING_MANAGER_APPROVAL",
-                  label: "Chờ quản lý duyệt",
+                  label: "Chờ quản lý duyệt kế hoạch",
                 },
-                { value: "REVISION_REQUIRED", label: "Cần chỉnh sửa" },
-                { value: "PENDING_RECEIPT", label: "Chờ nhận" },
+                { value: "REVISION_REQUIRED", label: "Cần chỉnh sửa kế hoạch" },
+                { value: "PENDING_RECEIPT", label: "Chờ nhận hàng" },
+                { value: "DRAFT", label: "Đã đếm (Nháp)" },
+                { value: "QC_COMPLETED", label: "Đã kiểm định (QC Đạt)" },
+                { value: "QC_FAILED", label: "QC có hàng lỗi" },
                 {
                   value: "PENDING_STOREKEEPER_REVIEW",
-                  label: "Cho thu kho duyet",
+                  label: "Chờ thủ kho duyệt",
                 },
-                { value: "RECOUNT_REQUIRED", label: "Staff kiểm tra QC lại" },
-                { value: "DRAFT", label: "Đã đếm (Nháp)" },
-                { value: "QC_COMPLETED", label: "Đã QC" },
-                { value: "QC_FAILED", label: "QC có hàng lỗi" },
+                { value: "RECOUNT_REQUIRED", label: "Yêu cầu kiểm QC lại" },
                 { value: "APPROVED", label: "Chờ cất hàng" },
                 {
                   value: "PARTIALLY_APPROVED",
                   label: "Chờ cất phần duyệt",
                 },
-                { value: "PUTAWAY_COMPLETED", label: "Đã nhập kho" },
-                { value: "REJECTED", label: "Từ chối" },
+                { value: "PUTAWAY_COMPLETED", label: "Đã nhập kho (Hoàn tất)" },
                 {
                   value: "RETURN_TO_SUPPLIER_PENDING",
-                  label: "Chờ trả NCC (Bị từ chối)",
+                  label: "Chờ trả hàng NCC",
                 },
-                { value: "RETURNED_TO_SUPPLIER", label: "Đã trả NCC" },
+                { value: "RETURNED_TO_SUPPLIER", label: "Đã trả hàng NCC" },
+                { value: "IN_TRANSIT", label: "Đang trung chuyển nội bộ" },
+                { value: "CANCELLED", label: "Đã hủy" },
               ]}
             />
           </div>
@@ -1060,45 +1101,45 @@ const ReceiptList = () => {
               {/* Desktop/tablet: table view */}
               <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="data-table-grid w-full table-fixed text-left border-collapse">
+                  <table className="data-table-grid w-full min-w-[1080px] table-fixed text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
                         <th
-                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[12%]" : "w-[13%]"}`}
+                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[11%]" : "w-[12%]"}`}
                         >
                           Mã phiếu
                         </th>
                         <th
-                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[21%]" : "w-[24%]"}`}
+                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[18%]" : "w-[22%]"}`}
                         >
                           Đối tác
                         </th>
                         <th
-                          className={`pl-4 pr-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[18%]" : "w-[21%]"}`}
+                          className={`pl-4 pr-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[16%]" : "w-[20%]"}`}
                         >
                           Sản phẩm nhập
                         </th>
                         <th
-                          className={`pl-1 pr-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right ${hasTableActions ? "w-[6%]" : "w-[7%]"}`}
+                          className={`pl-1 pr-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right ${hasTableActions ? "w-[9%]" : "w-[10%]"}`}
                         >
                           SL dự kiến
                         </th>
                         <th
-                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[8%]" : "w-[9%]"}`}
+                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[9%]" : "w-[10%]"}`}
                         >
                           Ngày Nhập Hàng
                         </th>
                         <th
-                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center ${hasTableActions ? "w-[17%]" : "w-[23%]"}`}
+                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center ${hasTableActions ? "w-[15%]" : "w-[22%]"}`}
                         >
                           Trạng thái
                         </th>
                         {hasTableActions && (
-                          <th className="px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-[15%]">
+                          <th className="px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-[19%]">
                             Hành động
                           </th>
                         )}
-                        <th className="px-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-[3%]"></th>
+                        <th className={`px-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center ${hasTableActions ? "w-[3%]" : "w-[4%]"}`}></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
@@ -1118,18 +1159,19 @@ const ReceiptList = () => {
                           <td className="pl-4 pr-2 py-4 text-xs">
                             {renderProductSummary(receipt)}
                           </td>
-                          <td className="pl-1 pr-3 py-4 text-xs text-right font-bold text-ink">
+                          <td className="pl-1 pr-3 py-4 text-xs text-right font-bold text-ink whitespace-nowrap overflow-hidden truncate">
                             {formatQty(getReceiptExpectedQty(receipt))}
                           </td>
                           <td className="px-3 py-4 text-xs text-shade-50 whitespace-nowrap">
                             {receipt.document_date}
                           </td>
-                          <td className="px-3 py-4 text-center">
+                          <td className="px-3 py-4 text-center whitespace-nowrap overflow-hidden truncate">
                             {getStatusBadge(receipt)}
+                            {getReceiptReasonComment(receipt)}
                           </td>
                           {hasTableActions && (
                             <td className="px-3 py-4 text-center">
-                              <div className="flex flex-wrap gap-2 justify-center items-center">
+                              <div className="flex flex-wrap gap-1.5 justify-center items-center">
                                 {renderReceiptActions(receipt, false)}
                               </div>
                             </td>
@@ -1161,7 +1203,10 @@ const ReceiptList = () => {
                       <span className="text-xs font-bold text-ink">
                         {receipt.receipt_number}
                       </span>
-                      {getStatusBadge(receipt)}
+                      <div className="text-right">
+                        {getStatusBadge(receipt)}
+                        {getReceiptReasonComment(receipt)}
+                      </div>
                     </div>
                     <div className="p-4 flex flex-col gap-2 text-xs">
                       <p className="text-shade-50">
@@ -1238,28 +1283,110 @@ const ReceiptList = () => {
                     {selectedReceipt.document_date}
                   </span>
                 </div>
-                {selectedReceipt.approved_at && (
-                  <div className="col-span-2 bg-success-50 border border-success-200 text-success-950 p-2.5 rounded-md flex gap-2 items-center">
-                    <CheckCircle2 className="w-4 h-4 text-success-600 flex-shrink-0" />
-                    <span>
-                      Phiếu đã được duyệt bởi Trưởng kho lúc{" "}
-                      {new Date(selectedReceipt.approved_at).toLocaleString(
-                        "vi-VN",
+                {/* Status Banners & Reasons */}
+                {selectedReceipt.status === "CANCELLED" && (
+                  <div className="col-span-2 bg-shade-20 border border-shade-40 text-shade-90 p-3 rounded-md flex gap-2.5 items-start">
+                    <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-danger-700 block mb-0.5">Phiếu đã bị hủy</span>
+                      <span className="text-xs">
+                        Lý do hủy:{" "}
+                        <strong className="font-semibold">
+                          {selectedReceipt.cancellation_reason ||
+                            selectedReceipt.cancellationReason ||
+                            selectedReceipt.rejection_reason ||
+                            selectedReceipt.rejectionReason ||
+                            "Chưa ghi nhận lý do hủy chi tiết"}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedReceipt.status === "REVISION_REQUIRED" && (
+                  <div className="col-span-2 bg-warning-50 border border-warning-300 text-warning-950 p-3 rounded-md flex gap-2.5 items-start">
+                    <AlertTriangle className="w-4 h-4 text-warning-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-warning-800 block mb-0.5">Yêu cầu chỉnh sửa kế hoạch nhập kho</span>
+                      <span className="text-xs">
+                        Lý do yêu cầu sửa:{" "}
+                        <strong className="font-semibold">
+                          {selectedReceipt.pre_receive_rejection_reason ||
+                            selectedReceipt.preReceiveRejectionReason ||
+                            selectedReceipt.rejection_reason ||
+                            selectedReceipt.rejectionReason ||
+                            selectedReceipt.notes ||
+                            "Cần điều chỉnh lại danh sách sản phẩm hoặc thông tin chứng từ"}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedReceipt.status === "RECOUNT_REQUIRED" && (
+                  <div className="col-span-2 bg-danger-50 border border-danger-300 text-danger-950 p-3 rounded-md flex gap-2.5 items-start">
+                    <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-danger-700 block mb-0.5">Thủ kho yêu cầu kiểm đếm / QC lại</span>
+                      <span className="text-xs">
+                        Lý do yêu cầu:{" "}
+                        <strong className="font-semibold">
+                          {selectedReceipt.recount_reason ||
+                            selectedReceipt.recountReason ||
+                            selectedReceipt.notes ||
+                            "Cần kiểm tra số lượng và chất lượng thực tế"}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedReceipt.status === "REJECTED" && (
+                  <div className="col-span-2 bg-danger-50 border border-danger-300 text-danger-950 p-3 rounded-md flex gap-2.5 items-start">
+                    <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-danger-700 block mb-0.5">Phiếu bị từ chối phê duyệt</span>
+                      <span className="text-xs">
+                        Lý do từ chối:{" "}
+                        <strong className="font-semibold">
+                          {selectedReceipt.rejection_reason ||
+                            selectedReceipt.rejectionReason ||
+                            selectedReceipt.notes ||
+                            "Phiếu không đạt điều kiện nhập kho"}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedReceipt.approved_at && !isNaN(new Date(selectedReceipt.approved_at).getTime()) && (
+                  <div className="col-span-2 bg-success-50 border border-success-200 text-success-950 p-3 rounded-md flex gap-2.5 items-start">
+                    <CheckCircle2 className="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-success-800 block mb-0.5">
+                        Phiếu đã được duyệt bởi Trưởng kho lúc{" "}
+                        {new Date(selectedReceipt.approved_at).toLocaleString("vi-VN")}
+                      </span>
+                      {selectedReceipt.notes && (
+                        <span className="text-xs block">
+                          Ghi chú duyệt: <strong className="font-semibold">{selectedReceipt.notes}</strong>
+                        </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                 )}
-                {selectedReceipt.rejection_reason && (
-                  <div className="col-span-2 bg-danger-50 border border-danger-200 text-danger-950 p-2.5 rounded-md flex gap-2 items-center">
-                    <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0" />
-                    <span>
-                      Bị từ chối duyệt. Lý do:{" "}
-                      <strong className="font-semibold">
-                        {selectedReceipt.rejection_reason}
-                      </strong>
-                    </span>
-                  </div>
-                )}
+
+                {selectedReceipt.notes &&
+                  selectedReceipt.status !== "CANCELLED" &&
+                  selectedReceipt.status !== "REVISION_REQUIRED" &&
+                  selectedReceipt.status !== "RECOUNT_REQUIRED" &&
+                  selectedReceipt.status !== "REJECTED" &&
+                  !selectedReceipt.approved_at && (
+                    <div className="col-span-2 bg-canvas-cream border border-hairline-light p-2.5 rounded-md text-xs">
+                      <span className="text-shade-50 block mb-0.5">Ghi chú phiếu nhập:</span>
+                      <span className="font-medium text-ink">{selectedReceipt.notes}</span>
+                    </div>
+                  )}
               </div>
 
               {/* Items List */}
@@ -1311,19 +1438,25 @@ const ReceiptList = () => {
                               {getProductSku(item)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold">
+                          <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
                             {formatQty(getExpectedQty(item))}
                           </td>
                           {!isAwaitingPreReceiveApproval(selectedReceipt) && (
                             <>
-                              <td className="px-4 py-3 text-right font-semibold">
-                                {item.actual_qty ?? item.actualQty ?? "-"}
+                              <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
+                                {item.actual_qty != null || item.actualQty != null
+                                  ? formatQty(item.actual_qty ?? item.actualQty)
+                                  : "-"}
                               </td>
-                              <td className="px-4 py-3 text-right font-bold text-success-600">
-                                {item.qc_passed_qty ?? item.qcPassedQty ?? "-"}
+                              <td className="px-4 py-3 text-right font-bold text-success-600 whitespace-nowrap">
+                                {item.qc_passed_qty != null || item.qcPassedQty != null
+                                  ? formatQty(item.qc_passed_qty ?? item.qcPassedQty)
+                                  : "-"}
                               </td>
-                              <td className="px-4 py-3 text-right font-bold text-danger-600">
-                                {item.qc_failed_qty ?? item.qcFailedQty ?? "-"}
+                              <td className="px-4 py-3 text-right font-bold text-danger-600 whitespace-nowrap">
+                                {item.qc_failed_qty != null || item.qcFailedQty != null
+                                  ? formatQty(item.qc_failed_qty ?? item.qcFailedQty)
+                                  : "-"}
                               </td>
                               <td className="px-4 py-3">
                                 {item.qc_result ? (
@@ -1356,18 +1489,35 @@ const ReceiptList = () => {
                 </div>
               </div>
 
-              {/* Form Input for approval notes / rejection reason */}
+              {/* Form Input for approval notes / rejection reason / cancellation reason */}
               {(isAwaitingPreReceiveApproval(selectedReceipt) ||
                 selectedReceipt.status === "QC_COMPLETED" ||
                 selectedReceipt.status === "QC_FAILED" ||
-                isRejecting) &&
+                isRejecting ||
+                isCancelling) &&
                 ((isAwaitingPreReceiveApproval(selectedReceipt) &&
                   canPreReceiveApprove) ||
+                  isCancelling ||
                   (!isAwaitingPreReceiveApproval(selectedReceipt) &&
                     (hasRole(ROLES.WAREHOUSE_MANAGER) ||
                       hasRole(ROLES.ADMIN)))) && (
                   <div className="bg-canvas-light p-4 border border-hairline-light rounded-lg shadow-level-3">
-                    {isRejecting ? (
+                    {isCancelling ? (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-danger-700 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Lý do hủy phiếu (Bắt buộc)
+                        </label>
+                        <textarea
+                          value={cancellationReason}
+                          onChange={(e) => setCancellationReason(e.target.value)}
+                          placeholder="Nhập lý do chi tiết hủy phiếu nhập kho này..."
+                          className="text-input text-xs h-20 resize-none border-danger-300 focus:border-danger-500 focus:ring-danger-100"
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    ) : isRejecting ? (
                       <div className="flex flex-col gap-2">
                         <label className="text-xs font-bold text-danger-700 flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
@@ -1429,12 +1579,35 @@ const ReceiptList = () => {
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
-              <button
-                onClick={() => setShowApprovalModal(false)}
-                className="btn-pill btn-pill-outline-light text-xs"
-              >
-                Đóng
-              </button>
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={() => setShowApprovalModal(false)}
+                  className="btn-pill btn-pill-outline-light text-xs"
+                >
+                  Đóng
+                </button>
+                {!isCancelling &&
+                  !isRejecting &&
+                  (selectedReceipt.status === "PENDING_MANAGER_APPROVAL" ||
+                    selectedReceipt.status === "REVISION_REQUIRED" ||
+                    selectedReceipt.status === "PENDING_RECEIPT" ||
+                    selectedReceipt.status === "DRAFT" ||
+                    isAwaitingPreReceiveApproval(selectedReceipt)) &&
+                  (hasRole(ROLES.PLANNER) ||
+                    hasRole(ROLES.WAREHOUSE_MANAGER) ||
+                    hasRole(ROLES.ADMIN)) && (
+                    <button
+                      aria-label="cancel-receipt-modal"
+                      onClick={() => {
+                        setIsCancelling(true);
+                        setIsRejecting(false);
+                      }}
+                      className="btn-pill border border-danger-300 bg-danger-50 text-danger-700 hover:bg-danger-100 text-xs py-1.5 px-4 font-semibold transition-colors"
+                    >
+                      Hủy phiếu
+                    </button>
+                  )}
+              </div>
 
               {canStorekeeperReview(selectedReceipt) && (
                 <div className="flex gap-2">
@@ -1485,86 +1658,99 @@ const ReceiptList = () => {
                   </button>
                 )}
 
-              {false &&
-                (selectedReceipt.status === "DRAFT" ||
-                  selectedReceipt.status === "QC_COMPLETED" ||
-                  selectedReceipt.status === "QC_FAILED") &&
-                (hasRole(ROLES.WAREHOUSE_STAFF) ||
-                  hasRole(ROLES.STOREKEEPER) ||
-                  hasRole(ROLES.WAREHOUSE_MANAGER) ||
-                  hasRole(ROLES.ADMIN)) && (
+              {isCancelling ? (
+                <div className="flex gap-2">
                   <button
-                    onClick={() => handleOpenEditCount(selectedReceipt)}
+                    onClick={() => setIsCancelling(false)}
                     className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4"
                   >
-                    Đếm số lượng
+                    Quay lại
                   </button>
-                )}
-
-              {(isAwaitingPreReceiveApproval(selectedReceipt) ||
-                selectedReceipt.status === "QC_COMPLETED" ||
-                selectedReceipt.status === "QC_FAILED") &&
-                ((isAwaitingPreReceiveApproval(selectedReceipt) &&
-                  canPreReceiveApprove) ||
-                  (!isAwaitingPreReceiveApproval(selectedReceipt) &&
-                    (hasRole(ROLES.WAREHOUSE_MANAGER) ||
-                      hasRole(ROLES.ADMIN)))) && (
-                  <div className="flex gap-2">
-                    {isRejecting ? (
+                  <button
+                    onClick={() => handleCancelReceipt(selectedReceipt, cancellationReason)}
+                    disabled={submittingApproval}
+                    className="btn-pill bg-danger-600 hover:bg-danger-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {submittingApproval ? (
                       <>
-                        <button
-                          onClick={() => setIsRejecting(false)}
-                          className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4"
-                        >
-                          Quay lại
-                        </button>
-                        <button
-                          onClick={submitReject}
-                          disabled={submittingApproval}
-                          className="btn-pill bg-danger-600 hover:bg-danger-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
-                        >
-                          {submittingApproval
-                            ? isAwaitingPreReceiveApproval(selectedReceipt)
-                              ? "Đang gửi..."
-                              : "Đang từ chối..."
-                            : isAwaitingPreReceiveApproval(selectedReceipt)
-                              ? "Gửi yêu cầu chỉnh sửa"
-                              : "Xác nhận từ chối"}
-                        </button>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Đang hủy...
                       </>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => setIsRejecting(true)}
-                          className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
-                        >
-                          {isAwaitingPreReceiveApproval(selectedReceipt)
-                            ? "Yêu cầu chỉnh sửa"
-                            : "Từ chối"}
-                        </button>
-                        <button
-                          onClick={submitApprove}
-                          disabled={submittingApproval}
-                          className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          {submittingApproval ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Đang duyệt...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              {isAwaitingPreReceiveApproval(selectedReceipt)
-                                ? "Duyệt kế hoạch"
-                                : "Duyệt nhập kho"}
-                            </>
-                          )}
-                        </button>
-                      </>
+                      "Xác nhận hủy phiếu"
                     )}
-                  </div>
-                )}
+                  </button>
+                </div>
+              ) : (
+                (isAwaitingPreReceiveApproval(selectedReceipt) ||
+                  selectedReceipt.status === "QC_COMPLETED" ||
+                  selectedReceipt.status === "QC_FAILED") &&
+                  ((isAwaitingPreReceiveApproval(selectedReceipt) &&
+                    canPreReceiveApprove) ||
+                    (!isAwaitingPreReceiveApproval(selectedReceipt) &&
+                      (hasRole(ROLES.WAREHOUSE_MANAGER) ||
+                        hasRole(ROLES.ADMIN)))) && (
+                    <div className="flex gap-2">
+                      {isRejecting ? (
+                        <>
+                          <button
+                            onClick={() => setIsRejecting(false)}
+                            className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4"
+                          >
+                            Quay lại
+                          </button>
+                          <button
+                            onClick={submitReject}
+                            disabled={submittingApproval}
+                            className="btn-pill bg-danger-600 hover:bg-danger-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
+                          >
+                            {submittingApproval
+                              ? isAwaitingPreReceiveApproval(selectedReceipt)
+                                ? "Đang gửi..."
+                                : "Đang từ chối..."
+                              : isAwaitingPreReceiveApproval(selectedReceipt)
+                                ? "Gửi yêu cầu chỉnh sửa"
+                                : "Xác nhận từ chối"}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setIsRejecting(true);
+                              setIsCancelling(false);
+                            }}
+                            className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
+                          >
+                            {isAwaitingPreReceiveApproval(selectedReceipt)
+                              ? "Yêu cầu chỉnh sửa"
+                              : "Từ chối"}
+                          </button>
+                          <button
+                            onClick={submitApprove}
+                            disabled={submittingApproval}
+                            className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {submittingApproval ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Đang duyệt...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                {isAwaitingPreReceiveApproval(selectedReceipt)
+                                  ? "Duyệt kế hoạch"
+                                  : "Duyệt nhập kho"}
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )
+              )}
+
             </div>
           </div>
         </div>
